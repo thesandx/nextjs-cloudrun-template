@@ -11,6 +11,10 @@ on:
   schedule:
     # Mondays 03:17 UTC. Off the hour to avoid GitHub's scheduling stampede.
     - cron: "17 3 * * 1"
+  # On-demand re-run, without needing an empty commit. Useful after enabling
+  # code scanning on a repository, or to re-check a branch against newly
+  # published queries.
+  workflow_dispatch:
 
 permissions:
   contents: read

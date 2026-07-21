@@ -43,14 +43,14 @@ Compromise of either is contained.
 
 ### Pipeline hardening
 
-| Control                                                   | Where                      |
-| --------------------------------------------------------- | -------------------------- |
-| Least-privilege `permissions:` per workflow and job       | `.github/workflows/*`      |
-| `persist-credentials: false` on checkout                  | all workflows              |
-| PR validation requires no cloud credentials               | `pr-validation.yml`        |
-| Provider pinned to this repository by attribute condition | Workload Identity provider |
-| CodeQL on PRs and weekly                                  | `codeql.yml`               |
-| Dependabot on npm, Actions and Docker                     | `dependabot.yml`           |
+| Control                                                    | Where                      |
+| ---------------------------------------------------------- | -------------------------- |
+| Least-privilege `permissions:` per workflow and job        | `.github/workflows/*`      |
+| `persist-credentials: false` on checkout                   | all workflows              |
+| PR validation requires no cloud credentials                | `pr-validation.yml`        |
+| Provider pinned to this repository by attribute condition  | Workload Identity provider |
+| CodeQL on PRs and weekly (needs code scanning — see below) | `codeql.yml`               |
+| Dependabot on npm, Actions and Docker                      | `dependabot.yml`           |
 
 ### Application
 
@@ -67,6 +67,7 @@ The template is a safe default, not a finished security posture. Before producti
 - [ ] Add required reviewers to the `production` GitHub Environment
 - [ ] Enable branch protection on `main`: required checks, required review, no force push
 - [ ] Enable Artifact Registry vulnerability scanning
+- [ ] Confirm CodeQL can actually upload results — code scanning is free on **public** repositories only. On a private repo without GitHub Advanced Security the analysis runs and then fails at the upload step. Buy GHAS or delete `codeql.yml`; do not leave a check permanently red.
 - [ ] Set a billing budget with alerts — cost is a security control against runaway abuse
 - [ ] Decide whether `--allow-unauthenticated` is correct; remove it for internal services
 - [ ] Add rate limiting if any endpoint is expensive or writes data

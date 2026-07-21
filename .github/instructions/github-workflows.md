@@ -6,11 +6,15 @@ Rules for anything under `.github/workflows/`. A broken workflow blocks every co
 
 ## What exists
 
-| Workflow            | Trigger                      | Purpose                                                                                                            |
-| ------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `pr-validation.yml` | PR to `main`, push to `main` | Format, lint, build, typecheck, test, plus a real Docker build and container smoke test. **No cloud credentials.** |
-| `deploy.yml`        | Push to `main`, manual       | Build → push to Artifact Registry → deploy to Cloud Run → verify health. **Keyless via OIDC.**                     |
-| `codeql.yml`        | PR, push to `main`, weekly   | Static security analysis into the Security tab.                                                                    |
+| Workflow            | Trigger                            | Purpose                                                                                                            |
+| ------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `pr-validation.yml` | PR to `main`, push to `main`       | Format, lint, build, typecheck, test, plus a real Docker build and container smoke test. **No cloud credentials.** |
+| `deploy.yml`        | Push to `main`, manual             | Build → push to Artifact Registry → deploy to Cloud Run → verify health. **Keyless via OIDC.**                     |
+| `codeql.yml`        | PR, push to `main`, weekly, manual | Static security analysis into the Security tab.                                                                    |
+
+> **CodeQL needs code scanning enabled, and that is not free on private repositories.** The analysis runs fine, then the upload step fails with `Code scanning is not enabled for this repository`. Code scanning is included for **public** repos; private repos need GitHub Advanced Security.
+>
+> If you generate a private project from this template, either purchase GHAS, or delete `codeql.yml` rather than leaving a permanently red check — a check everyone learns to ignore is worse than no check.
 
 ---
 
