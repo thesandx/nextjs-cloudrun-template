@@ -60,23 +60,29 @@ jobs:
       - name: Verify required configuration
         # Fail fast with an actionable message instead of a confusing auth error
         # 3 minutes into the build.
+        #
+        # Secrets are passed through `env:` rather than interpolated with
+        # ${{ }} directly into the script. Interpolation splices the value into
+        # the shell source before it runs, so any quote or metacharacter in a
+        # secret changes what executes. Reading them as environment variables
+        # keeps them as data. Same rule as in .github/instructions/github-workflows.md.
+        env:
+          WIF_PROVIDER: ${{ secrets.WIF_PROVIDER }}
+          WIF_SERVICE_ACCOUNT: ${{ secrets.WIF_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
           missing=0
-          for var in GCP_PROJECT_ID; do
+          for var in GCP_PROJECT_ID WIF_PROVIDER WIF_SERVICE_ACCOUNT; do
             if [ -z "${!var:-}" ]; then
-              echo "::error::Repository variable ${var} is not set. See cloud/deployment.md."
+              case "$var" in
+                GCP_PROJECT_ID)
+                  echo "::error::Repository variable ${var} is not set. See cloud/deployment.md." ;;
+                *)
+                  echo "::error::Secret ${var} is not set. Run scripts/gcp-bootstrap.sh." ;;
+              esac
               missing=1
             fi
           done
-          if [ -z "${{ secrets.WIF_PROVIDER }}" ]; then
-            echo "::error::Secret WIF_PROVIDER is not set. Run scripts/gcp-bootstrap.sh."
-            missing=1
-          fi
-          if [ -z "${{ secrets.WIF_SERVICE_ACCOUNT }}" ]; then
-            echo "::error::Secret WIF_SERVICE_ACCOUNT is not set. Run scripts/gcp-bootstrap.sh."
-            missing=1
-          fi
           exit $missing
 
       # -----------------------------------------------------------------------
