@@ -35,6 +35,26 @@ pnpm install
 git add pnpm-lock.yaml
 ```
 
+### `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` / `Lockfile failed supply-chain policy check`
+
+```
+lightningcss@1.33.0 was published at ..., within the minimumReleaseAge cutoff
+```
+
+`minimumReleaseAge: 1440` in `pnpm-workspace.yaml` refuses packages published in the last 24 hours — a deliberate defence against compromised versions that get yanked within hours of publication.
+
+The gate applies to **every entry in the lockfile**, including transitive dependencies you never chose. So it fires in three situations:
+
+| Situation                                                                       | Fix                                                                                                                                                    |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A Dependabot PR proposes a brand-new release                                    | Should not happen — `cooldown` in `.github/dependabot.yml` is set above the pnpm window. If it does, the two configs have drifted apart; realign them. |
+| You installed a fresh package locally                                           | pnpm adds it to `minimumReleaseAgeExclude` automatically. Commit that, and prune the entry once the version ages past the window.                      |
+| Someone raised `minimumReleaseAge` above the age of the youngest lockfile entry | Lower it, or regenerate the lockfile — then verify the **Docker build**, not just a local install.                                                     |
+
+Beware a false pass locally: pnpm caches the verification result for a while, so a local `pnpm install --frozen-lockfile` may print `verified Nm ago` without re-checking. `docker build --no-cache` is the honest test.
+
+Never "fix" this by deleting `minimumReleaseAge`. It is a supply-chain control, and the failure is usually telling you something true.
+
 ### `Ignored build scripts: <package>`
 
 pnpm blocks lifecycle scripts from transitive dependencies as a supply-chain control. If the package genuinely needs to build:

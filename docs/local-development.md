@@ -107,7 +107,12 @@ pnpm add <package>              # runtime
 pnpm add -D <package>           # build/test only
 ```
 
-If the package needs a lifecycle script to install, pnpm will block it and tell you. Add it to `allowBuilds` in `pnpm-workspace.yaml` deliberately, and say why in the PR — that block is a supply-chain control, not a nuisance.
+Two pnpm safety nets may stop you, and both are deliberate:
+
+- **`Ignored build scripts`** — the package wants to run an install script. Add it to `allowBuilds` in `pnpm-workspace.yaml` and say why in the PR.
+- **`minimumReleaseAge` violation** — the version is less than 24 hours old. pnpm adds an entry to `minimumReleaseAgeExclude` for you; commit it, and prune it once the version has aged past the window.
+
+Neither is a nuisance to switch off — they are supply-chain controls. See [troubleshooting](./troubleshooting.md#err_pnpm_minimum_release_age_violation--lockfile-failed-supply-chain-policy-check).
 
 Commit the updated `pnpm-lock.yaml`. CI installs with `--frozen-lockfile` and will fail without it.
 
