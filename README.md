@@ -229,6 +229,8 @@ pnpm docker:run
 
 `output: 'standalone'` in `next.config.ts` traces the modules actually reachable at runtime, which is what takes the image from ~1.2 GB to ~65 MB.
 
+> Sizes quoted here are what a registry stores and Cloud Run pulls (`docker save` / `docker image inspect`). Docker Desktop's containerd image store displays the _unpacked_ size instead — around 280 MB for the same image. Both are correct; they measure different things.
+
 **Cloud Run compliance, built in**
 
 - Listens on `$PORT` — never a hardcoded port

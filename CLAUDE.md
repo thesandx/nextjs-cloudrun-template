@@ -49,7 +49,9 @@ Versions below were confirmed working together by a clean install, a full build,
 | Node                 | `>=22.0.0` | `.nvmrc` pins `22.20.0`                  |
 | pnpm                 | `11.15.1`  | Via `packageManager` + corepack          |
 
-**Measured facts:** production image **~64 MB**; container boots and answers `/api/health` in ~2s; responds to `SIGTERM` in ~1s; runs as `uid=1001(nextjs)` on a read-only root filesystem.
+**Measured facts:** production image **~64 MB** as stored and transferred (`docker save`, `docker image inspect .Size` — this is what a registry holds and Cloud Run pulls); container boots and answers `/api/health` in ~2s; responds to `SIGTERM` in ~1s; runs as `uid=1001(nextjs)` on a read-only root filesystem.
+
+> Docker Desktop may display **~278 MB** for the same image. It is not a different image — Desktop's containerd image store reports the _unpacked on-disk_ size, while `docker save` and registries measure the compressed content. Both numbers are real; they measure different things.
 
 ---
 
