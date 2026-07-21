@@ -24,8 +24,10 @@
     "isolatedModules": true,
     "incremental": true,
     "noEmit": true,
-    /* Absolute imports: `@/lib/env` resolves to `./lib/env` */
-    "baseUrl": ".",
+    /* Absolute imports: `@/lib/env` resolves to `./lib/env`.
+       Deliberately no `baseUrl` — it is deprecated (TS5101) and stops working
+       in TypeScript 7. `paths` entries resolve relative to this file, so it
+       was never needed here. */
     "paths": {
       "@/*": ["./*"]
     },
