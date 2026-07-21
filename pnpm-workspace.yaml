@@ -1,0 +1,14 @@
+# pnpm >= 10 blocks lifecycle scripts of transitive dependencies by default.
+# Only the packages listed here are allowed to run their install scripts.
+#
+#   sharp         - native image codecs used by next/image optimisation
+#   unrs-resolver - native module resolver used by the ESLint import plugin
+#
+# Adding a dependency that needs a build step? Add it here explicitly and
+# explain why in the PR description. Never disable this safety net wholesale.
+allowBuilds:
+  sharp: true
+  unrs-resolver: true
+minimumReleaseAgeExclude:
+  - "@testing-library/jest-dom@7.0.0"
+  - prettier@3.9.6
