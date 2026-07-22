@@ -36,14 +36,6 @@ class EnvValidationError extends Error {
 
 const issues: string[] = [];
 
-function required(name: string, value: string | undefined): string {
-  if (value === undefined || value.trim() === '') {
-    issues.push(`${name} is required but was not set`);
-    return '';
-  }
-  return value;
-}
-
 function optional(value: string | undefined, fallback: string): string {
   return value === undefined || value.trim() === '' ? fallback : value;
 }
@@ -71,13 +63,6 @@ function port(name: string, value: string | undefined, fallback: number): number
   }
   return parsed;
 }
-
-/**
- * `true` while Next.js is collecting page data during `next build`. Secrets are
- * legitimately absent then, so required-variable checks are relaxed — the same
- * checks still run for real when the container boots.
- */
-const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
 
 const nodeEnv = oneOf('NODE_ENV', process.env.NODE_ENV, VALID_NODE_ENVS, 'development');
 
@@ -114,12 +99,16 @@ export const env = {
 } as const;
 
 /**
- * Example of a variable that is mandatory in production only. Delete or extend
- * this block for the real secrets of a concrete project.
+ * Add production-required variables here as the project grows. Use a validator
+ * that pushes to `issues` (like `oneOf`/`port` above) so the app refuses to
+ * start when a required value is missing or invalid.
+ *
+ * `NEXT_PUBLIC_APP_URL` is intentionally NOT required. Cloud Run only generates
+ * the service URL after the first deploy, and `NEXT_PUBLIC_*` values are inlined
+ * at build time — so making it mandatory would fail the first deploy's health
+ * check before the URL can exist. `appUrl` above falls back to a safe default,
+ * and the deploy workflow inlines the real value on the next build.
  */
-if (env.isProduction && !isBuildPhase) {
-  required('NEXT_PUBLIC_APP_URL', process.env.NEXT_PUBLIC_APP_URL);
-}
 
 if (issues.length > 0) {
   throw new EnvValidationError(issues);
