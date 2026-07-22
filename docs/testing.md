@@ -1,10 +1,10 @@
 # Testing
 
-Vitest, jsdom and React Testing Library. `pnpm test` runs everything; `pnpm test:watch` while developing.
+Vitest, jsdom and React Testing Library. `pnpm test` runs everything. Use `pnpm test:watch` while developing.
 
 ## Why Vitest
 
-It resolves the same `tsconfig.json` path aliases natively (`resolve.tsconfigPaths`), needs no separate Babel or SWC transform config, and starts fast enough to run on every PR without caching. Jest would work; it would just need more configuration to reach the same place.
+It resolves the same `tsconfig.json` path aliases natively (`resolve.tsconfigPaths`), needs no separate Babel or SWC transform config, and starts fast enough to run on every PR without caching. Jest would also work. It would just need more configuration to reach the same result.
 
 ## Layout
 
@@ -18,13 +18,13 @@ components/ui/Button.test.tsx
 tests/setup.ts          ← global setup, loaded before every test file
 ```
 
-Colocation means a test is impossible to overlook when changing the implementation, and moving a module moves its test with it.
+Colocation makes a test hard to overlook when you change the implementation. When you move a module, its test moves with it.
 
 ## The Server Component constraint
 
 **Async Server Components cannot be rendered by React Testing Library.** There is no supported way to render them in a test environment today.
 
-This is not the limitation it first appears, because an async Server Component is usually two separable things:
+This is less limiting than it first appears. An async Server Component is usually two separable things:
 
 ```tsx
 // app/orders/page.tsx  — thin, mostly composition
@@ -34,7 +34,7 @@ export default async function OrdersPage() {
 }
 ```
 
-Test `getOrders()` as a unit in `services/`, and `<OrderList>` as a component. The page that glues them together is covered by an end-to-end test, if the project has one.
+Test `getOrders()` as a unit in `services/`, and `<OrderList>` as a component. An end-to-end test covers the page that combines them, if the project has one.
 
 **Synchronous** Server Components — like `app/page.tsx` in this template — render fine. See `app/page.test.tsx`.
 
@@ -83,7 +83,7 @@ Query priority, best to worst:
 3. `getByText` — non-interactive content
 4. `getByTestId` — last resort
 
-If a query is hard to write, the markup is probably inaccessible. Fix the markup rather than reaching for a test id.
+If a query is hard to write, the markup is probably inaccessible. Fix the markup instead of using a test id.
 
 ## Testing services
 
@@ -124,7 +124,7 @@ describe('getUser', () => {
 });
 ```
 
-**Test the failure paths.** The happy path rarely causes the incident.
+**Test the failure paths.** Most incidents come from a failure path, not the happy path.
 
 ## Route handlers
 
@@ -155,9 +155,9 @@ describe('GET /api/health', () => {
 pnpm test:coverage
 ```
 
-No threshold is enforced, deliberately. A coverage gate reliably produces tests written to satisfy the gate — assertions on getters, snapshot tests of static markup — which cost maintenance and catch nothing.
+No threshold is enforced, deliberately. A coverage gate reliably produces tests that only satisfy the gate — assertions on getters, snapshot tests of static markup. They cost maintenance and catch nothing.
 
-Use coverage as a map of what is untested, then decide what is worth testing. If your team wants a floor anyway, add `thresholds` to `vitest.config.ts` and start it _below_ the current number so it ratchets up rather than blocking work on day one.
+Use coverage as a map of what is untested, then decide what is worth testing. If your team wants a floor anyway, add `thresholds` to `vitest.config.ts`. Start it _below_ the current number, so it rises over time instead of blocking work immediately.
 
 ## What to test
 

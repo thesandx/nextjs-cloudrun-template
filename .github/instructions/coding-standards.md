@@ -1,6 +1,6 @@
 # Coding standards
 
-How to write TypeScript, React and CSS in this repository. Rules that are mechanically checkable are enforced by ESLint, Prettier and `tsc` — this document covers the judgement that tooling cannot check.
+How to write TypeScript, React and CSS in this repository. ESLint, Prettier and `tsc` enforce the mechanically checkable rules. This document covers the judgement that tooling cannot check.
 
 ---
 
@@ -62,7 +62,7 @@ export class UpstreamError extends Error {
 }
 ```
 
-- Catch narrowly and rethrow what you cannot handle. A `catch` that swallows everything hides the bug you will spend a day chasing.
+- Catch narrowly and rethrow what you cannot handle. A `catch` that swallows every error hides the bug you must then find.
 - `catch (error: unknown)` is the default (`useUnknownInCatchVariables`). Narrow with `instanceof` before touching `.message`.
 - Never `catch { return null }`. Return a `Result<T>` or throw.
 
@@ -166,7 +166,7 @@ Not optional. `eslint-plugin-jsx-a11y` runs as part of `eslint-config-next` and 
 
 - Tailwind utilities in `className`. No inline `style` except for genuinely dynamic values (a computed width).
 - Colours come from the tokens in `styles/globals.css`. No raw hex in a component.
-- Mobile-first: unprefixed utilities are the small screen, `sm:` and up widen it.
+- Mobile-first: unprefixed utilities are the small screen, `sm:` and up widen it — never the reverse. Prefer fluid widths (`w-full`, `max-w-*`) over fixed pixel widths, keep interactive targets ≥44px, never let the body scroll horizontally, and verify the layout at ~320px and at desktop width. See rule 11 in [coding-rules.md](./coding-rules.md).
 - When a `className` string becomes unreadable, that is a signal to extract a component — not to reach for `@apply`.
 
 ---
@@ -196,7 +196,7 @@ const FLUSH_TIMEOUT_MS = 8_000;
 - Test behaviour through the public interface, not internals.
 - Query by role and accessible name (`getByRole('button', { name: 'Save' })`), not by test id. If the query is hard to write, the markup is probably inaccessible.
 - One assertion concept per test; a descriptive name that reads as a sentence.
-- Test the failure paths. The happy path rarely ships the incident.
+- Test the failure paths. Most incidents come from a failure path, not the happy path.
 - Async Server Components cannot be rendered by React Testing Library — test their `services/` and `lib/` helpers directly instead.
 
 ---

@@ -4,15 +4,15 @@
 
 ## Why
 
-<!-- The problem being solved, or a link to the issue. Reviewers need intent,
-     not just a diff. -->
+<!-- The problem this PR solves, or a link to the issue. Reviewers need the
+     intent, not just a diff. -->
 
 Closes #
 
 ## How
 
-<!-- Notable implementation decisions and anything you rejected along the way.
-     If this changes architecture, say so — and update the docs (see below). -->
+<!-- Notable implementation decisions, and anything you rejected. If this
+     changes architecture, say so — and update the docs (see below). -->
 
 ## Checklist
 

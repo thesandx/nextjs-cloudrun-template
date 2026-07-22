@@ -21,13 +21,13 @@ git commit
 gh pr create
 ```
 
-`pnpm validate` runs typecheck, lint, format check and tests. Running it locally means a green PR on the first push instead of the third.
+`pnpm validate` runs typecheck, lint, format check and tests. Run it locally to get a green PR on the first push, not the third.
 
 ## Conventions
 
 The rules live in [`.github/instructions/`](./.github/instructions/) — the same rulebook AI assistants follow. Start with [`coding-rules.md`](./.github/instructions/coding-rules.md).
 
-The ones people trip over most:
+The rules people miss most often:
 
 - **Server Components by default.** `'use client'` needs a reason, and belongs at the leaves.
 - **No new top-level folders.** Nest inside the existing ones.
@@ -52,10 +52,10 @@ The subject line says what changed. The body says **why** — that is the part g
 
 ## Pull requests
 
-The [PR template](./.github/pull_request_template.md) has the checklist. The parts reviewers actually care about:
+The [PR template](./.github/pull_request_template.md) has the checklist. The parts reviewers focus on:
 
 - **Why**, not just what. Link the issue.
-- **One logical change per PR.** A 40-file PR that renames things _and_ fixes a bug gets reviewed badly.
+- **One logical change per PR.** A reviewer cannot review a 40-file PR well if it renames things and fixes a bug together.
 - **Explain the judgement calls** — a new dependency, a client boundary, a data-flow change.
 - **Deployment notes** if anything must happen outside the PR: a new secret, an IAM grant, a variable.
 
@@ -67,7 +67,7 @@ Commit the updated `pnpm-lock.yaml` — CI installs with `--frozen-lockfile`.
 
 ## Documentation
 
-Documentation changes ship with the code change, not after it. There is no separate docs backlog, on purpose: a docs backlog is where accuracy goes to die.
+Documentation changes ship with the code change, not after it. There is no separate docs backlog, on purpose — a docs backlog quickly becomes inaccurate.
 
 | Changed                      | Update                                                          |
 | ---------------------------- | --------------------------------------------------------------- |
@@ -81,7 +81,7 @@ For decisions that will outlive the PR, add an ADR — [`docs/adr/`](./docs/adr/
 
 ## Reporting bugs
 
-Use the [issue template](./.github/ISSUE_TEMPLATE/bug_report.yml). Include the `version` field from `/api/health` — it is the commit SHA actually serving traffic, and it settles "which build were you on?" immediately.
+Use the [issue template](./.github/ISSUE_TEMPLATE/bug_report.yml). Include the `version` field from `/api/health`. It is the commit SHA that serves traffic now, so it answers "which build were you on?" immediately.
 
 ## Security
 

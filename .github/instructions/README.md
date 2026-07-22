@@ -17,14 +17,14 @@ This folder is the authoritative rulebook for any AI assistant working in this r
 
 If you only read one paragraph:
 
-> Server Components by default. TypeScript with no `any`. Never invent a new top-level folder. Never add a dependency you could avoid. Never commit a secret or a service account key. Explain architectural decisions in the PR. When architecture changes, update the docs in the same PR.
+> Server Components by default. TypeScript with no `any`. Never invent a new top-level folder. Never add a dependency you could avoid. Never commit a secret or a service account key. Design every UI mobile-first. Explain architectural decisions in the PR. When architecture changes, update the docs in the same PR. Write every document in Simplified Technical English.
 
 ## How to use these as an assistant
 
 1. **Before writing code**, check `project-structure.md` for where the file belongs and `coding-rules.md` for the constraints that apply.
 2. **While writing**, follow the patterns already in the repository over patterns from your training data. When they conflict, the repository wins.
 3. **After writing**, run `pnpm validate`. Do not report work as complete on the strength of a diff alone.
-4. **When you make a judgement call** — a dependency, a data-flow change, a client boundary — state the reasoning in your response and in the PR description. A decision nobody can reconstruct is a decision that gets reverted.
+4. **When you make a judgement call** — a dependency, a data-flow change, a client boundary — state the reasoning in your response and in the PR description. The next contributor reverts a decision nobody can reconstruct.
 5. **If a rule here blocks the task**, say so explicitly and propose the change to the rule. Do not silently work around it.
 
 ## Precedence
@@ -39,4 +39,4 @@ When guidance conflicts, later entries win:
 
 ## Keeping this current
 
-These documents describe the repository as it is, not as it was. If a PR changes the architecture, the folder layout, the deploy pipeline, or a rule, that same PR updates the relevant file here. A stale rulebook is worse than no rulebook — assistants follow it confidently and produce confidently wrong code.
+These documents describe the repository as it is, not as it was. If a PR changes the architecture, the folder layout, the deploy pipeline, or a rule, that same PR updates the relevant file here. A stale rulebook is worse than none: assistants follow it with confidence and produce confidently wrong code.

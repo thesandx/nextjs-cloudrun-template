@@ -11,11 +11,11 @@ Everything about running this application on Google Cloud Platform: the architec
 | [artifact-registry.md](./artifact-registry.md)         | Container registry: layout, tagging, retention, vulnerability scanning    |
 | [github-actions.md](./github-actions.md)               | Workload Identity Federation in depth, IAM roles, troubleshooting auth    |
 | [environment-variables.md](./environment-variables.md) | Build-time vs runtime config, Secret Manager, adding a variable           |
-| [terraform.md](./terraform.md)                         | Planned IaC layout for when click-ops stops scaling                       |
+| [terraform.md](./terraform.md)                         | Planned IaC layout for when manual setup no longer scales                 |
 
 ## The stack in one paragraph
 
-A Next.js application is built into a small, non-root container image by GitHub Actions, pushed to Artifact Registry, and deployed to Cloud Run as a new immutable revision tagged with the commit SHA. GitHub authenticates to Google Cloud with a short-lived OIDC token exchanged through Workload Identity Federation — there are no service account keys anywhere in the system. Cloud Run autoscales from zero, terminates TLS, and streams structured logs to Cloud Logging.
+GitHub Actions builds the Next.js application into a small, non-root container image. It pushes the image to Artifact Registry and deploys it to Cloud Run as a new immutable revision tagged with the commit SHA. GitHub authenticates to Google Cloud with a short-lived OIDC token from Workload Identity Federation. No service account keys exist anywhere in the system. Cloud Run autoscales from zero, terminates TLS, and streams structured logs to Cloud Logging.
 
 ## Google Cloud services used
 

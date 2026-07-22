@@ -1,6 +1,6 @@
 # Terraform (planned)
 
-The template deliberately ships **without** Terraform. This document explains why, when that changes, and the layout to adopt when it does — so the eventual migration is a known path rather than an improvisation.
+The template deliberately ships **without** Terraform. This document explains why, when that changes, and the layout to adopt when it does. The goal is a known migration path, not an improvisation.
 
 ---
 
@@ -14,13 +14,13 @@ The script is the right tool at this scale. Terraform becomes the right tool at 
 
 Any one of these is sufficient:
 
-- **More than one environment.** The moment staging and production must stay in step, drift becomes a real problem.
-- **More than a handful of resources.** Cloud SQL, VPC connectors, load balancers, DNS, monitoring policies — click-ops does not survive this.
+- **More than one environment.** When staging and production must match, drift becomes a real problem.
+- **More than a handful of resources.** Cloud SQL, VPC connectors, load balancers, DNS, monitoring policies — manual console setup does not scale to this.
 - **More than one person changing infrastructure.** Terraform's plan output is a review artefact; a console change is invisible.
 - **A compliance requirement** for infrastructure change history.
 - **Disaster recovery** that must be provably reproducible, not "I think I remember the steps".
 
-If none of these are true, keep using the script. Adopting IaC early is a real cost with no payoff yet.
+If none of these are true, keep using the script. Early IaC is a real cost with no benefit yet.
 
 ---
 
@@ -160,7 +160,7 @@ Never `terraform apply` from a laptop against production once this exists. The p
 - **Pin the provider** with `~>`. A minor provider bump can change resource defaults.
 - **`terraform fmt` in CI**, same reasoning as Prettier.
 - **No hardcoded project ids.** Everything comes from a `.tfvars` file per environment.
-- **Tag/label everything** with owner, environment and cost centre. Retrofitting labels is miserable.
+- **Tag/label everything** with owner, environment and cost centre. Retrofitting labels later is painful.
 - **One state file per environment.** Shared state means a staging mistake can destroy production.
 - **Treat state as sensitive.** It contains resource metadata and, despite best efforts, sometimes values you would rather it did not.
 

@@ -1,6 +1,6 @@
 # GitHub workflows
 
-Rules for anything under `.github/workflows/`. A broken workflow blocks every contributor at once, and a careless one leaks credentials — treat these files with more care than application code, not less.
+Rules for anything under `.github/workflows/`. A broken workflow blocks every contributor at once. A careless one leaks credentials. Treat these files with more care than application code, not less.
 
 ---
 
@@ -12,7 +12,7 @@ Rules for anything under `.github/workflows/`. A broken workflow blocks every co
 | `deploy.yml`        | Push to `main`, manual             | Build → push to Artifact Registry → deploy to Cloud Run → verify health. **Keyless via OIDC.**                     |
 | `codeql.yml`        | PR, push to `main`, weekly, manual | Static security analysis into the Security tab.                                                                    |
 
-> **CodeQL needs code scanning enabled, and that is not free on private repositories.** The analysis runs fine, then the upload step fails with `Code scanning is not enabled for this repository`. Code scanning is included for **public** repos; private repos need GitHub Advanced Security.
+> **CodeQL needs code scanning enabled, and that is not free on private repositories.** The analysis runs fine, then the upload step fails with `Code scanning is not enabled for this repository`. Code scanning is included for **public** repos. Private repos need GitHub Advanced Security.
 >
 > If you generate a private project from this template, either purchase GHAS, or delete `codeql.yml` rather than leaving a permanently red check — a check everyone learns to ignore is worse than no check.
 
@@ -22,7 +22,7 @@ Rules for anything under `.github/workflows/`. A broken workflow blocks every co
 
 **There must never be a JSON service account key in this repository, in a secret, or in a workflow.**
 
-A downloaded key is a permanent credential. It sits in a secret store forever, it works from anywhere on the internet, and nothing revokes it when someone leaves the team. Workload Identity Federation replaces it with a token that lives for minutes and is cryptographically bound to _this repository_.
+A downloaded key is a permanent credential. It sits in a secret store forever. It works from anywhere on the internet. Nothing revokes it when someone leaves the team. Workload Identity Federation replaces it with a token that lives for minutes and is cryptographically bound to _this repository_.
 
 How it works:
 
@@ -57,7 +57,7 @@ permissions:
     service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 ```
 
-If you ever find yourself writing `credentials_json:`, stop. That is the pattern this template exists to replace.
+If you are about to write `credentials_json:`, stop. That is the pattern this template exists to replace.
 
 ---
 
@@ -106,12 +106,12 @@ Rules:
     ...
 ```
 
-- **`set -euo pipefail` in every multi-line `run`.** Bash's default is to continue after an error, which turns a broken step into a green tick.
+- **`set -euo pipefail` in every multi-line `run`.** Bash's default is to continue after an error, which turns a broken step into a passing one.
 - **Pin actions to a major version** (`actions/checkout@v7`). For a security-critical third-party action, pin the full commit SHA.
 - **`timeout-minutes` on every job.** A hung job burns runner minutes until GitHub's 6-hour ceiling.
 - **`persist-credentials: false` on checkout** unless the job actually pushes. It stops a leaked `GITHUB_TOKEN` from sitting in `.git/config` for later steps.
 - **Cache what is expensive and deterministic:** the pnpm store (`cache: pnpm`), Docker layers (`type=gha`). Never cache build output that must be reproduced.
-- **Fail with `::error::` and an actionable message.** "Secret WIF_PROVIDER is not set. Run scripts/gcp-bootstrap.sh." beats a 403 from an API three minutes later.
+- **Fail with `::error::` and an actionable message.** "Secret WIF_PROVIDER is not set. Run scripts/gcp-bootstrap.sh." is better than a 403 from an API three minutes later.
 
 ## Concurrency
 
@@ -129,7 +129,7 @@ concurrency:
 
 ---
 
-## Ordering constraint you will trip over
+## An ordering constraint to watch for
 
 In `pr-validation.yml`, **build runs before typecheck**. This looks wrong and is not:
 

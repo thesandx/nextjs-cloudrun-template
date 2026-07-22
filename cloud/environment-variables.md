@@ -53,7 +53,7 @@ if (env.isProduction) {
 }
 ```
 
-**Why centralise:** `process.env.FOO` is `string | undefined` at every call site, so a typo or an unset variable becomes `undefined` flowing into business logic. Validating once at module load turns that into a container that refuses to start — which Cloud Run reports as a failed revision and rolls back, instead of serving broken responses for three hours.
+**Why centralise:** `process.env.FOO` is `string | undefined` at every call site. A typo or an unset variable then becomes an `undefined` in business logic. Validation at module load instead makes the container refuse to start. Cloud Run reports this as a failed revision and rolls back, rather than serving broken responses for hours.
 
 **Why it must throw, not warn:** a warning in a log nobody reads is not a control. A failed revision is.
 
@@ -112,7 +112,7 @@ cp .env.example .env.local
 
 `.env.local` is gitignored and takes precedence over `.env`. Next.js loads it automatically — no `dotenv` dependency needed.
 
-Load order, highest precedence first: `.env.local` → `.env.$NODE_ENV` → `.env`. Actual shell environment variables beat all of them.
+Load order, highest precedence first: `.env.local` → `.env.$NODE_ENV` → `.env`. Real shell environment variables override all of them.
 
 To test against the production image locally:
 
@@ -158,7 +158,7 @@ Add to the `flags:` in `deploy.yml`:
 
 The secret arrives as an ordinary environment variable, so `lib/env.ts` reads it like any other value.
 
-`:latest` resolves at instance start. Adding a new secret version does not affect running instances — deploy a new revision to pick it up. Pin to a specific version (`:3`) when you need change control.
+`:latest` resolves at instance start. A new secret version does not affect running instances. Deploy a new revision to use it. Pin to a specific version (`:3`) when you need change control.
 
 ### Rotating
 

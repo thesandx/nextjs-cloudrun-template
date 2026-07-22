@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Symptoms grouped by where they appear, with the actual cause and the fix.
+Symptoms grouped by where they appear, with the cause and the fix.
 
 ---
 
@@ -10,7 +10,7 @@ Symptoms grouped by where they appear, with the actual cause and the fix.
 
 The `@/*` alias resolves from the repository root. `@/lib/env` means `./lib/env.ts`.
 
-- Check the file exists at that exact path (case-sensitive on Linux, even if your Mac says otherwise).
+- Check the file exists at that exact path (case-sensitive on Linux, even when macOS is not).
 - Restart the TypeScript server: VS Code → Command Palette → _TypeScript: Restart TS Server_.
 - After changing `tsconfig.json` paths, restart the dev server too.
 
@@ -41,7 +41,7 @@ git add pnpm-lock.yaml
 lightningcss@1.33.0 was published at ..., within the minimumReleaseAge cutoff
 ```
 
-`minimumReleaseAge: 1440` in `pnpm-workspace.yaml` refuses packages published in the last 24 hours — a deliberate defence against compromised versions that get yanked within hours of publication.
+`minimumReleaseAge: 1440` in `pnpm-workspace.yaml` refuses packages published in the last 24 hours. This is a deliberate defence against compromised versions that maintainers remove within hours of publication.
 
 The gate applies to **every entry in the lockfile**, including transitive dependencies you never chose. So it fires in three situations:
 
@@ -53,11 +53,11 @@ The gate applies to **every entry in the lockfile**, including transitive depend
 
 Beware a false pass locally: pnpm caches the verification result for a while, so a local `pnpm install --frozen-lockfile` may print `verified Nm ago` without re-checking. `docker build --no-cache` is the honest test.
 
-Never "fix" this by deleting `minimumReleaseAge`. It is a supply-chain control, and the failure is usually telling you something true.
+Never "fix" this by deleting `minimumReleaseAge`. It is a supply-chain control, and the failure is usually correct.
 
 ### `Ignored build scripts: <package>`
 
-pnpm blocks lifecycle scripts from transitive dependencies as a supply-chain control. If the package genuinely needs to build:
+pnpm blocks lifecycle scripts from transitive dependencies as a supply-chain control. If the package really needs to build:
 
 ```yaml
 # pnpm-workspace.yaml
@@ -73,7 +73,7 @@ Say why in the PR. Do not disable the check globally.
 Text content did not match. Server: "..." Client: "..."
 ```
 
-Something rendered differently on the server than in the browser. The usual suspects:
+Something rendered differently on the server and in the browser. The usual causes:
 
 - `new Date()` or `Date.now()` rendered directly — use a fixed format and UTC (`formatUtc` in `lib/utils.ts`)
 - `Math.random()` in render
@@ -238,13 +238,13 @@ gcloud run services update-traffic SERVICE --region REGION \
   --to-revisions SERVICE-<known-good-sha>=100
 ```
 
-Seconds, no rebuild. Then fix forward with a normal PR.
+This takes seconds, with no rebuild. Then fix forward with a normal PR.
 
 ---
 
 ## Still stuck
 
-1. What does `/api/health` say? The `version` field is the commit SHA actually serving traffic — confirm it is the code you think it is.
+1. What does `/api/health` say? The `version` field is the commit SHA serving traffic — confirm it is the code you expect.
 2. What do the logs say? `gcloud run services logs read SERVICE --region REGION --limit 100`
 3. Does it reproduce in the local container? `docker compose up --build` — if yes, it is not a Cloud Run problem.
 4. Did it work before? `git log` the Dockerfile, the workflow and `next.config.ts`.
