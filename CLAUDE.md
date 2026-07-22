@@ -12,7 +12,7 @@ It exists because several things here look wrong and are correct, and several ob
 2. [Verified state](#verified-state)
 3. [Documentation map](#documentation-map)
 4. [Commands](#commands)
-5. [The eleven rules](#the-eleven-rules)
+5. [The twelve rules](#the-twelve-rules)
 6. [Where files go](#where-files-go)
 7. [Architecture in brief](#architecture-in-brief)
 8. [Traps — things that look wrong and are not](#traps--things-that-look-wrong-and-are-not)
@@ -96,7 +96,7 @@ docker compose up --build   # run the real production image locally
 
 ---
 
-## The eleven rules
+## The twelve rules
 
 Full reasoning in [`coding-rules.md`](./.github/instructions/coding-rules.md).
 
@@ -111,6 +111,7 @@ Full reasoning in [`coding-rules.md`](./.github/instructions/coding-rules.md).
 9. **Update docs when architecture changes** — same PR, not later.
 10. **Verify before claiming.** See [Verification protocol](#verification-protocol).
 11. **Design mobile-first.** Every UI works on a small screen first, then scales up. Unprefixed Tailwind utilities are the phone layout; add `sm:`/`md:`/`lg:` to enhance for wider screens — never the reverse. No fixed widths that overflow a phone, no horizontal scroll on the body, touch targets ≥44px. Responsiveness is a requirement, not a finishing touch.
+12. **Write docs in Simplified Technical English (ASD-STE100).** Every Markdown document — this file, `.github/instructions/`, `docs/`, `cloud/`, ADRs, READMEs — follows the standard. Short sentences (≤20 words for an instruction, ≤25 for a description), one instruction per sentence, active voice, present tense, one topic per paragraph, and one approved term per concept. Write for a non-native reader; choose the plain word over the clever one. Bring a document into compliance when you touch it.
 
 ---
 
@@ -242,6 +243,7 @@ Violations here are defects, not style disagreements.
 
 | Never                                                      | Why                                                                                                                                             |
 | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Push or commit directly to `main`                          | Every change reaches `main` through a reviewed pull request. A push to `main` deploys to production — see [Architecture in brief](#architecture-in-brief).       |
 | Commit a service account key, or write `credentials_json:` | The pipeline is keyless by design. A key is a permanent bearer credential. See [ADR-0002](./docs/adr/0002-use-workload-identity-federation.md). |
 | Interpolate `${{ secrets.* }}` into a `run:` block         | It splices into shell source before execution. Pass via `env:` instead.                                                                         |
 | Deploy the `:latest` tag                                   | A revision pinned to a moving tag cannot be traced to a commit, and rollback becomes a rebuild.                                                 |
