@@ -6,7 +6,7 @@ How CI authenticates to Google Cloud without a single stored credential, and wha
 
 ## Why not service account keys
 
-The obvious approach is `gcloud iam service-accounts keys create key.json`, paste it into a GitHub secret, done. It works, and it is the wrong answer.
+The obvious approach is `gcloud iam service-accounts keys create key.json`, then paste it into a GitHub secret. It works, and it is the wrong answer.
 
 | Service account key                                        | Workload Identity Federation                         |
 | ---------------------------------------------------------- | ---------------------------------------------------- |
@@ -91,7 +91,7 @@ jobs:
 projects/123456789/locations/global/workloadIdentityPools/github/providers/github
 ```
 
-Note it uses the **project number**, not the project id. Using the id is the most common setup mistake.
+Note it uses the **project number**, not the project id. The id is the most common setup mistake.
 
 ---
 
@@ -109,7 +109,7 @@ github-deployer@<project>.iam.gserviceaccount.com    ← CI impersonates this
 └── (nothing by default; grant only what the app needs)
 ```
 
-**Why separate:** the pipeline can deploy but has no access to application data. The application can read its own secrets but cannot deploy itself or modify IAM. A compromise of either is contained.
+**Why separate:** the pipeline can deploy but has no access to application data. The application can read its own secrets but cannot deploy itself or modify IAM. If an attacker compromises either account, the damage stays contained.
 
 `roles/iam.serviceAccountUser` on the runtime account is the one people forget. Without it the deploy fails with a permission error naming an account you did not expect.
 
@@ -126,7 +126,7 @@ run.revisions.list
 run.operations.get
 ```
 
-Start with `run.admin`, verify the pipeline works, then narrow. Narrowing first turns a five-minute setup into an afternoon of permission archaeology.
+Start with `run.admin`, verify the pipeline works, then narrow. If you narrow first, a five-minute setup becomes a long hunt for missing permissions.
 
 ---
 

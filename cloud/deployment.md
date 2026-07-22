@@ -111,7 +111,7 @@ gcloud iam service-accounts add-iam-policy-binding "$RUNTIME" \
   --role="roles/iam.serviceAccountUser"
 ```
 
-Grant the runtime account only what the application genuinely needs (Secret Manager accessor, Cloud SQL client, ...). It starts with nothing.
+Grant the runtime account only what the application needs (Secret Manager accessor, Cloud SQL client, ...). It starts with nothing.
 
 **5. Create the Workload Identity Pool and provider**
 
@@ -129,7 +129,7 @@ gcloud iam workload-identity-pools providers create-oidc github \
   --attribute-condition="assertion.repository == '${REPO}'"
 ```
 
-> **The `--attribute-condition` is the security control.** Without it, _any_ GitHub repository in the world can exchange a token for access to your project. It is not optional, and Google will refuse to create the provider without one.
+> **The `--attribute-condition` is the security control.** Without it, _any_ GitHub repository in the world can exchange a token for access to your project. It is not optional, and Google refuses to create the provider without one.
 
 **6. Let the pool impersonate the deployer**
 
@@ -200,7 +200,7 @@ gh run watch
 
 ### First deploy
 
-The first deploy has one extra wrinkle: `APP_URL` cannot be known until the service exists, because Cloud Run generates the URL.
+The first deploy has one extra step: you cannot know `APP_URL` until the service exists, because Cloud Run generates the URL.
 
 1. Deploy once with `APP_URL` unset.
 2. Read the URL from the workflow summary, or:
@@ -246,7 +246,7 @@ gcloud run services update-traffic "$SERVICE" --region "$REGION" \
 curl -s https://<service-url>/api/health | jq .version
 ```
 
-Then fix forward with a normal PR. Reverting the commit and letting CI redeploy also works, but is slower while the site is broken.
+Then fix forward with a normal PR. You can also revert the commit and let CI redeploy, but that is slower while the site is broken.
 
 ### Gradual rollout
 
@@ -316,7 +316,7 @@ gcloud iam service-accounts delete "$DEPLOYER"
 gcloud iam service-accounts delete "$RUNTIME"
 ```
 
-Deleted Workload Identity Pools are soft-deleted for 30 days and the name stays reserved. Recreating one with the same id before then fails — undelete it instead:
+Google soft-deletes Workload Identity Pools for 30 days, and the name stays reserved. If you recreate one with the same id before then, it fails — undelete it instead:
 
 ```bash
 gcloud iam workload-identity-pools undelete github --location=global

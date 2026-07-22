@@ -96,7 +96,7 @@ The container never sees TLS. Google terminates it at the edge and forwards the 
 ⑨ Job summary records service, region, image, URL, commit
 ```
 
-Step ⑧ is what makes the green tick meaningful. Without it, "deployed" only means "Cloud Run accepted the API call".
+Step ⑧ is what makes a green result meaningful. Without it, "deployed" only means "Cloud Run accepted the API call".
 
 ## Scaling behaviour
 
@@ -127,11 +127,11 @@ Implementation: a GitHub Environment per target, each with its own `GCP_PROJECT_
 
 | Concern           | How it is handled                                                                  |
 | ----------------- | ---------------------------------------------------------------------------------- |
-| Bad deploy        | Revisions are immutable; roll back with a traffic split, no rebuild                |
+| Bad deploy        | Revisions are immutable; roll back with a traffic shift, no rebuild                |
 | Zone failure      | Cloud Run is regional and spreads instances across zones automatically             |
 | Region failure    | Not handled. Needs multi-region services behind a global load balancer.            |
 | Traffic spike     | Autoscaling up to `--max-instances`; requests beyond that queue then 429           |
-| Slow dependency   | Every outbound call has a timeout, so instances are not held hostage               |
+| Slow dependency   | Every outbound call has a timeout, so a slow dependency cannot block an instance   |
 | Graceful shutdown | `dumb-init` forwards SIGTERM; Next.js drains in-flight requests                    |
 | Health            | `/api/health` is dependency-free, so a downstream blip cannot cause a restart loop |
 

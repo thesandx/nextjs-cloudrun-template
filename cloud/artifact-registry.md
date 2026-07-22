@@ -4,7 +4,11 @@ Where container images live between CI and Cloud Run.
 
 ## Why Artifact Registry
 
-Container Registry (`gcr.io`) is deprecated and no longer receives features. Artifact Registry is its supported successor and is better in the ways that matter here: repositories are regional (so Cloud Run pulls from the same region it runs in — faster cold starts, no cross-region egress), IAM is per-repository rather than tied to a Cloud Storage bucket, and vulnerability scanning is built in.
+Container Registry (`gcr.io`) is deprecated and no longer receives features. Artifact Registry is its supported successor. It is better in the ways that matter here:
+
+- Repositories are regional, so Cloud Run pulls from the same region it runs in — faster cold starts, no cross-region egress.
+- IAM is per-repository, not tied to a Cloud Storage bucket.
+- Vulnerability scanning is built in.
 
 ## Layout
 
@@ -21,7 +25,7 @@ asia-southeast1-docker.pkg.dev/my-project/containers/my-app:a1b2c3d4...
 asia-southeast1-docker.pkg.dev/my-project/containers/my-app:latest
 ```
 
-One repository (`containers`) holds every service in the project, one image name per service. Splitting by team or trust boundary only pays off when different groups need different IAM — and at that point, separate projects are usually the better split.
+One repository (`containers`) holds every service in the project, with one image name per service. A split by team or trust boundary helps only when different groups need different IAM. At that point, separate projects are usually the better choice.
 
 **The registry region must match the Cloud Run region.** A mismatch means every cold start pulls the image across regions: slower, and billed as egress.
 
@@ -45,7 +49,7 @@ Every build pushes two tags:
 | `<commit-sha>` | No      | **What actually gets deployed.** Traceable to an exact commit.                    |
 | `latest`       | Yes     | Convenience pointer for humans and `docker pull`. Never referenced by a revision. |
 
-**Never deploy `:latest`.** A revision pinned to a moving tag cannot answer "what code is running?", and rollback becomes a rebuild instead of a traffic shift. The deploy workflow uses the SHA tag deliberately — do not "simplify" it.
+**Never deploy `:latest`.** A revision pinned to a moving tag cannot answer "what code is running?". A rollback then becomes a rebuild instead of a traffic shift. The deploy workflow uses the SHA tag deliberately — do not "simplify" it.
 
 Consider adding a semver tag on release if the project cuts versioned releases:
 
@@ -132,7 +136,7 @@ gcloud artifacts repositories set-cleanup-policies containers \
   --dry-run
 ```
 
-> Keep more versions than you expect to need. Rollback depends on the old image still existing; a policy that keeps 3 versions turns a Friday incident into a rebuild.
+> Keep more versions than you expect to need. Rollback depends on the old image still existing. A policy that keeps only 3 versions can turn an incident into a rebuild.
 
 ## Vulnerability scanning
 
@@ -151,7 +155,7 @@ gcloud artifacts docker images list \
   --format="table(IMAGE,DIGEST,vulnerability_counts)"
 ```
 
-Most findings come from the base image, which is why Dependabot watches the `Dockerfile` and why the base version is pinned in an ARG — bumping it is a one-line, reviewable change.
+Most findings come from the base image. That is why Dependabot watches the `Dockerfile`, and why an ARG pins the base version. An upgrade is then a one-line, reviewable change.
 
 For a stricter posture, add Binary Authorization to block unsigned or unscanned images from deploying.
 
