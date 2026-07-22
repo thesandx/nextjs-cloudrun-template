@@ -17,7 +17,7 @@ Multi-stage Docker build · Keyless CI/CD via Workload Identity Federation · St
 
 ## Overview
 
-Most Next.js templates give you an application. This one gives you an application **and the path to production**: a container that actually runs on Cloud Run, a pipeline that deploys it without storing a single credential, and documentation that explains why each decision was made.
+Most Next.js templates give you an application. This one also gives you **the path to production**. You get a container that runs on Cloud Run, a pipeline that deploys it without storing a single credential, and documentation that explains each decision.
 
 The app itself is one page. That is the point — everything else is the reusable part.
 
@@ -227,14 +227,14 @@ pnpm docker:run
 | `builder` | `pnpm build`, producing `.next/standalone`                                          |
 | `runner`  | Standalone output + static assets only. No source, no dev deps, no package manager. |
 
-`output: 'standalone'` in `next.config.ts` traces the modules actually reachable at runtime, which is what takes the image from ~1.2 GB to ~65 MB.
+`output: 'standalone'` in `next.config.ts` traces the modules reachable at runtime. This takes the image from ~1.2 GB to ~65 MB.
 
-> Sizes quoted here are what a registry stores and Cloud Run pulls (`docker save` / `docker image inspect`). Docker Desktop's containerd image store displays the _unpacked_ size instead — around 280 MB for the same image. Both are correct; they measure different things.
+> Sizes quoted here are what a registry stores and Cloud Run pulls (`docker save` / `docker image inspect`). Docker Desktop's containerd image store displays the _unpacked_ size instead — around 280 MB for the same image. Both numbers are correct. They measure different things.
 
 **Cloud Run compliance, built in**
 
 - Listens on `$PORT` — never a hardcoded port
-- Binds `0.0.0.0` — the fix for the infamous _"container failed to start and listen on the port"_
+- Binds `0.0.0.0` — the fix for the common _"container failed to start and listen on the port"_ error
 - Runs as non-root (uid 1001)
 - `dumb-init` as PID 1, so `SIGTERM` is honoured and in-flight requests drain
 - `HEALTHCHECK` against `/api/health`
@@ -250,7 +250,7 @@ pnpm docker:run
 merge  →  build  →  push to Artifact Registry  →  deploy revision  →  probe /api/health  →  ✅
 ```
 
-Images are tagged with the commit SHA and deployed by that immutable tag — never `:latest`. So rollback is a traffic shift, not a rebuild:
+The pipeline tags each image with the commit SHA and deploys it by that immutable tag — never `:latest`. So a rollback is a traffic shift, not a rebuild:
 
 ```bash
 gcloud run revisions list --service my-app --region asia-southeast1
@@ -258,7 +258,7 @@ gcloud run services update-traffic my-app --region asia-southeast1 \
   --to-revisions my-app-<good-sha>=100
 ```
 
-Seconds, while you fix forward at your own pace.
+This takes seconds. Then you can fix forward without time pressure.
 
 **Tunable via repository variables** — no workflow edits needed:
 
@@ -284,7 +284,7 @@ Full runbook — first deploy, custom domains, gradual rollout, making the servi
 
 PR validation deliberately needs **no cloud credentials**, so pull requests from forks work.
 
-The container smoke test in PR validation is the step most templates omit, and the one that catches the failures a build cannot: wrong port, wrong bind address, missing static assets, non-root permission errors.
+The container smoke test in PR validation is the step most templates omit. It catches the failures a build cannot: wrong port, wrong bind address, missing static assets, non-root permission errors.
 
 ---
 
@@ -325,16 +325,16 @@ Full model: [`cloud/environment-variables.md`](./cloud/environment-variables.md)
 
 | Document                                                              | Covers                                                      |
 | --------------------------------------------------------------------- | ----------------------------------------------------------- |
-| [`coding-rules.md`](./.github/instructions/coding-rules.md)           | The ten non-negotiables. Start here.                        |
+| [`coding-rules.md`](./.github/instructions/coding-rules.md)           | The twelve non-negotiables. Start here.                     |
 | [`project-structure.md`](./.github/instructions/project-structure.md) | Where every kind of file goes                               |
 | [`coding-standards.md`](./.github/instructions/coding-standards.md)   | TypeScript, React and CSS conventions                       |
 | [`architecture.md`](./.github/instructions/architecture.md)           | Layers, data flow, decisions and their trade-offs           |
 | [`deployment.md`](./.github/instructions/deployment.md)               | The Cloud Run contract; how to change the Dockerfile safely |
 | [`github-workflows.md`](./.github/instructions/github-workflows.md)   | Workflow rules; OIDC; least-privilege permissions           |
 
-The short version: _Server Components by default. No `any`. Never invent a new top-level folder. No unnecessary dependencies. Update the docs in the same PR._
+The short version: _Server Components by default. No `any`. Never invent a new top-level folder. No unnecessary dependencies. Design mobile-first. Update the docs in the same PR._
 
-Why this matters at template scale: when a dozen projects share one rulebook, generated code stays consistent across all of them instead of drifting into a dozen dialects.
+Why this matters at template scale: when a dozen projects share one rulebook, generated code stays consistent instead of drifting apart.
 
 ---
 
@@ -365,7 +365,7 @@ README.md                      you are here
 <details>
 <summary><b>Why Cloud Run instead of Vercel?</b></summary>
 
-Vercel has better DX for Next.js — genuinely. Cloud Run wins when the rest of your stack is already on Google Cloud: one IAM model, one billing account, one audit trail, one console during an incident. You also keep full control of the container and the pipeline, which matters most exactly when something is broken.
+Vercel has better DX for Next.js. Cloud Run wins when the rest of your stack is already on Google Cloud: one IAM model, one billing account, one audit trail, one console during an incident. You also keep full control of the container and the pipeline — which matters most when something is broken.
 
 Full reasoning and the rejected alternatives: [ADR-0001](./docs/adr/0001-use-cloud-run-for-hosting.md).
 
@@ -374,7 +374,7 @@ Full reasoning and the rejected alternatives: [ADR-0001](./docs/adr/0001-use-clo
 <details>
 <summary><b>Why no service account key? Every tutorial uses one.</b></summary>
 
-Because a downloaded key is a permanent bearer credential. It never expires, it works from anywhere on the internet, it ends up in more places than anyone tracks, and nothing revokes it when a person leaves the team. A leak is silent.
+Because a downloaded key is a permanent bearer credential. It never expires. It works from anywhere on the internet. It ends up in more places than anyone tracks, and nothing revokes it when a person leaves the team. A leak is silent.
 
 Workload Identity Federation replaces it with a token that lives for minutes and is cryptographically bound to this repository. The extra setup is about ten minutes, once, and `scripts/gcp-bootstrap.sh` does it for you.
 
@@ -385,9 +385,9 @@ Workload Identity Federation replaces it with a token that lives for minutes and
 <details>
 <summary><b>My deploy failed with "Unable to acquire impersonated credentials".</b></summary>
 
-Nine times out of ten: the job is missing `permissions: id-token: write`. Without it GitHub never mints an OIDC token and the exchange has nothing to present.
+The usual cause: the job is missing `permissions: id-token: write`. Without it, GitHub never mints an OIDC token, and the exchange has nothing to present.
 
-The other causes — a wrong `WIF_PROVIDER` path, a mismatched attribute condition, a missing `principalSet://` binding — are diagnosed step by step in [`cloud/github-actions.md`](./cloud/github-actions.md#troubleshooting), including how to dump the JWT claims GitHub actually sent.
+The other causes are a wrong `WIF_PROVIDER` path, a mismatched attribute condition, or a missing `principalSet://` binding. [`cloud/github-actions.md`](./cloud/github-actions.md#troubleshooting) diagnoses each one step by step. It also shows how to dump the JWT claims GitHub sent.
 
 </details>
 
@@ -423,21 +423,21 @@ This also means `NEXT_PUBLIC_*` is public. Never put a credential behind that pr
 <details>
 <summary><b>Can I use npm or yarn instead of pnpm?</b></summary>
 
-Yes, but you would change `package.json` scripts, the `deps` stage of the Dockerfile, `pnpm-workspace.yaml`, and both workflows. pnpm is here for its content-addressed store (fast CI installs) and its strictness about phantom dependencies — a package you did not declare will not resolve, which catches a real class of bug at install time rather than in production.
+Yes, but you would change `package.json` scripts, the `deps` stage of the Dockerfile, `pnpm-workspace.yaml`, and both workflows. pnpm is here for two reasons: its content-addressed store (fast CI installs) and its strictness about phantom dependencies. A package you did not declare will not resolve. This catches a real class of bug at install time, not in production.
 
 </details>
 
 <details>
 <summary><b>Where is the database / auth / state management?</b></summary>
 
-Deliberately absent. Those choices are project-specific, and a template that picks them for you is a template you fight. The `services/` layer is where they go, and [`.github/instructions/architecture.md`](./.github/instructions/architecture.md#what-is-not-here-and-when-to-add-it) lists what to add, when, and the recommended approach for each.
+Deliberately absent. Those choices are project-specific. A template that picks them for you is one you fight. The `services/` layer is where they go. [`.github/instructions/architecture.md`](./.github/instructions/architecture.md#what-is-not-here-and-when-to-add-it) lists what to add, when, and the recommended approach for each.
 
 </details>
 
 <details>
 <summary><b>How much does this cost to run?</b></summary>
 
-With `--min-instances=0`, an idle service costs nothing. Cloud Run's free tier covers 2M requests and 360k vCPU-seconds per month, which is more than most side projects and many internal tools ever use. Artifact Registry storage is cents per GB.
+With `--min-instances=0`, an idle service costs nothing. Cloud Run's free tier covers 2M requests and 360k vCPU-seconds per month. That is more than most side projects and many internal tools ever use. Artifact Registry storage is cents per GB.
 
 The one thing that costs real money is `--min-instances=1` (~$10–15/month) to eliminate cold starts. Set a budget alert either way — `scripts/gcp-bootstrap.sh` prints the command.
 
@@ -446,7 +446,14 @@ The one thing that costs real money is `--min-instances=1` (~$10–15/month) to 
 <details>
 <summary><b>Is this actually production-ready, or is that just the README talking?</b></summary>
 
-Concretely: the container runs non-root with a read-only filesystem and correct signal handling; the pipeline stores no credentials; every deploy is verified against the live health endpoint before it reports success; rollback is a traffic shift; CodeQL and Dependabot run continuously; environment configuration fails loudly at startup instead of silently at runtime.
+Concretely:
+
+- The container runs non-root, with a read-only filesystem and correct signal handling.
+- The pipeline stores no credentials.
+- The pipeline verifies every deploy against the live health endpoint before it reports success.
+- A rollback is a traffic shift.
+- CodeQL and Dependabot run continuously.
+- Environment configuration fails loudly at startup, not silently at runtime.
 
 What it does not have — because these are project-specific — is a database, authentication, rate limiting, tracing, or end-to-end tests. Each is listed with a recommended approach in [`.github/instructions/architecture.md`](./.github/instructions/architecture.md#what-is-not-here-and-when-to-add-it).
 

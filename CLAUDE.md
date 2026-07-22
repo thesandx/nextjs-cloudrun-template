@@ -2,7 +2,7 @@
 
 **Read this file completely before making any change.** It is the operating manual for AI coding assistants (Claude Code, Copilot, Cursor, ChatGPT) and new human contributors working in this repository.
 
-It exists because several things here look wrong and are correct, and several obvious "improvements" are known to break the build or the deploy. Those are recorded in [Traps](#traps--things-that-look-wrong-and-are-not) and [Never do this](#never-do-this). Both sections were written from real failures, not speculation.
+It exists because several things here look wrong but are correct. Several obvious "improvements" break the build or the deploy. [Traps](#traps--things-that-look-wrong-and-are-not) and [Never do this](#never-do-this) record them. Both sections come from real failures, not speculation.
 
 ---
 
@@ -29,13 +29,13 @@ It exists because several things here look wrong and are correct, and several ob
 
 A production Next.js application deployed to Google Cloud Run, generated from a template. If the app still contains only the Hello World page at `app/page.tsx`, it has not been customised yet.
 
-The template's purpose is that **the path to production already works**: a container that runs on Cloud Run, a pipeline that deploys it without storing any credential, and documentation explaining why each decision was made. The application is deliberately trivial. Everything else is the reusable part — do not degrade it.
+The template's purpose is that **the path to production already works**: a container that runs on Cloud Run, a pipeline that deploys it without storing any credential, and documentation that explains each decision. The application is deliberately trivial. Everything else is the reusable part — do not degrade it.
 
 ---
 
 ## Verified state
 
-Versions below were confirmed working together by a clean install, a full build, a `--no-cache` Docker build and a running container. Do not assume a newer version works; see [Dependency policy](#dependency-policy).
+A clean install, a full build, a `--no-cache` Docker build and a running container confirmed the versions below work together. Do not assume a newer version works. See [Dependency policy](#dependency-policy).
 
 |                      | Version    | Note                                     |
 | -------------------- | ---------- | ---------------------------------------- |
@@ -49,9 +49,14 @@ Versions below were confirmed working together by a clean install, a full build,
 | Node                 | `>=22.0.0` | `.nvmrc` pins `22.20.0`                  |
 | pnpm                 | `11.15.1`  | Via `packageManager` + corepack          |
 
-**Measured facts:** production image **~64 MB** as stored and transferred (`docker save`, `docker image inspect .Size` — this is what a registry holds and Cloud Run pulls); container boots and answers `/api/health` in ~2s; responds to `SIGTERM` in ~1s; runs as `uid=1001(nextjs)` on a read-only root filesystem.
+**Measured facts:**
 
-> Docker Desktop may display **~278 MB** for the same image. It is not a different image — Desktop's containerd image store reports the _unpacked on-disk_ size, while `docker save` and registries measure the compressed content. Both numbers are real; they measure different things.
+- The production image is **~64 MB** as stored and transferred (`docker save`, `docker image inspect .Size`) — this is what a registry holds and Cloud Run pulls.
+- The container boots and answers `/api/health` in ~2s.
+- It responds to `SIGTERM` in ~1s.
+- It runs as `uid=1001(nextjs)` on a read-only root filesystem.
+
+> Docker Desktop may display **~278 MB** for the same image. It is not a different image — Desktop's containerd image store reports the _unpacked on-disk_ size, while `docker save` and registries measure the compressed content. Both numbers are real. They measure different things.
 
 ---
 
@@ -137,7 +142,7 @@ Full reasoning in [`coding-rules.md`](./.github/instructions/coding-rules.md).
 
 **Naming:** components `PascalCase.tsx`; hooks `camelCase.ts`; utilities/services `kebab-case.ts`; tests `<subject>.test.ts(x)`; docs `kebab-case.md`.
 
-**Imports are always absolute** via `@/*` — `@/lib/env`, never `../../../lib/env`. `eslint-plugin-simple-import-sort` enforces ordering; run `pnpm lint:fix` rather than hand-sorting.
+**Imports are always absolute** via `@/*` — `@/lib/env`, never `../../../lib/env`. `eslint-plugin-simple-import-sort` enforces ordering. Run `pnpm lint:fix` rather than hand-sorting.
 
 ---
 
@@ -157,7 +162,7 @@ types/        shared contracts
 **Allowed:** `app/` → `components/` → `lib/`; `app/` → `services/` → `lib/`
 **Forbidden:** `lib/` → `services/`; `components/ui/` → `services/`; anything → `app/`
 
-Deployment: `git push main` → GitHub Actions → OIDC → Artifact Registry → Cloud Run. Images are tagged with the commit SHA and deployed by that immutable tag, so rollback is a traffic split rather than a rebuild.
+Deployment: `git push main` → GitHub Actions → OIDC → Artifact Registry → Cloud Run. The pipeline tags each image with the commit SHA and deploys it by that immutable tag, so a rollback is a traffic shift, not a rebuild.
 
 ---
 
@@ -209,7 +214,7 @@ In `next.config.ts`. The Dockerfile's runtime stage copies `.next/standalone`. R
 
 ### 7. The container must bind `0.0.0.0` and honour `$PORT`
 
-`ENV HOSTNAME=0.0.0.0` and `ENV PORT=8080` in the Dockerfile's runtime stage. Binding localhost inside a container is unreachable from outside, producing Cloud Run's least helpful error:
+`ENV HOSTNAME=0.0.0.0` and `ENV PORT=8080` in the Dockerfile's runtime stage. A container that binds localhost is unreachable from outside. This produces Cloud Run's least helpful error:
 
 > The user-provided container failed to start and listen on the port defined by the PORT environment variable.
 
@@ -233,7 +238,7 @@ Free on **public** repositories only. On a private repo without GitHub Advanced 
 
 ### 12. `dumb-init` is PID 1
 
-Without it Node ignores `SIGTERM`, Cloud Run waits 10s, then `SIGKILL`s — dropping in-flight requests on every deploy. Verified: the container currently stops in ~1s.
+Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy. Verified: the container currently stops in ~1s.
 
 ---
 
@@ -296,7 +301,7 @@ Read [rule 8](./.github/instructions/coding-rules.md#8-avoid-unnecessary-depende
 - `TS5101 baseUrl is deprecated` → **our** config was wrong; fixing it unblocked the upgrade
 - `contextOrFilename.getFilename is not a function` → **upstream**; close the PR with the reason
 
-Read the actual failing step before deciding. Close with a comment explaining _why_, so nobody re-litigates it in three months.
+Read the failing step before deciding. Close with a comment that explains _why_, so nobody reopens the question in three months.
 
 ---
 
@@ -327,7 +332,7 @@ docker build --no-cache -t verify .    # the only honest supply-chain check
 
 If you touched a workflow: YAML that parses is not a workflow that runs. `pr-validation.yml` validates itself on a PR; `deploy.yml` only runs on `main`.
 
-Merging several dependency PRs? **Verify the merged tree**, not just each PR — each was tested against a different baseline and they have never run together until now.
+Merging several dependency PRs? **Verify the merged tree**, not just each PR. CI tested each PR against a different baseline, and they have never run together until now.
 
 ---
 
@@ -342,7 +347,7 @@ Two pnpm safety nets will stop you, and both are deliberate:
 - **`Ignored build scripts`** → the package wants a lifecycle script. Add to `allowBuilds` in `pnpm-workspace.yaml` and explain why.
 - **`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`** → the version is under 24h old. pnpm adds an entry to `minimumReleaseAgeExclude`; commit it, then **prune it** once the version ages past the window. Empty is the healthy steady state.
 
-**Upgrade philosophy:** `latest` on npm is not the same as _supported_. This repo tracks what `create-next-app` scaffolds, because that is what the framework actually tests. TypeScript 7 and ESLint 10 are both "latest" and both break the toolchain today.
+**Upgrade philosophy:** `latest` on npm is not the same as _supported_. This repo tracks what `create-next-app` scaffolds, because that is what the framework tests. TypeScript 7 and ESLint 10 are both "latest" and both break the toolchain today.
 
 ---
 
@@ -373,4 +378,4 @@ Add an ADR when a decision is expensive to reverse, affects how everyone works, 
 
 ## If a rule here blocks you
 
-Say so explicitly and propose changing the rule. Do not silently work around it, and do not disable a check to get a green tick. If you change how something works, update the relevant document in the same change — a stale rulebook is worse than none, because assistants follow it confidently and produce confidently wrong code.
+Say so explicitly and propose a change to the rule. Do not silently work around it, and do not disable a check to force a green result. If you change how something works, update the relevant document in the same change. A stale rulebook is worse than none: assistants follow it with confidence and produce confidently wrong code.
