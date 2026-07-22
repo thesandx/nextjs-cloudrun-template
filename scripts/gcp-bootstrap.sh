@@ -298,9 +298,14 @@ ${BOLD}Recommended: set a budget alert before you forget${RESET}
    gcloud billing budgets create \\
      --billing-account="\$(gcloud billing projects describe ${PROJECT_ID} --format='value(billingAccountName)' | cut -d/ -f2)" \\
      --display-name="${SERVICE_NAME} budget" \\
-     --budget-amount=50USD \\
+     --budget-amount=50 \\
      --threshold-rule=percent=0.5 \\
-     --threshold-rule=percent=0.9
+     --threshold-rule=percent=0.9 \\
+     --filter-projects="projects/${PROJECT_ID}"
+
+   (No currency suffix: the amount is in your billing account's own currency.
+    A mismatched currency such as 50USD on a non-USD account is rejected.
+    Adjust the number to taste; alerts fire at 50% and 90% of it.)
 
 ${BOLD}Notes${RESET}
 
