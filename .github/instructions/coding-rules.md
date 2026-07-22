@@ -105,18 +105,19 @@ Adding one anyway? Say why in the PR. Adding a _transitive-heavy_ one (a package
 
 ---
 
-## 9. Always update documentation when architecture changes
+## 9. Always update documentation when architecture or behaviour changes
 
-Same PR. Not "later".
+Same PR. Not "later". This covers a change in **how something works**, not only a change in structure — if the observable behaviour of a module, endpoint, or config differs, the docs that describe it change with it.
 
-| If you change...                    | Update...                                                                    |
-| ----------------------------------- | ---------------------------------------------------------------------------- |
-| Folder layout                       | `project-structure.md`, README structure section                             |
-| Data flow, layers, a new dependency | `architecture.md`, `cloud/architecture.md`                                   |
-| `Dockerfile`, runtime configuration | `deployment.md`, `cloud/deployment.md`, README                               |
-| A workflow in `.github/workflows/`  | `github-workflows.md`, README                                                |
-| Any environment variable            | `.env.example` **and** `lib/env.ts` **and** `cloud/environment-variables.md` |
-| A convention or rule                | the relevant file in this folder                                             |
+| If you change...                    | Update...                                                                           |
+| ----------------------------------- | ----------------------------------------------------------------------------------- |
+| Folder layout                       | `project-structure.md`, README structure section                                    |
+| Data flow, layers, a new dependency | `architecture.md`, `cloud/architecture.md`                                          |
+| `Dockerfile`, runtime configuration | `deployment.md`, `cloud/deployment.md`, README                                      |
+| A workflow in `.github/workflows/`  | `github-workflows.md`, README                                                       |
+| Any environment variable            | `.env.example` **and** `lib/env.ts` **and** `cloud/environment-variables.md`        |
+| How a module or endpoint behaves    | its doc comment, `.env.example`, and any guide or troubleshooting that describes it |
+| A convention or rule                | the relevant file in this folder                                                    |
 
 ---
 

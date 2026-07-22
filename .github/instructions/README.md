@@ -17,7 +17,7 @@ This folder is the authoritative rulebook for any AI assistant working in this r
 
 If you only read one paragraph:
 
-> Server Components by default. TypeScript with no `any`. Never invent a new top-level folder. Never add a dependency you could avoid. Never commit a secret or a service account key. Design every UI mobile-first. Explain architectural decisions in the PR. When architecture changes, update the docs in the same PR. Write every document in Simplified Technical English.
+> Server Components by default. TypeScript with no `any`. Never invent a new top-level folder. Never add a dependency you could avoid. Never commit a secret or a service account key. Design every UI mobile-first. Explain architectural decisions in the PR. When architecture or behaviour changes, update the docs in the same PR. Write every document in Simplified Technical English.
 
 ## How to use these as an assistant
 
