@@ -11,7 +11,7 @@ Everything about running this application on Google Cloud Platform: the architec
 | [artifact-registry.md](./artifact-registry.md)         | Container registry: layout, tagging, retention, vulnerability scanning    |
 | [github-actions.md](./github-actions.md)               | Workload Identity Federation in depth, IAM roles, troubleshooting auth    |
 | [environment-variables.md](./environment-variables.md) | Build-time vs runtime config, Secret Manager, adding a variable           |
-| [terraform.md](./terraform.md)                         | Planned IaC layout for when manual setup no longer scales                  |
+| [terraform.md](./terraform.md)                         | Planned IaC layout for when manual setup no longer scales                 |
 
 ## The stack in one paragraph
 

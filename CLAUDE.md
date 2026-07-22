@@ -246,20 +246,20 @@ Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, a
 
 Violations here are defects, not style disagreements.
 
-| Never                                                      | Why                                                                                                                                             |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Push or commit directly to `main`                          | Every change reaches `main` through a reviewed pull request. A push to `main` deploys to production — see [Architecture in brief](#architecture-in-brief).       |
-| Commit a service account key, or write `credentials_json:` | The pipeline is keyless by design. A key is a permanent bearer credential. See [ADR-0002](./docs/adr/0002-use-workload-identity-federation.md). |
-| Interpolate `${{ secrets.* }}` into a `run:` block         | It splices into shell source before execution. Pass via `env:` instead.                                                                         |
-| Deploy the `:latest` tag                                   | A revision pinned to a moving tag cannot be traced to a commit, and rollback becomes a rebuild.                                                 |
-| Read `process.env` outside `lib/env.ts`                    | Untyped, unvalidated, and bypasses startup validation.                                                                                          |
-| Use `console.log` for application logging                  | Use `@/lib/logger` — it emits the JSON shape Cloud Logging parses.                                                                              |
-| Add `'use client'` to `app/layout.tsx`                     | Turns the entire application into a client bundle.                                                                                              |
-| Create a new top-level folder                              | Breaks cross-project consistency. Raise it instead.                                                                                             |
-| Weaken `tsconfig.json` strictness                          | `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` are load-bearing.                                                            |
-| Disable a CI check to make a PR green                      | Fix the code, or change the check deliberately and say why.                                                                                     |
-| Put a secret in a Docker build arg                         | Visible in `docker history`. Use Secret Manager at runtime.                                                                                     |
-| Claim work is done without running `pnpm validate`         | See below.                                                                                                                                      |
+| Never                                                      | Why                                                                                                                                                        |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Push or commit directly to `main`                          | Every change reaches `main` through a reviewed pull request. A push to `main` deploys to production — see [Architecture in brief](#architecture-in-brief). |
+| Commit a service account key, or write `credentials_json:` | The pipeline is keyless by design. A key is a permanent bearer credential. See [ADR-0002](./docs/adr/0002-use-workload-identity-federation.md).            |
+| Interpolate `${{ secrets.* }}` into a `run:` block         | It splices into shell source before execution. Pass via `env:` instead.                                                                                    |
+| Deploy the `:latest` tag                                   | A revision pinned to a moving tag cannot be traced to a commit, and rollback becomes a rebuild.                                                            |
+| Read `process.env` outside `lib/env.ts`                    | Untyped, unvalidated, and bypasses startup validation.                                                                                                     |
+| Use `console.log` for application logging                  | Use `@/lib/logger` — it emits the JSON shape Cloud Logging parses.                                                                                         |
+| Add `'use client'` to `app/layout.tsx`                     | Turns the entire application into a client bundle.                                                                                                         |
+| Create a new top-level folder                              | Breaks cross-project consistency. Raise it instead.                                                                                                        |
+| Weaken `tsconfig.json` strictness                          | `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` are load-bearing.                                                                       |
+| Disable a CI check to make a PR green                      | Fix the code, or change the check deliberately and say why.                                                                                                |
+| Put a secret in a Docker build arg                         | Visible in `docker history`. Use Secret Manager at runtime.                                                                                                |
+| Claim work is done without running `pnpm validate`         | See below.                                                                                                                                                 |
 
 ---
 

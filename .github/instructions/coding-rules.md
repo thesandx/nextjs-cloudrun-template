@@ -162,16 +162,16 @@ Every Markdown document in the repository follows ASD-STE100 Simplified Technica
 
 ## Quick reference
 
-| Do                            | Don't                                   |
-| ----------------------------- | --------------------------------------- |
-| Server Component by default   | `'use client'` at the top of the tree   |
-| `unknown` + narrowing         | `any`                                   |
-| `import { x } from '@/lib/x'` | `import { x } from '../../../lib/x'`    |
-| Read config from `@/lib/env`  | `process.env.FOO` scattered in the code |
-| `logger.info(...)`            | `console.log(...)`                      |
-| Add to an existing folder     | Create a new top-level folder           |
-| Platform API                  | A dependency that wraps a platform API  |
-| Update docs in the same PR    | "I'll document it later"                |
-| Mobile-first, enhance upward  | Desktop layout patched down with hacks  |
-| Short, active, present-tense docs | Long passive sentences, mixed terms  |
-| Open a PR for every change    | Push or commit straight to `main`       |
+| Do                                | Don't                                   |
+| --------------------------------- | --------------------------------------- |
+| Server Component by default       | `'use client'` at the top of the tree   |
+| `unknown` + narrowing             | `any`                                   |
+| `import { x } from '@/lib/x'`     | `import { x } from '../../../lib/x'`    |
+| Read config from `@/lib/env`      | `process.env.FOO` scattered in the code |
+| `logger.info(...)`                | `console.log(...)`                      |
+| Add to an existing folder         | Create a new top-level folder           |
+| Platform API                      | A dependency that wraps a platform API  |
+| Update docs in the same PR        | "I'll document it later"                |
+| Mobile-first, enhance upward      | Desktop layout patched down with hacks  |
+| Short, active, present-tense docs | Long passive sentences, mixed terms     |
+| Open a PR for every change        | Push or commit straight to `main`       |
