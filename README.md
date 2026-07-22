@@ -126,8 +126,10 @@ One command, idempotent, no keys created:
   --project my-gcp-project \
   --region asia-southeast1 \
   --repo my-github-org/my-app \
-  --service my-app
+  --service my-app            # keep this to 22 characters or fewer — see the note below
 ```
+
+> **Keep `--service` to 22 characters or fewer.** The script derives the runtime service account id as `<service>-runtime`, and a Google service account id must be 6–30 characters. A longer service name fails with `does not have a length between 6 and 30`.
 
 It enables APIs, creates the Artifact Registry repository, sets up Workload Identity Federation, creates least-privilege service accounts, and prints the exact `gh secret` / `gh variable` commands to run.
 
