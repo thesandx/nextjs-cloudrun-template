@@ -6,7 +6,7 @@ What an assistant must know before touching the `Dockerfile`, environment config
 
 ## The contract with Cloud Run
 
-Cloud Run will run your container. In exchange it demands exactly four things. Break any of them and the revision fails to start.
+Cloud Run runs your container. In exchange it demands exactly four things. Break any of them, and the revision fails to start.
 
 ### 1. Listen on `$PORT`
 
@@ -20,7 +20,7 @@ The Next.js standalone server reads `process.env.PORT` automatically. Do not add
 
 ### 2. Bind to `0.0.0.0`
 
-Next.js defaults to `localhost`, which inside a container is unreachable from outside it. The symptom is the deeply unhelpful message:
+Next.js defaults to `localhost`. Inside a container, that is unreachable from outside. The symptom is this unhelpful message:
 
 > The user-provided container failed to start and listen on the port defined by the PORT environment variable.
 
@@ -30,13 +30,13 @@ ENV HOSTNAME=0.0.0.0   # mandatory
 
 ### 3. Start within the startup deadline
 
-The default is 240s. The standalone server starts in around a second — but any top-level `await` in a module that hangs (a database connection, a secret fetch without a timeout) will burn the whole budget and fail the revision.
+The default is 240s. The standalone server starts in about a second. But a top-level `await` that hangs (a database connection, or a secret fetch without a timeout) uses the whole budget and fails the revision.
 
 Keep module-level work trivial. Do expensive setup lazily, inside the first request that needs it.
 
 ### 4. Be stateless
 
-The container filesystem is ephemeral and instances are created and destroyed without warning. Anything written to disk is lost, and never shared between instances.
+The container filesystem is ephemeral, and Cloud Run creates and destroys instances without warning. Anything you write to disk is lost, and no other instance sees it.
 
 - Session state → a shared store, not memory
 - Uploads → Cloud Storage, not `/tmp`
@@ -59,9 +59,9 @@ The container filesystem is ephemeral and instances are created and destroyed wi
 - **Never remove `output: 'standalone'`** from `next.config.ts` without rewriting the runtime stage. The `COPY .next/standalone` line depends on it.
 - **Never run as root.** The `USER nextjs` line is the last thing before `EXPOSE`. Anything needing root must happen before it.
 - **Never `COPY . .` into the runner stage.** That reintroduces source, dev dependencies and image bloat.
-- **Pin base image versions** via the `NODE_VERSION`/`ALPINE_VERSION` args. `node:alpine` unpinned means an unreviewed runtime upgrade lands on a random Tuesday.
+- **Pin base image versions** via the `NODE_VERSION`/`ALPINE_VERSION` args. An unpinned `node:alpine` means an unreviewed runtime upgrade can land at any time.
 - **Order layers by change frequency:** manifests before source, so the expensive install layer caches.
-- **Keep `dumb-init` as PID 1.** Without it Node ignores `SIGTERM`, Cloud Run waits 10s and then `SIGKILL`s, dropping in-flight requests on every deploy.
+- **Keep `dumb-init` as PID 1.** Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy.
 - **After any change:** `docker compose up --build` and `curl localhost:8080/api/health`. A Dockerfile that builds is not a Dockerfile that runs.
 
 ---
@@ -123,7 +123,7 @@ push to main
                                                              └─▶ health probe
 ```
 
-The pipeline deploys the **commit SHA tag**, never `:latest`. That is what makes a revision traceable to a commit and rollback a traffic split rather than a rebuild.
+The pipeline deploys the **commit SHA tag**, never `:latest`. That makes a revision traceable to a commit. It also makes a rollback a traffic shift, not a rebuild.
 
 ## Rollback
 
@@ -134,7 +134,7 @@ gcloud run revisions list --service SERVICE --region REGION
 gcloud run services update-traffic SERVICE --region REGION --to-revisions REVISION=100
 ```
 
-Then fix forward with a normal PR. Reverting the commit and letting CI redeploy is also fine, but slower when the site is down.
+Then fix forward with a normal PR. You can also revert the commit and let CI redeploy, but that is slower when the site is down.
 
 ---
 

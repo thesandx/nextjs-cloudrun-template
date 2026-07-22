@@ -45,7 +45,7 @@ Data flows **down**; dependencies point **inward**. A layer may import from the 
 **Allowed:** `app/` → `components/` → `lib/`. `app/` → `services/` → `lib/`.
 **Forbidden:** `lib/` → `services/`. `components/ui/` → `services/`. Anything → `app/`.
 
-Why it matters: `lib/` stays trivially testable because it has no I/O to mock, and `services/` can be swapped wholesale (REST → gRPC, one vendor → another) without touching a single component.
+Why it matters: `lib/` stays easy to test because it has no I/O to mock. You can also replace `services/` completely (REST → gRPC, one vendor → another) without changing a single component.
 
 ---
 
@@ -60,9 +60,13 @@ Next.js App Router with React Server Components.
 | Interactivity  | Client Components — small, leaf-shaped islands          |
 | Mutations      | Server Actions or Route Handlers                        |
 
-**Why Server Components by default:** the client bundle only carries code for genuinely interactive parts, secrets and API keys never cross the network boundary, and data fetching happens with in-datacentre latency instead of a round trip from the user's device.
+**Why Server Components by default:**
 
-**The cost:** the boundary is real. A Client Component cannot import a Server Component (only receive one through `children`), and props crossing the boundary must be serialisable. Design the tree around this rather than fighting it.
+- The client bundle carries code only for the interactive parts.
+- Secrets and API keys never cross the network boundary.
+- Data fetching happens with in-datacentre latency, not a round trip from the user's device.
+
+**The cost:** the boundary is real. A Client Component cannot import a Server Component (it can only receive one through `children`), and props that cross the boundary must be serialisable. Design the tree around this limit instead of working against it.
 
 ---
 
@@ -77,9 +81,9 @@ Docker build args ───┘                    (validated at
                                            module load)
 ```
 
-**Why:** an unset variable becomes a container that refuses to start — which Cloud Run reports as a failed revision and rolls back — rather than a `undefined` that reaches production and corrupts data three hours later.
+**Why:** an unset variable makes the container refuse to start. Cloud Run reports this as a failed revision and rolls back. The alternative is an `undefined` value that reaches production and corrupts data hours later.
 
-Two timing rules that catch people out:
+Two timing rules that people often miss:
 
 - `NEXT_PUBLIC_*` is **inlined at build time**. Changing it in Cloud Run does nothing; you must rebuild the image.
 - Everything else is read **at runtime**, so a Cloud Run env var update plus a new revision is enough.
@@ -96,7 +100,7 @@ logger.info('Order created', { orderId, userId, amountCents });
 
 becomes a queryable LogEntry in Cloud Logging with `jsonPayload.orderId` as a filterable field.
 
-`/api/health` reports the running version (commit SHA), region and uptime — enough to answer "which build is actually serving traffic?" without opening the console.
+`/api/health` reports the running version (commit SHA), region and uptime — enough to answer "which build is serving traffic?" without opening the console.
 
 **Deliberately not included:** distributed tracing, metrics export, error tracking. Add OpenTelemetry or Cloud Error Reporting when there is a system complex enough to need them.
 
@@ -134,7 +138,7 @@ GitHub Actions  ── OIDC token ──▶  Workload Identity Pool
                         health probe verifies it serves
 ```
 
-Images are tagged with the commit SHA and deployed by that immutable tag — never `:latest`. Rollback is therefore a one-line `gcloud run services update-traffic` to a previous revision, with no rebuild.
+The pipeline tags each image with the commit SHA and deploys it by that immutable tag — never `:latest`. A rollback is therefore a one-line `gcloud run services update-traffic` to a previous revision, with no rebuild.
 
 ---
 

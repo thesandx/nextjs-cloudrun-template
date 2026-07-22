@@ -1,6 +1,6 @@
 # Coding standards
 
-How to write TypeScript, React and CSS in this repository. Rules that are mechanically checkable are enforced by ESLint, Prettier and `tsc` — this document covers the judgement that tooling cannot check.
+How to write TypeScript, React and CSS in this repository. ESLint, Prettier and `tsc` enforce the mechanically checkable rules. This document covers the judgement that tooling cannot check.
 
 ---
 
@@ -62,7 +62,7 @@ export class UpstreamError extends Error {
 }
 ```
 
-- Catch narrowly and rethrow what you cannot handle. A `catch` that swallows everything hides the bug you will spend a day chasing.
+- Catch narrowly and rethrow what you cannot handle. A `catch` that swallows every error hides the bug you must then find.
 - `catch (error: unknown)` is the default (`useUnknownInCatchVariables`). Narrow with `instanceof` before touching `.message`.
 - Never `catch { return null }`. Return a `Result<T>` or throw.
 
@@ -196,7 +196,7 @@ const FLUSH_TIMEOUT_MS = 8_000;
 - Test behaviour through the public interface, not internals.
 - Query by role and accessible name (`getByRole('button', { name: 'Save' })`), not by test id. If the query is hard to write, the markup is probably inaccessible.
 - One assertion concept per test; a descriptive name that reads as a sentence.
-- Test the failure paths. The happy path rarely ships the incident.
+- Test the failure paths. Most incidents come from a failure path, not the happy path.
 - Async Server Components cannot be rendered by React Testing Library — test their `services/` and `lib/` helpers directly instead.
 
 ---

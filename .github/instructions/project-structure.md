@@ -116,7 +116,7 @@ Where every file goes, and why. **This layout is fixed** — see rule 1 in [codi
 
 ### `types/` vs colocated types
 
-If two modules import it, it goes in `types/`. If one does, keep it next to that module. Premature centralisation makes types hard to find; late centralisation is a two-minute refactor.
+If two modules import it, it goes in `types/`. If one does, keep it next to that module. Premature centralisation makes types hard to find. Late centralisation is a two-minute refactor.
 
 ## File naming
 
@@ -140,10 +140,10 @@ import { env } from '@/lib/env';
 import type { HealthStatus } from '@/types';
 ```
 
-Never `../../../lib/env`. Relative imports break the moment a file moves, and they make it impossible to see at a glance which layer a module belongs to.
+Never `../../../lib/env`. A relative import breaks when a file moves. It also hides which layer a module belongs to.
 
 `eslint-plugin-simple-import-sort` enforces the ordering automatically — run `pnpm lint:fix` rather than hand-sorting.
 
 ## Placeholder folders
 
-`components/`, `hooks/` and `services/` ship with only a `README.md`. Those READMEs are the conventions for that folder — read the relevant one before adding the first real file, and keep it accurate as the folder grows.
+`components/`, `hooks/` and `services/` ship with only a `README.md`. Each README holds the conventions for that folder. Read the relevant one before you add the first real file. Keep it accurate as the folder grows.

@@ -9,10 +9,10 @@ The non-negotiables. Everything else in this folder elaborates on these.
 The top-level folders (`app/`, `components/`, `hooks/`, `lib/`, `services/`, `types/`, `styles/`, `public/`, `docs/`, `scripts/`, `cloud/`, `.github/`) are fixed. Every file has exactly one correct home.
 
 - **Do not invent new top-level folders.** No `utils/` next to `lib/`, no `helpers/`, no `api/` at the root, no `src/`.
-- If something genuinely does not fit, that is a signal to discuss the architecture — not to create a folder. Raise it, propose it, and update `project-structure.md` in the same PR if it is accepted.
+- If something does not fit, that is a signal to discuss the architecture — not to create a folder. Raise it, propose it, and update `project-structure.md` in the same PR if it is accepted.
 - Nest inside the existing folders instead: `components/checkout/`, `services/billing/`, `types/billing.ts`.
 
-**Why:** dozens of projects will be generated from this template. The moment layouts diverge, cross-project navigation, shared tooling and every assistant's assumptions break at once.
+**Why:** dozens of projects come from this template. When layouts diverge, cross-project navigation, shared tooling and every assistant's assumptions break at once.
 
 ---
 
@@ -24,7 +24,7 @@ The top-level folders (`app/`, `components/`, `hooks/`, `lib/`, `services/`, `ty
 - Never weaken `tsconfig.json`. `strict`, `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are load-bearing.
 - Type the boundaries: exported function signatures, component props, API payloads. Let inference handle local variables.
 
-**Why:** the strict settings are what let you refactor confidently at 2am. Every escape hatch converts a compile-time error into a production incident.
+**Why:** the strict settings let you refactor with confidence. Every escape hatch converts a compile-time error into a production incident.
 
 ---
 
@@ -60,7 +60,7 @@ Every component is a Server Component unless it cannot be.
 - Presentational components (`components/ui/`) take data as props and do no fetching.
 - No hidden coupling to a route, a global, or a specific parent.
 - Export the props interface so the component can be composed and tested.
-- Before writing a component, check whether one already exists. Duplicating a `Button` is how design systems die.
+- Before you write a component, check whether one already exists. A duplicate `Button` slowly breaks the design system.
 
 ---
 
@@ -84,7 +84,7 @@ When you choose between real alternatives, record the reasoning.
 - In the PR: what you chose, what you rejected, and the trade-off.
 - For decisions that will outlive the PR, add an ADR in `docs/adr/`.
 
-A decision nobody can reconstruct gets reverted by the next person who finds it inconvenient.
+Without a recorded reason, the next person who finds a decision inconvenient just reverts it.
 
 ---
 
