@@ -10,7 +10,7 @@ What situation forces a decision? Constraints, requirements, and what happens if
 
 ## Decision
 
-What was decided, stated actively and unambiguously: "We will ...".
+State what you decided, actively and unambiguously: "We will ...".
 
 ## Alternatives considered
 
@@ -20,7 +20,7 @@ Why it wins.
 
 ### Option B
 
-Why it was rejected. Be fair to it — an alternative that sounds obviously bad was never a real alternative, and the reader will suspect the analysis.
+Why you rejected it. Be fair to it. An alternative that sounds obviously bad was never a real alternative, and the reader then doubts the analysis.
 
 ### Option C
 
@@ -42,7 +42,7 @@ Same.
 
 ## Revisit when
 
-The conditions that would make this decision wrong: a scale threshold, a pricing change, a dependency going unmaintained. This is what turns an ADR from history into a tripwire.
+The conditions that would make this decision wrong: a scale threshold, a pricing change, a dependency going unmaintained. This is what turns an ADR from a historical note into a warning.
 
 ## References
 

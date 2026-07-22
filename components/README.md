@@ -19,6 +19,7 @@ Reusable React components. Intentionally empty in the template — the Hello Wor
 5. **No data fetching inside `ui/`.** Presentational components receive data as props. Fetching belongs in a Server Component page or in `services/`.
 6. **Accessible by construction.** Semantic elements, real `<button>`s, labelled inputs, keyboard reachable. `eslint-plugin-jsx-a11y` runs via `eslint-config-next` and its findings are errors, not suggestions.
 7. **Style with Tailwind utilities and the tokens in `styles/globals.css`.** No raw hex values.
+8. **Mobile-first and responsive.** Base utilities target the small screen; add `sm:`/`md:`/`lg:` to scale up. Use fluid widths, keep touch targets at least 44px, and never cause horizontal scroll on a phone.
 
 ## Template
 

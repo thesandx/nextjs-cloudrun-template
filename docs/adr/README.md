@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-An ADR captures **one** significant decision: the context that forced it, what was chosen, and what it costs. Six months later, when someone asks "why on earth is it done this way?", the ADR answers instead of the git blame.
+An ADR captures **one** significant decision: the context that forced it, what was chosen, and what it costs. Months later, when someone asks "why is it done this way?", the ADR answers instead of git blame.
 
 ## When to write one
 
@@ -18,7 +18,7 @@ Do **not** write one for a routine choice with an obvious answer. An ADR per pul
 1. Copy [`0000-template.md`](./0000-template.md).
 2. Number it sequentially: `0003-use-cloud-sql-for-persistence.md`.
 3. Write it in the PR that makes the change, not afterwards.
-4. Never edit an accepted ADR to change its decision. Write a new one that supersedes it and link both ways — the record of what you used to believe is the valuable part.
+4. Never edit an accepted ADR to change its decision. Write a new one that supersedes it and link both ways. The record of the earlier decision is the valuable part.
 
 ## Status values
 

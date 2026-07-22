@@ -6,7 +6,7 @@
 
 ## Context
 
-This template is the starting point for a number of production Next.js applications. They will be built by small teams without dedicated infrastructure operators, and they need to be deployable on day one and affordable at low traffic.
+This template is the starting point for a number of production Next.js applications. Small teams without dedicated infrastructure operators build them, and they must be deployable immediately and affordable at low traffic.
 
 The constraints:
 
@@ -31,7 +31,7 @@ The container abstraction is the deciding factor: what runs in CI, in a local `d
 
 The path of least resistance for Next.js: zero configuration, best-in-class DX, and features (ISR, edge middleware, image optimisation) that are first-party rather than approximated.
 
-Rejected because it splits the stack. Application logs live in one vendor and everything else the applications talk to lives in Google Cloud, so correlating an incident means two consoles. Pricing also scales with function invocations and bandwidth in a way that becomes hard to predict, and the platform owns the deployment pipeline — meaning less control precisely when something goes wrong.
+Rejected because it splits the stack. Application logs live in one vendor and everything else the applications talk to lives in Google Cloud, so correlating an incident means two consoles. Pricing also scales with function invocations and bandwidth in a way that becomes hard to predict. The platform owns the deployment pipeline, which means less control exactly when something goes wrong.
 
 Worth revisiting for a project that is purely a marketing site with no Google Cloud dependencies.
 
@@ -61,7 +61,7 @@ Rejected because it means owning OS patching, process supervision, TLS certifica
 - Managed TLS and a URL on the first deploy.
 - Container parity between local, CI and production.
 - Native Workload Identity Federation, so the pipeline needs no stored credentials (see [ADR-0002](./0002-use-workload-identity-federation.md)).
-- Rollback is a traffic split between existing revisions — seconds, no rebuild.
+- Rollback is a traffic shift to an existing revision — seconds, no rebuild.
 
 **Bad**
 

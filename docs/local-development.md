@@ -17,7 +17,7 @@ nvm install && nvm use
 corepack enable
 ```
 
-Corepack reads the `packageManager` field in `package.json`, so everyone gets the same pnpm version without a second thing to keep in sync.
+Corepack reads the `packageManager` field in `package.json`, so everyone gets the same pnpm version, with nothing extra to keep in sync.
 
 ## Getting started
 
@@ -66,7 +66,7 @@ For other editors: enable format-on-save with Prettier, and point your LSP at th
 edit → hot reload → pnpm validate → commit → PR
 ```
 
-Run `pnpm validate` before pushing. It is exactly what CI runs, so a green local run means a green PR — and catches the format-check failure that otherwise costs a round trip.
+Run `pnpm validate` before pushing. It is exactly what CI runs, so a green local run means a green PR. It also catches the format-check failure that otherwise costs an extra push.
 
 ## Working with the container
 
@@ -86,7 +86,7 @@ pnpm docker:build
 pnpm docker:run
 ```
 
-Things that only show up here: wrong `PORT` handling, binding to localhost, missing static assets, permission errors from the non-root user, and slow cold starts.
+Problems that appear only here: wrong `PORT` handling, binding to localhost, missing static assets, permission errors from the non-root user, and slow cold starts.
 
 ## Environment variables
 

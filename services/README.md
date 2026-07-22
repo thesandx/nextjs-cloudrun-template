@@ -4,7 +4,7 @@ The integration layer: every call that leaves this process lives here. Intention
 
 ## Why this layer exists
 
-Without it, `fetch` calls, retry logic, auth headers and response parsing get scattered across pages and components. Pulling them into named modules means the rest of the app talks to `userService.getById(id)` — a typed function — and knows nothing about transport. Swapping REST for gRPC, or adding caching, then touches one file.
+Without it, `fetch` calls, retry logic, auth headers and response parsing spread across pages and components. Named modules keep them in one place: the rest of the app calls `userService.getById(id)` — a typed function — and knows nothing about transport. A change from REST to gRPC, or a new cache, then touches one file.
 
 ## `services/` vs `lib/`
 
@@ -20,7 +20,7 @@ Without it, `fetch` calls, retry logic, auth headers and response parsing get sc
 2. **One module per external system**, named `<domain>.service.ts` or `<system>.client.ts`.
 3. **Validate at the boundary.** Never assume an external payload matches its declared type; parse and narrow, then return your own domain type from `types/`.
 4. **Return `Result<T>` (see `types/index.ts`) or throw a typed error.** Do not return `null` to mean three different failures.
-5. **Every outbound call gets a timeout.** An un-timed `fetch` on Cloud Run holds a request slot open until the platform's own 300s limit, exhausting concurrency during a downstream outage.
+5. **Every outbound call gets a timeout.** An un-timed `fetch` on Cloud Run holds a request slot open until the platform's 300s limit. This exhausts concurrency during a downstream outage.
 6. **Log failures via `@/lib/logger`**, never `console.log`.
 
 ## Template

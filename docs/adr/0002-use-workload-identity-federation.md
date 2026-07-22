@@ -25,7 +25,7 @@ It works immediately, which is exactly why it is so widespread.
 
 The problem is what that key _is_: a permanent, bearer credential. It does not expire. It grants its permissions to anyone holding the bytes, from anywhere on the internet. Once created it exists in more places than anyone tracks — a GitHub secret, the laptop it was downloaded to, a password manager, possibly a Slack thread. Nothing revokes it when a person leaves the team. And a leak is silent: the first sign is usually the bill or the breach.
 
-Many organisations now block key creation entirely with the `constraints/iam.disableServiceAccountKeyCreation` org policy, which makes this approach not merely unwise but unavailable.
+Many organisations now block key creation entirely with the `constraints/iam.disableServiceAccountKeyCreation` org policy. That makes this approach not just unwise but unavailable.
 
 ## Decision
 
