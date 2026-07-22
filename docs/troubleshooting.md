@@ -201,6 +201,21 @@ severity>=ERROR
 
 In production Next.js redacts error messages and keeps only `error.digest`. Search Cloud Logging for that digest to find the real stack trace.
 
+### The deploy fails at the health probe, but the homepage works
+
+Symptom: the deploy workflow fails at "Verify the deployment serves traffic" with `Deployed revision never became healthy`, and `/api/health` returns 500, yet the homepage loads and the revision shows `Ready: True`.
+
+A `Ready` revision means the container booted. A 500 from `/api/health` alone means the route handler failed, not the container. The health route imports `@/lib/env`, and `lib/env.ts` throws at module load when a required variable is missing. The homepage is statically prerendered, so it never triggers the check; `/api/health` is `force-dynamic`, so it does.
+
+Read the runtime logs to see which variable:
+
+```bash
+gcloud run services logs read SERVICE --region REGION --limit 50
+# → EnvValidationError: <NAME> is required but was not set
+```
+
+Do not make a value that is only known after the first deploy — such as the Cloud Run URL — a startup requirement. `NEXT_PUBLIC_APP_URL` is a build-time-inlined value, so requiring it would fail the first deploy before the URL can exist. Keep such values optional with a safe fallback in `lib/env.ts`.
+
 ### `Image not found` / `Container image not found`
 
 The image reference does not exist. Check the exact URI in the workflow log against:

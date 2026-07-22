@@ -113,7 +113,7 @@ Full reasoning in [`coding-rules.md`](./.github/instructions/coding-rules.md).
 6. **Write production-quality code.** Handle the error path. Timeout every outbound call. No stubs, no commented-out code, no secrets.
 7. **Explain architectural decisions.** In a comment when non-obvious, in the PR always, in `docs/adr/` when it will outlive the PR.
 8. **Avoid unnecessary dependencies.** Check the platform first (`Intl`, `fetch`, `crypto`, `AbortSignal.timeout`, `structuredClone`). See [Dependency policy](#dependency-policy).
-9. **Update docs when architecture changes** — same PR, not later.
+9. **Update docs when architecture or behaviour changes** — same PR, not later.
 10. **Verify before claiming.** See [Verification protocol](#verification-protocol).
 11. **Design mobile-first.** Every UI works on a small screen first, then scales up. Unprefixed Tailwind utilities are the phone layout; add `sm:`/`md:`/`lg:` to enhance for wider screens — never the reverse. No fixed widths that overflow a phone, no horizontal scroll on the body, touch targets ≥44px. Responsiveness is a requirement, not a finishing touch.
 12. **Write docs in Simplified Technical English (ASD-STE100).** Every Markdown document — this file, `.github/instructions/`, `docs/`, `cloud/`, ADRs, READMEs — follows the standard. Short sentences (≤20 words for an instruction, ≤25 for a description), one instruction per sentence, active voice, present tense, one topic per paragraph, and one approved term per concept. Write for a non-native reader; choose the plain word over the clever one. Bring a document into compliance when you touch it.
