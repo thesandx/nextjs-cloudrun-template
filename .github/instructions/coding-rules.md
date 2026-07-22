@@ -129,6 +129,20 @@ Same PR. Not "later".
 
 ---
 
+## 11. Design mobile-first
+
+Every UI is built for a small screen first, then progressively enhanced for larger ones. Responsiveness is a requirement of the component, not a later pass.
+
+- **Base styles are the mobile layout.** Write unprefixed Tailwind utilities for the phone, then add `sm:`, `md:`, `lg:`, `xl:` breakpoints to adapt upward. Never write a desktop layout and try to claw it back down.
+- **Never overflow the viewport.** Prefer fluid widths (`w-full`, `max-w-*`, `min-w-0`) over fixed pixel widths. The body must not scroll horizontally at 320px. Wide content (tables, code blocks, diagrams) scrolls inside its own `overflow-x-auto` container.
+- **Touch first.** Interactive targets are at least 44×44px, with enough spacing that a finger cannot hit two at once.
+- **Layout that reflows.** Use flexbox and grid that wrap and stack; avoid absolute positioning that assumes a viewport size. Images and media get `max-w-full` and intrinsic sizing.
+- **Verify both ends.** Check the component at ~320px and at desktop width before claiming it done — a layout that only works on one is not finished.
+
+**Why:** most traffic is mobile, and a broken small-screen layout is a broken product. Mobile-first also forces a content and priority order that scales up cleanly, whereas desktop-first almost never scales down without rework.
+
+---
+
 ## Quick reference
 
 | Do                            | Don't                                   |
@@ -141,3 +155,4 @@ Same PR. Not "later".
 | Add to an existing folder     | Create a new top-level folder           |
 | Platform API                  | A dependency that wraps a platform API  |
 | Update docs in the same PR    | "I'll document it later"                |
+| Mobile-first, enhance upward  | Desktop layout patched down with hacks  |

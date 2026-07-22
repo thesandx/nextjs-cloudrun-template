@@ -12,7 +12,7 @@ It exists because several things here look wrong and are correct, and several ob
 2. [Verified state](#verified-state)
 3. [Documentation map](#documentation-map)
 4. [Commands](#commands)
-5. [The ten rules](#the-ten-rules)
+5. [The eleven rules](#the-eleven-rules)
 6. [Where files go](#where-files-go)
 7. [Architecture in brief](#architecture-in-brief)
 8. [Traps — things that look wrong and are not](#traps--things-that-look-wrong-and-are-not)
@@ -96,7 +96,7 @@ docker compose up --build   # run the real production image locally
 
 ---
 
-## The ten rules
+## The eleven rules
 
 Full reasoning in [`coding-rules.md`](./.github/instructions/coding-rules.md).
 
@@ -110,6 +110,7 @@ Full reasoning in [`coding-rules.md`](./.github/instructions/coding-rules.md).
 8. **Avoid unnecessary dependencies.** Check the platform first (`Intl`, `fetch`, `crypto`, `AbortSignal.timeout`, `structuredClone`). See [Dependency policy](#dependency-policy).
 9. **Update docs when architecture changes** — same PR, not later.
 10. **Verify before claiming.** See [Verification protocol](#verification-protocol).
+11. **Design mobile-first.** Every UI works on a small screen first, then scales up. Unprefixed Tailwind utilities are the phone layout; add `sm:`/`md:`/`lg:` to enhance for wider screens — never the reverse. No fixed widths that overflow a phone, no horizontal scroll on the body, touch targets ≥44px. Responsiveness is a requirement, not a finishing touch.
 
 ---
 
@@ -273,7 +274,8 @@ Missing any step breaks somebody:
 3. Export the props interface; accept `className`
 4. Semantic HTML, accessible name, keyboard reachable
 5. Tailwind utilities using tokens from `styles/globals.css` — no raw hex
-6. Colocate `<Name>.test.tsx`
+6. Mobile-first: base styles target the phone; layer `sm:`/`md:`/`lg:` for wider screens. Fluid widths (`w-full`, `max-w-*`), no fixed pixel widths that overflow, touch targets ≥44px. Verify at 320px wide and up
+7. Colocate `<Name>.test.tsx`
 
 ### Change the Dockerfile
 

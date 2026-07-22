@@ -166,7 +166,7 @@ Not optional. `eslint-plugin-jsx-a11y` runs as part of `eslint-config-next` and 
 
 - Tailwind utilities in `className`. No inline `style` except for genuinely dynamic values (a computed width).
 - Colours come from the tokens in `styles/globals.css`. No raw hex in a component.
-- Mobile-first: unprefixed utilities are the small screen, `sm:` and up widen it.
+- Mobile-first: unprefixed utilities are the small screen, `sm:` and up widen it — never the reverse. Prefer fluid widths (`w-full`, `max-w-*`) over fixed pixel widths, keep interactive targets ≥44px, never let the body scroll horizontally, and verify the layout at ~320px and at desktop width. See rule 11 in [coding-rules.md](./coding-rules.md).
 - When a `className` string becomes unreadable, that is a signal to extract a component — not to reach for `@apply`.
 
 ---
