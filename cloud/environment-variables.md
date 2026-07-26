@@ -181,19 +181,19 @@ Disable before destroying — disabling is reversible, destroying is not.
 
 Current inventory:
 
-| Name                  | Kind     | Required | Purpose                                             |
-| --------------------- | -------- | -------- | --------------------------------------------------- |
-| `WIF_PROVIDER`        | secret   | yes      | Workload Identity provider resource name            |
-| `WIF_SERVICE_ACCOUNT` | secret   | yes      | Deployer service account email                      |
-| `GCP_PROJECT_ID`      | variable | yes      | Target GCP project                                  |
-| `GCP_REGION`          | variable | no       | Deployment region (default `asia-southeast1`)       |
-| `ARTIFACT_REPOSITORY` | variable | no       | Artifact Registry repository (default `containers`) |
-| `CLOUD_RUN_SERVICE`   | variable | no       | Service name (defaults to the repository name)      |
-| `APP_URL`             | variable | no       | Public URL — **inlined at build time**              |
-| `APP_NAME`            | variable | no       | Display name                                        |
-| `LOG_LEVEL`           | variable | no       | Runtime verbosity (default `info`)                  |
-| `MIN_INSTANCES`       | variable | no       | `1` removes cold starts, at a cost                  |
-| `MAX_INSTANCES`       | variable | no       | Scaling and bill ceiling (default `10`)             |
+| Name                  | Kind     | Required | Purpose                                                             |
+| --------------------- | -------- | -------- | ------------------------------------------------------------------- |
+| `WIF_PROVIDER`        | secret   | yes      | Workload Identity provider resource name                            |
+| `WIF_SERVICE_ACCOUNT` | secret   | yes      | Deployer service account email                                      |
+| `GCP_PROJECT_ID`      | variable | yes      | Target GCP project                                                  |
+| `GCP_REGION`          | variable | no       | Deployment region (default `asia-southeast1`)                       |
+| `ARTIFACT_REPOSITORY` | variable | no       | Artifact Registry repository (default `containers`)                 |
+| `CLOUD_RUN_SERVICE`   | variable | no       | Service name (defaults to the repository name)                      |
+| `APP_URL`             | variable | no       | Public URL — **inlined at build time**                              |
+| `APP_NAME`            | variable | no       | Display name                                                        |
+| `LOG_LEVEL`           | variable | no       | Runtime verbosity (default `info`)                                  |
+| `MIN_INSTANCES`       | variable | no       | `1` removes cold starts, at a cost                                  |
+| `MAX_INSTANCES`       | variable | no       | Scaling and bill ceiling (default `10`)                             |
 | `DEPLOYED_AT`         | computed | no       | UTC deploy time the workflow injects; `/api/health` shows it in IST |
 
 `WIF_PROVIDER` and `WIF_SERVICE_ACCOUNT` are resource identifiers rather than credentials — useless without a valid OIDC token from this repository. They are stored as secrets to avoid publishing your project layout, not because a leak would grant access.
