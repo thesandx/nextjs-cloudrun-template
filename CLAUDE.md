@@ -246,20 +246,20 @@ Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, a
 
 Violations here are defects, not style disagreements.
 
-| Never                                                      | Why                                                                                                                                                        |
-| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Push or commit directly to `main`                          | Every change reaches `main` through a reviewed pull request. A push to `main` deploys to production — see [Architecture in brief](#architecture-in-brief). |
-| Commit a service account key, or write `credentials_json:` | The pipeline is keyless by design. A key is a permanent bearer credential. See [ADR-0002](./docs/adr/0002-use-workload-identity-federation.md).            |
-| Interpolate `${{ secrets.* }}` into a `run:` block         | It splices into shell source before execution. Pass via `env:` instead.                                                                                    |
-| Deploy the `:latest` tag                                   | A revision pinned to a moving tag cannot be traced to a commit, and rollback becomes a rebuild.                                                            |
-| Read `process.env` outside `lib/env.ts`                    | Untyped, unvalidated, and bypasses startup validation.                                                                                                     |
-| Use `console.log` for application logging                  | Use `@/lib/logger` — it emits the JSON shape Cloud Logging parses.                                                                                         |
-| Add `'use client'` to `app/layout.tsx`                     | Turns the entire application into a client bundle.                                                                                                         |
-| Create a new top-level folder                              | Breaks cross-project consistency. Raise it instead.                                                                                                        |
-| Weaken `tsconfig.json` strictness                          | `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` are load-bearing.                                                                       |
-| Disable a CI check to make a PR green                      | Fix the code, or change the check deliberately and say why.                                                                                                |
-| Put a secret in a Docker build arg                         | Visible in `docker history`. Use Secret Manager at runtime.                                                                                                |
-| Claim work is done without running `pnpm validate`         | See below.                                                                                                                                                 |
+| Never                                                                | Why                                                                                                                                                        |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Push or commit directly to `main`                                    | Every change reaches `main` through a reviewed pull request. A push to `main` deploys to production — see [Architecture in brief](#architecture-in-brief). |
+| Commit a service account key, or write `credentials_json:`           | The pipeline is keyless by design. A key is a permanent bearer credential. See [ADR-0002](./docs/adr/0002-use-workload-identity-federation.md).            |
+| Interpolate `${{ secrets.* }}` into a `run:` block                   | It splices into shell source before execution. Pass via `env:` instead.                                                                                    |
+| Deploy the `:latest` tag                                             | A revision pinned to a moving tag cannot be traced to a commit, and rollback becomes a rebuild.                                                            |
+| Read `process.env` outside `lib/env.ts`                              | Untyped, unvalidated, and bypasses startup validation.                                                                                                     |
+| Use `console.log` for application logging                            | Use `@/lib/logger` — it emits the JSON shape Cloud Logging parses.                                                                                         |
+| Add `'use client'` to `app/layout.tsx`                               | Turns the entire application into a client bundle.                                                                                                         |
+| Create a new top-level folder                                        | Breaks cross-project consistency. Raise it instead.                                                                                                        |
+| Weaken `tsconfig.json` strictness                                    | `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` are load-bearing.                                                                       |
+| Disable a CI check to make a PR green                                | Fix the code, or change the check deliberately and say why.                                                                                                |
+| Put a secret in a Docker build arg                                   | Visible in `docker history`. Use Secret Manager at runtime.                                                                                                |
+| Push, claim work is done, or open a PR without `pnpm validate` green | Run it locally first — `format:check` included. CI must never fail from your end. See [Verification protocol](#verification-protocol).                     |
 
 ---
 
@@ -309,11 +309,17 @@ Read the failing step before deciding. Close with a comment that explains _why_,
 
 **Never describe unverified work as working.** If a check fails, report the failure with its output.
 
-Minimum, always:
+**Run `pnpm validate` and get it green _before every push_ — never push work that will fail CI from your end.** It is exactly what CI runs, so a green local run is a green CI run. A push that turns CI red on something you could have run locally wastes a CI round and a review cycle.
+
+Minimum, always — before you push:
 
 ```bash
 pnpm validate     # typecheck + lint + format:check + test
 ```
+
+- **`format:check` is part of `pnpm validate`, not optional.** The most common self-inflicted CI failure is a Prettier miss — for example, editing a Markdown table re-widens its columns. CI fails it exactly like a type error. Run `pnpm format` (which writes the fix), then re-run `pnpm validate` before you push.
+- **If you cannot run `pnpm validate` locally** (dependencies not installed), run `pnpm install` and the gate. If you truly cannot, do not push silently — say so explicitly and treat the work as unverified.
+- **After you push, watch the checks.** If CI still fails, fix it and push again; work is not done until CI is green.
 
 If you touched `Dockerfile`, `next.config.ts`, `package.json`, or the env model:
 

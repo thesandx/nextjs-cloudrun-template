@@ -121,10 +121,12 @@ Same PR. Not "later". This covers a change in **how something works**, not only 
 
 ---
 
-## 10. Verify before you claim
+## 10. Verify before you claim — and before you push
 
-- Run `pnpm validate` before saying the work is done.
+- **Run `pnpm validate` before every push, not only before you claim the work is done.** It is exactly what CI runs (typecheck + lint + format:check + test), so a green local run is a green CI run. **CI must never fail on something you could have caught locally.**
+- **`format:check` is part of the gate.** The most common self-inflicted CI failure is a Prettier miss — for example, editing a Markdown table re-widens its columns. Run `pnpm format` to write the fix, then re-run `pnpm validate` before you push.
 - If a check fails, report the failure with its output. Do not describe unverified work as working.
+- If you cannot run `pnpm validate` locally, run `pnpm install` and the gate. If you truly cannot, do not push silently — say so and treat the work as unverified.
 - Changed the Dockerfile? Build the image and run the container. `docker compose up --build` then `curl localhost:8080/api/health`.
 - Changed a workflow? YAML that parses is not a workflow that runs.
 
