@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cn, formatUtc, isError, safeAwait } from '@/lib/utils';
+import { cn, formatIst, formatUtc, isError, safeAwait } from '@/lib/utils';
 
 describe('cn', () => {
   it('joins truthy class names', () => {
@@ -37,6 +37,28 @@ describe('isError', () => {
 
   it('rejects error-shaped objects that are not Errors', () => {
     expect(isError({ message: 'boom' })).toBe(false);
+  });
+});
+
+describe('formatIst', () => {
+  it('converts a UTC instant to IST (UTC+5:30)', () => {
+    // 12:15 UTC is 17:45 IST.
+    expect(formatIst('2026-07-26T12:15:00Z')).toBe('2026-07-26 17:45:00 IST');
+  });
+
+  it('rolls the date forward when the offset crosses midnight', () => {
+    // 20:00 UTC + 5:30 = 01:30 IST the next day.
+    expect(formatIst('2026-07-26T20:00:00Z')).toBe('2026-07-27 01:30:00 IST');
+  });
+
+  it('returns null for empty, null, or undefined input', () => {
+    expect(formatIst('')).toBeNull();
+    expect(formatIst(null)).toBeNull();
+    expect(formatIst(undefined)).toBeNull();
+  });
+
+  it('returns null for an unparseable string', () => {
+    expect(formatIst('not-a-date')).toBeNull();
   });
 });
 

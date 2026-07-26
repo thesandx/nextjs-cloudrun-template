@@ -96,6 +96,13 @@ export const env = {
 
   /** Cloud Run region, e.g. `asia-southeast1`. */
   gcpRegion: optional(process.env.GCP_REGION, ''),
+
+  /**
+   * UTC time of the last deploy (ISO-8601), injected by the deploy workflow.
+   * Empty locally. Surfaced by /api/health, rendered in IST, so a deploy is
+   * visible without opening GitHub.
+   */
+  deployedAt: optional(process.env.DEPLOYED_AT, ''),
 } as const;
 
 /**

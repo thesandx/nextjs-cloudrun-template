@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { env } from '@/lib/env';
+import { formatIst } from '@/lib/utils';
 
 /**
  * Liveness / readiness probe.
@@ -31,6 +32,9 @@ export function GET() {
       version: env.appVersion,
       environment: env.nodeEnv,
       region: env.gcpRegion || 'local',
+      // Last deploy time in IST, or null when this build was not deployed by
+      // the pipeline (local dev). Lets you confirm a deploy without GitHub.
+      deployedAt: formatIst(env.deployedAt),
       uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
       timestamp: new Date().toISOString(),
     },

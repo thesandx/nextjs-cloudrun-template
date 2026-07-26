@@ -33,6 +33,32 @@ export function formatUtc(date: Date | string): string {
 }
 
 /**
+ * Formats an ISO timestamp in India Standard Time (UTC+5:30) via the platform
+ * `Intl` API — no date library. Returns `null` for empty or unparseable input,
+ * so `/api/health` can show "not deployed by the pipeline" instead of a crash.
+ *
+ * @example formatIst('2026-07-26T12:15:00Z') // '2026-07-26 17:45:00 IST'
+ */
+export function formatIst(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const value = new Date(iso);
+  if (Number.isNaN(value.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(value);
+  const get = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')} IST`;
+}
+
+/**
  * Type guard for narrowing `unknown` caught values.
  */
 export function isError(value: unknown): value is Error {
