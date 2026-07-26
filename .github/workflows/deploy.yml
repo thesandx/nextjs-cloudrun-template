@@ -107,6 +107,12 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v3
 
+      - name: Resolve deploy metadata
+        id: meta
+        # UTC time of this deploy. /api/health renders it in IST so a deploy is
+        # visible without opening GitHub.
+        run: echo "deployed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - name: Resolve image tags
         id: image
         # Two tags per build:
@@ -158,6 +164,7 @@ jobs:
             LOG_LEVEL=${{ vars.LOG_LEVEL || 'info' }}
             GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
             GCP_REGION=${{ env.GCP_REGION }}
+            DEPLOYED_AT=${{ steps.meta.outputs.deployed_at }}
           flags: >-
             --allow-unauthenticated
             --port=8080

@@ -194,6 +194,7 @@ Current inventory:
 | `LOG_LEVEL`           | variable | no       | Runtime verbosity (default `info`)                  |
 | `MIN_INSTANCES`       | variable | no       | `1` removes cold starts, at a cost                  |
 | `MAX_INSTANCES`       | variable | no       | Scaling and bill ceiling (default `10`)             |
+| `DEPLOYED_AT`         | computed | no       | UTC deploy time the workflow injects; `/api/health` shows it in IST |
 
 `WIF_PROVIDER` and `WIF_SERVICE_ACCOUNT` are resource identifiers rather than credentials — useless without a valid OIDC token from this repository. They are stored as secrets to avoid publishing your project layout, not because a leak would grant access.
 
