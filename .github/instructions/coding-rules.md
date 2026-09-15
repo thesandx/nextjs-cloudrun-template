@@ -14,6 +14,8 @@ The top-level folders (`app/`, `components/`, `hooks/`, `lib/`, `services/`, `ty
 
 **Why:** dozens of projects come from this template. When layouts diverge, cross-project navigation, shared tooling and every assistant's assumptions break at once.
 
+**Enforced:** `no-restricted-imports` refuses an import from `@/utils/*`, `@/helpers/*`, `@/src/*` and other invented folders.
+
 ---
 
 ## 2. Always use TypeScript
@@ -25,6 +27,8 @@ The top-level folders (`app/`, `components/`, `hooks/`, `lib/`, `services/`, `ty
 - Type the boundaries: exported function signatures, component props, API payloads. Let inference handle local variables.
 
 **Why:** the strict settings let you refactor with confidence. Every escape hatch converts a compile-time error into a production incident.
+
+**Enforced:** `@typescript-eslint/no-explicit-any` and `@typescript-eslint/ban-ts-comment`. The second one accepts `@ts-expect-error` only with a description.
 
 ---
 
@@ -52,6 +56,8 @@ Every component is a Server Component unless it cannot be.
 - Never put `'use client'` in `app/layout.tsx`. That turns the entire application into a client bundle.
 - Anything you pass across the boundary must be serialisable — no functions, no class instances, no `Date` inside deeply nested objects you did not check.
 
+**Enforced:** `no-restricted-syntax` refuses the `'use client'` directive in `app/layout.tsx`.
+
 ---
 
 ## 5. Keep components reusable
@@ -61,6 +67,8 @@ Every component is a Server Component unless it cannot be.
 - No hidden coupling to a route, a global, or a specific parent.
 - Export the props interface so the component can be composed and tested.
 - Before you write a component, check whether one already exists. A duplicate `Button` slowly breaks the design system.
+
+**Enforced:** `no-restricted-imports` refuses `@/services/*` inside `components/ui/`.
 
 ---
 
@@ -73,6 +81,8 @@ Assume this code runs in production tonight, for real users.
 - No `TODO` left as the implementation. No commented-out code. No stubs that silently return empty data.
 - No secrets in source, ever — not in a comment, not in a test fixture, not "temporarily".
 - Validate input at trust boundaries: request bodies, query params, third-party responses.
+
+**Enforced:** `no-console`, `no-debugger` and `no-empty` (which includes an empty `catch`). In `services/` and `app/api/`, `no-restricted-syntax` refuses a `fetch` call with no `signal`. Pass the timeout at the call site — `fetch(url, { signal: AbortSignal.timeout(5000) })` — because the check cannot look inside an options object built elsewhere.
 
 ---
 
@@ -129,6 +139,8 @@ Same PR. Not "later". This covers a change in **how something works**, not only 
 - If you cannot run `pnpm validate` locally, run `pnpm install` and the gate. If you truly cannot, do not push silently — say so and treat the work as unverified.
 - Changed the Dockerfile? Build the image and run the container. `docker compose up --build` then `curl localhost:8080/api/health`.
 - Changed a workflow? YAML that parses is not a workflow that runs.
+- `pnpm lint` runs with `--max-warnings 0`. A warning fails CI exactly like an error.
+- Need to disable a rule on a line? Give the reason: `// eslint-disable-next-line <rule> -- why`. A bare disable is a defect. Never disable a check to make a PR green.
 
 ---
 

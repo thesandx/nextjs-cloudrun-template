@@ -13,15 +13,16 @@ It exists because several things here look wrong but are correct. Several obviou
 3. [Documentation map](#documentation-map)
 4. [Commands](#commands)
 5. [The twelve rules](#the-twelve-rules)
-6. [Where files go](#where-files-go)
-7. [Architecture in brief](#architecture-in-brief)
-8. [Traps — things that look wrong and are not](#traps--things-that-look-wrong-and-are-not)
-9. [Never do this](#never-do-this)
-10. [Task recipes](#task-recipes)
-11. [Verification protocol](#verification-protocol)
-12. [Dependency policy](#dependency-policy)
-13. [Security invariants](#security-invariants)
-14. [Decision log](#decision-log)
+6. [Which rules the tooling enforces](#which-rules-the-tooling-enforces)
+7. [Where files go](#where-files-go)
+8. [Architecture in brief](#architecture-in-brief)
+9. [Traps — things that look wrong and are not](#traps--things-that-look-wrong-and-are-not)
+10. [Never do this](#never-do-this)
+11. [Task recipes](#task-recipes)
+12. [Verification protocol](#verification-protocol)
+13. [Dependency policy](#dependency-policy)
+14. [Security invariants](#security-invariants)
+15. [Decision log](#decision-log)
 
 ---
 
@@ -117,6 +118,30 @@ Full reasoning in [`coding-rules.md`](./.github/instructions/coding-rules.md).
 10. **Verify before claiming.** See [Verification protocol](#verification-protocol).
 11. **Design mobile-first.** Every UI works on a small screen first, then scales up. Unprefixed Tailwind utilities are the phone layout; add `sm:`/`md:`/`lg:` to enhance for wider screens — never the reverse. No fixed widths that overflow a phone, no horizontal scroll on the body, touch targets ≥44px. Responsiveness is a requirement, not a finishing touch.
 12. **Write docs in Simplified Technical English (ASD-STE100).** Every Markdown document — this file, `.github/instructions/`, `docs/`, `cloud/`, ADRs, READMEs — follows the standard. Short sentences (≤20 words for an instruction, ≤25 for a description), one instruction per sentence, active voice, present tense, one topic per paragraph, and one approved term per concept. Write for a non-native reader; choose the plain word over the clever one. Bring a document into compliance when you touch it.
+
+---
+
+## Which rules the tooling enforces
+
+Most rules above are checks, not reminders. `pnpm lint` fails on each one. Each message names the document that explains the reason.
+
+| Rule                                                | Check                                                                 |
+| --------------------------------------------------- | --------------------------------------------------------------------- |
+| 1 — no new top-level folder                         | `no-restricted-imports` refuses `@/utils/*`, `@/helpers/*`, `@/src/*` |
+| 2 — no `any`, no `@ts-ignore`                       | `@typescript-eslint/no-explicit-any`, `ban-ts-comment`                |
+| 4 — no `'use client'` in `app/layout.tsx`           | `no-restricted-syntax`                                                |
+| 5 — `components/ui/` does no fetching               | `no-restricted-imports` refuses `@/services/*` there                  |
+| 6 — every outbound `fetch` has a timeout            | `no-restricted-syntax` in `services/` and `app/api/`                  |
+| 6 — no `console.log`, no `debugger`, no empty catch | `no-console`, `no-debugger`, `no-empty`                               |
+| Absolute imports only                               | `no-restricted-imports` refuses `../`                                 |
+| `process.env` only in `lib/env.ts`                  | `no-restricted-properties`                                            |
+| Layer boundaries                                    | `no-restricted-imports`, one block per folder                         |
+
+**`pnpm lint` runs with `--max-warnings 0`.** A warning fails CI exactly like an error. This makes the accessibility and performance rules of `eslint-config-next` blocking too.
+
+**To disable a rule on a line, give a reason:** `// eslint-disable-next-line <rule> -- why`. A bare disable is a defect. See [`lib/logger.ts`](./lib/logger.ts) for the one in the template.
+
+The lint cannot see everything. Pass the timeout at the `fetch` call site, or the check cannot confirm it. These stay human judgement: mobile-first layout, Simplified Technical English, and whether a dependency earns its place.
 
 ---
 

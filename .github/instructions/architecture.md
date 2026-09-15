@@ -47,6 +47,8 @@ Data flows **down**; dependencies point **inward**. A layer may import from the 
 
 Why it matters: `lib/` stays easy to test because it has no I/O to mock. You can also replace `services/` completely (REST → gRPC, one vendor → another) without changing a single component.
 
+These boundaries are lint rules, not conventions. `eslint.config.mjs` holds one `no-restricted-imports` block per folder, and each message names this section. A change to the layers changes that file in the same PR.
+
 ---
 
 ## Rendering strategy
