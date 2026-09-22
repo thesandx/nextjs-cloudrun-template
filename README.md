@@ -151,7 +151,7 @@ That is the whole deployment procedure. The pipeline builds the image, pushes it
 ├── app/                    # Routes, layouts, route handlers (App Router)
 │   ├── api/health/         #   Liveness probe for Docker + Cloud Run
 │   ├── layout.tsx          #   Root layout — a Server Component, keep it that way
-│   ├── page.tsx            #   The Hello World page
+│   ├── page.tsx            #   Template home page — proves the deploy, shows the primitives
 │   ├── design/             #   Living reference for the design language
 │   ├── error.tsx           #   Error boundary
 │   └── not-found.tsx       #   404

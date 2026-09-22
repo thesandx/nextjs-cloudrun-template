@@ -28,9 +28,9 @@ It exists because several things here look wrong but are correct. Several obviou
 
 ## What this is
 
-A production Next.js application deployed to Google Cloud Run, generated from a template. If the app still contains only the Hello World page at `app/page.tsx`, it has not been customised yet.
+A production Next.js application deployed to Google Cloud Run, generated from a template. If `app/page.tsx` still shows the template home page — the mascot, "Hello World" and the primitive examples — the app has not been customised yet.
 
-The template's purpose is that **the path to production already works**: a container that runs on Cloud Run, a pipeline that deploys it without storing any credential, and documentation that explains each decision. The application is deliberately trivial. Everything else is the reusable part — do not degrade it.
+The template's purpose is that **the path to production already works**: a container that runs on Cloud Run, a pipeline that deploys it without storing any credential, a design language every screen already follows, and documentation that explains each decision. The application is deliberately trivial — the home page proves the deploy works and shows the primitives, nothing more. Everything else is the reusable part — do not degrade it.
 
 ---
 
