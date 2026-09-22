@@ -31,6 +31,7 @@ The app itself is one page. That is the point — everything else is the reusabl
 | 🚀 **CI/CD that verifies**   | PR validation builds and smoke-tests the real container; deploys probe the live URL |
 | ☁️ **Cloud Run native**      | Honours `$PORT`, binds `0.0.0.0`, autoscales, scales to zero                        |
 | 🧭 **AI-assistant ready**    | `.github/instructions/` — rules that keep generated code consistent across projects |
+| 🎨 **A design language**     | Mochi: tokens, seven primitives, a living reference at `/design`, enforced by lint  |
 | 📐 **Enterprise structure**  | Clear layer boundaries, absolute imports, enforced import ordering                  |
 | 📚 **Documented**            | Runbooks, ADRs, troubleshooting — not just a list of commands                       |
 
@@ -150,11 +151,13 @@ That is the whole deployment procedure. The pipeline builds the image, pushes it
 ├── app/                    # Routes, layouts, route handlers (App Router)
 │   ├── api/health/         #   Liveness probe for Docker + Cloud Run
 │   ├── layout.tsx          #   Root layout — a Server Component, keep it that way
-│   ├── page.tsx            #   The Hello World page
+│   ├── page.tsx            #   Template home page — proves the deploy, shows the primitives
+│   ├── design/             #   Living reference for the design language
 │   ├── error.tsx           #   Error boundary
 │   └── not-found.tsx       #   404
 │
 ├── components/             # Reusable components (ui/, layout/, <feature>/)
+│   └── ui/                 #   Mochi primitives: Button, Card, Input, Face …
 ├── hooks/                  # Reusable React hooks
 ├── lib/                    # Pure utilities — no I/O
 │   ├── env.ts              #   Validated env vars; the ONLY reader of process.env
@@ -164,6 +167,7 @@ That is the whole deployment procedure. The pipeline builds the image, pushes it
 ├── types/                  # Shared TypeScript types
 │
 ├── public/                 # Static assets
+│   └── fonts/              #   Self-hosted Mochi typefaces, so builds work offline
 ├── styles/                 # globals.css and design tokens
 ├── tests/                  # Test setup
 │
@@ -330,6 +334,7 @@ Full model: [`cloud/environment-variables.md`](./cloud/environment-variables.md)
 | [`coding-rules.md`](./.github/instructions/coding-rules.md)           | The twelve non-negotiables. Start here.                     |
 | [`project-structure.md`](./.github/instructions/project-structure.md) | Where every kind of file goes                               |
 | [`coding-standards.md`](./.github/instructions/coding-standards.md)   | TypeScript, React and CSS conventions                       |
+| [`design-language.md`](./.github/instructions/design-language.md)     | Mochi: tokens, primitives, patterns, words, anti-slop       |
 | [`architecture.md`](./.github/instructions/architecture.md)           | Layers, data flow, decisions and their trade-offs           |
 | [`deployment.md`](./.github/instructions/deployment.md)               | The Cloud Run contract; how to change the Dockerfile safely |
 | [`github-workflows.md`](./.github/instructions/github-workflows.md)   | Workflow rules; OIDC; least-privilege permissions           |
