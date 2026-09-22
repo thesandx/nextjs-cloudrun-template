@@ -70,6 +70,7 @@ This file is the index and the warnings. The detail lives in `.github/instructio
 | [`.github/instructions/coding-rules.md`](./.github/instructions/coding-rules.md)           | Writing anything. The non-negotiables in full.                 |
 | [`.github/instructions/project-structure.md`](./.github/instructions/project-structure.md) | Creating any file — it decides where it goes.                  |
 | [`.github/instructions/coding-standards.md`](./.github/instructions/coding-standards.md)   | Writing TypeScript, React or CSS.                              |
+| [`.github/instructions/design-language.md`](./.github/instructions/design-language.md)     | Writing or changing **any UI**. Tokens, primitives, anti-slop. |
 | [`.github/instructions/architecture.md`](./.github/instructions/architecture.md)           | Adding a layer, dependency, or changing data flow.             |
 | [`.github/instructions/deployment.md`](./.github/instructions/deployment.md)               | Touching `Dockerfile`, env vars, or anything Cloud Run reads.  |
 | [`.github/instructions/github-workflows.md`](./.github/instructions/github-workflows.md)   | Touching `.github/workflows/`.                                 |
@@ -116,7 +117,7 @@ Full reasoning in [`coding-rules.md`](./.github/instructions/coding-rules.md).
 8. **Avoid unnecessary dependencies.** Check the platform first (`Intl`, `fetch`, `crypto`, `AbortSignal.timeout`, `structuredClone`). See [Dependency policy](#dependency-policy).
 9. **Update docs when architecture or behaviour changes** — same PR, not later.
 10. **Verify before claiming.** See [Verification protocol](#verification-protocol).
-11. **Design mobile-first.** Every UI works on a small screen first, then scales up. Unprefixed Tailwind utilities are the phone layout; add `sm:`/`md:`/`lg:` to enhance for wider screens — never the reverse. No fixed widths that overflow a phone, no horizontal scroll on the body, touch targets ≥44px. Responsiveness is a requirement, not a finishing touch.
+11. **Design mobile-first, in the design language.** Every UI is built from the Mochi tokens and the `components/ui/` primitives — never ad-hoc styles. Read [`design-language.md`](./.github/instructions/design-language.md) before you write any UI; the living reference renders at `/design`. Every UI works on a small screen first, then scales up. Unprefixed Tailwind utilities are the phone layout; add `sm:`/`md:`/`lg:` to enhance for wider screens — never the reverse. No fixed widths that overflow a phone, no horizontal scroll on the body, touch targets ≥44px. Responsiveness is a requirement, not a finishing touch.
 12. **Write docs in Simplified Technical English (ASD-STE100).** Every Markdown document — this file, `.github/instructions/`, `docs/`, `cloud/`, ADRs, READMEs — follows the standard. Short sentences (≤20 words for an instruction, ≤25 for a description), one instruction per sentence, active voice, present tense, one topic per paragraph, and one approved term per concept. Write for a non-native reader; choose the plain word over the clever one. Bring a document into compliance when you touch it.
 
 ---
@@ -133,6 +134,9 @@ Most rules above are checks, not reminders. `pnpm lint` fails on each one. Each 
 | 5 — `components/ui/` does no fetching               | `no-restricted-imports` refuses `@/services/*` there                  |
 | 6 — every outbound `fetch` has a timeout            | `no-restricted-syntax` in `services/` and `app/api/`                  |
 | 6 — no `console.log`, no `debugger`, no empty catch | `no-console`, `no-debugger`, `no-empty`                               |
+| 11 — no raw hex or arbitrary value in a `className` | `no-restricted-syntax` in `app/` and `components/`                    |
+| 11 — no default Tailwind colour, size or radius     | `no-restricted-syntax`, one selector per design rule                  |
+| 11 — outlines are 2px, shadows are hard             | `no-restricted-syntax` refuses `border`, `border-4`, `shadow-lg`      |
 | Absolute imports only                               | `no-restricted-imports` refuses `../`                                 |
 | `process.env` only in `lib/env.ts`                  | `no-restricted-properties`                                            |
 | Layer boundaries                                    | `no-restricted-imports`, one block per folder                         |
@@ -141,7 +145,7 @@ Most rules above are checks, not reminders. `pnpm lint` fails on each one. Each 
 
 **To disable a rule on a line, give a reason:** `// eslint-disable-next-line <rule> -- why`. A bare disable is a defect. See [`lib/logger.ts`](./lib/logger.ts) for the one in the template.
 
-The lint cannot see everything. Pass the timeout at the `fetch` call site, or the check cannot confirm it. These stay human judgement: mobile-first layout, Simplified Technical English, and whether a dependency earns its place.
+The lint cannot see everything. Pass the timeout at the `fetch` call site, or the check cannot confirm it. The design checks read `className` strings, so a class name assembled at runtime from a variable escapes them. These stay human judgement: mobile-first layout, one primary action per screen, the cute budget, the anti-slop list, Simplified Technical English, and whether a dependency earns its place.
 
 ---
 
@@ -281,6 +285,7 @@ Violations here are defects, not style disagreements.
 | Use `console.log` for application logging                            | Use `@/lib/logger` — it emits the JSON shape Cloud Logging parses.                                                                                         |
 | Add `'use client'` to `app/layout.tsx`                               | Turns the entire application into a client bundle.                                                                                                         |
 | Create a new top-level folder                                        | Breaks cross-project consistency. Raise it instead.                                                                                                        |
+| Style a UI with ad-hoc values instead of the tokens and primitives   | The design language stops being a system the moment one screen leaves it. See [`design-language.md`](./.github/instructions/design-language.md).           |
 | Weaken `tsconfig.json` strictness                                    | `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` are load-bearing.                                                                       |
 | Disable a CI check to make a PR green                                | Fix the code, or change the check deliberately and say why.                                                                                                |
 | Put a secret in a Docker build arg                                   | Visible in `docker history`. Use Secret Manager at runtime.                                                                                                |
@@ -305,9 +310,10 @@ Missing any step breaks somebody:
 2. Server Component unless it needs state/effects/handlers/browser APIs
 3. Export the props interface; accept `className`
 4. Semantic HTML, accessible name, keyboard reachable
-5. Tailwind utilities using tokens from `styles/globals.css` — no raw hex
+5. Tailwind utilities using tokens from `styles/globals.css` — no raw hex. Reach for an existing primitive before you write a new one
 6. Mobile-first: base styles target the phone; layer `sm:`/`md:`/`lg:` for wider screens. Fluid widths (`w-full`, `max-w-*`), no fixed pixel widths that overflow, touch targets ≥44px. Verify at 320px wide and up
 7. Colocate `<Name>.test.tsx`
+8. A new or changed `components/ui/` primitive also appears on `/design`, in the same PR
 
 ### Change the Dockerfile
 

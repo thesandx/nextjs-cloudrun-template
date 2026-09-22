@@ -1,19 +1,27 @@
 import Link from 'next/link';
 
+import { buttonStyles } from '@/components/ui/Button';
+import { Face } from '@/components/ui/Face';
+
+/**
+ * The 404 route. It follows the empty-state recipe in design-language.md:
+ * a sleepy face, one line that says what happened, one action that leaves.
+ */
 export default function NotFound() {
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center px-6 text-center">
-      <p className="text-muted font-mono text-sm">404</p>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight">Page not found</h1>
-      <p className="text-muted mt-4 max-w-md text-balance">
-        The page you are looking for does not exist or has been moved.
+    <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center gap-6 px-5 py-12 sm:px-8">
+      <span className="bg-sunken border-line inline-grid size-20 place-items-center rounded-full border-2">
+        <Face mood="sleepy" size={64} />
+      </span>
+      <h1 className="text-title">Page not found</h1>
+      <p className="text-ink-soft max-w-prose">
+        This page does not exist, or it moved somewhere else.
       </p>
-      <Link
-        href="/"
-        className="border-border mt-8 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:border-current"
-      >
-        Back to home
-      </Link>
+      <div>
+        <Link href="/" className={buttonStyles()}>
+          Back to home
+        </Link>
+      </div>
     </main>
   );
 }

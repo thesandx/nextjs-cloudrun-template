@@ -22,4 +22,12 @@ describe('HomePage', () => {
       screen.getByText('This project is running successfully on Google Cloud Run.'),
     ).toBeInTheDocument();
   });
+
+  it('links to the living design reference', () => {
+    render(<HomePage />);
+    expect(screen.getByRole('link', { name: 'See the design language' })).toHaveAttribute(
+      'href',
+      '/design',
+    );
+  });
 });
