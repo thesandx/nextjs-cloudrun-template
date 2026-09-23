@@ -399,12 +399,21 @@ Both matter: `Content-Type` must equal what was signed, and `x-goog-content-leng
 
 ### The PUT fails with a CORS error in the browser
 
-The bucket does not allow your origin. A signed-URL PUT is a cross-origin request to `storage.googleapis.com`.
+The bucket does not allow your origin. A signed-URL PUT is a cross-origin request to `storage.googleapis.com`, and the bucket lists who may make it. The browser console names the origin it refused:
+
+> Access to fetch at `https://storage.googleapis.com/...` from origin
+> `https://my-app-123.asia-south1.run.app` has been blocked by CORS policy
+
+**List every origin the app is served from, and include the Cloud Run URL.** `https://<service>-<number>.<region>.run.app` is an origin like any other. It is the one people forget: the custom domain is added, the platform URL is not, so the live site uploads and a test on the `run.app` address fails.
 
 ```bash
-./scripts/gcp-bootstrap.sh ... --cors-origin https://your-domain
+./scripts/gcp-bootstrap.sh ... \
+  --cors-origin https://your-domain \
+  --cors-origin https://your-service-123.asia-south1.run.app
 gcloud storage buckets describe gs://BUCKET --format='value(cors_config)'   # verify
 ```
+
+The script is idempotent, so re-run it with the flags added. The signed URL in the error message is good news: the server made it, so the signing binding and the bucket name are correct. Only the browser's preflight was refused.
 
 ### `UploadRejectedError: no object at tmp/...`
 
