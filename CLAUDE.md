@@ -392,7 +392,7 @@ Two pnpm safety nets will stop you, and both are deliberate:
 
 Full model in [`SECURITY.md`](./SECURITY.md).
 
-- **No long-lived credentials exist.** CI authenticates via Workload Identity Federation with a short-lived OIDC token bound to this repository by an attribute condition.
+- **No long-lived credentials exist.** CI authenticates via Workload Identity Federation with a short-lived OIDC token. The provider's attribute condition names your GitHub **owner**; the deployer's `principalSet://` binding names this **repository** and is what authorises a deploy. The provider is shared by every repository in the project — never pin it to one repository, or the next repository you bootstrap silently revokes this one. See [ADR-0003](./docs/adr/0003-scope-workload-identity-to-the-github-owner.md).
 - **Two identities, deliberately separate.** The deployer service account can push images and deploy; it cannot read application data. The runtime service account can read its own secrets; it cannot deploy.
 - **The container is hardened:** non-root uid 1001, no source/dev-deps/package manager in the final image, pinned base image, read-only root filesystem, `no-new-privileges`.
 - **Workflows are least-privilege:** `contents: read` by default, `id-token: write` only where OIDC is needed, `persist-credentials: false` on checkout. PR validation needs **no** cloud credentials — keep it that way so fork PRs work.
@@ -404,10 +404,11 @@ Full model in [`SECURITY.md`](./SECURITY.md).
 
 Recorded in [`docs/adr/`](./docs/adr/). Read before proposing a change to any of them.
 
-| ADR                                                         | Decision                                                     |
-| ----------------------------------------------------------- | ------------------------------------------------------------ |
-| [0001](./docs/adr/0001-use-cloud-run-for-hosting.md)        | Cloud Run for hosting — over Vercel, GKE, App Engine, a VM   |
-| [0002](./docs/adr/0002-use-workload-identity-federation.md) | Workload Identity Federation — no service account keys, ever |
+| ADR                                                                    | Decision                                                                             |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [0001](./docs/adr/0001-use-cloud-run-for-hosting.md)                   | Cloud Run for hosting — over Vercel, GKE, App Engine, a VM                           |
+| [0002](./docs/adr/0002-use-workload-identity-federation.md)            | Workload Identity Federation — no service account keys, ever                         |
+| [0003](./docs/adr/0003-scope-workload-identity-to-the-github-owner.md) | WIF provider scoped to the GitHub owner; the repository pin lives in the IAM binding |
 
 Add an ADR when a decision is expensive to reverse, affects how everyone works, or rejects an obvious alternative. Never edit an accepted ADR to change its decision — write a new one that supersedes it, and link both ways.
 

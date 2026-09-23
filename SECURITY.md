@@ -16,7 +16,14 @@ This is a template. Security fixes land on `main`; there are no maintained relea
 
 ### No long-lived credentials
 
-The deployment pipeline authenticates through Workload Identity Federation. **No JSON service account key is created, stored or committed.** A key is a permanent bearer credential. An OIDC token lives for minutes, and an attribute condition binds it to this repository.
+The deployment pipeline authenticates through Workload Identity Federation. **No JSON service account key is created, stored or committed.** A key is a permanent bearer credential. An OIDC token lives for minutes.
+
+Two controls bind that token, and they do different jobs:
+
+- The provider's **attribute condition** names your GitHub owner. It stops every repository outside the owner.
+- The deployer's **`principalSet://` binding** names this repository. It decides what the token can impersonate.
+
+The binding is the one that authorises a deploy. The provider is shared by every repository in the project, so a per-repository condition there would break a sibling repository each time you add one. See [ADR-0003](./docs/adr/0003-scope-workload-identity-to-the-github-owner.md).
 
 If you see `credentials_json:` or a `*.json` key anywhere in a project built from this template, that is a finding — report it.
 
@@ -43,14 +50,15 @@ If an attacker compromises either account, the damage stays contained.
 
 ### Pipeline hardening
 
-| Control                                                    | Where                      |
-| ---------------------------------------------------------- | -------------------------- |
-| Least-privilege `permissions:` per workflow and job        | `.github/workflows/*`      |
-| `persist-credentials: false` on checkout                   | all workflows              |
-| PR validation requires no cloud credentials                | `pr-validation.yml`        |
-| Provider pinned to this repository by attribute condition  | Workload Identity provider |
-| CodeQL on PRs and weekly (needs code scanning — see below) | `codeql.yml`               |
-| Dependabot on npm, Actions and Docker                      | `dependabot.yml`           |
+| Control                                                     | Where                           |
+| ----------------------------------------------------------- | ------------------------------- |
+| Least-privilege `permissions:` per workflow and job         | `.github/workflows/*`           |
+| `persist-credentials: false` on checkout                    | all workflows                   |
+| PR validation requires no cloud credentials                 | `pr-validation.yml`             |
+| Provider pinned to your GitHub owner by attribute condition | Workload Identity provider      |
+| Impersonation pinned to this repository                     | Deployer `principalSet` binding |
+| CodeQL on PRs and weekly (needs code scanning — see below)  | `codeql.yml`                    |
+| Dependabot on npm, Actions and Docker                       | `dependabot.yml`                |
 
 ### Application
 
@@ -63,7 +71,7 @@ If an attacker compromises either account, the damage stays contained.
 The template is a safe default, not a finished security posture. Before production:
 
 - [ ] Narrow the deployer's `roles/run.admin` to `run.developer` or a custom role
-- [ ] Restrict the Workload Identity attribute condition to `refs/heads/main`
+- [ ] Restrict this repository to `refs/heads/main` — bootstrap with `--main-only`, which binds `attribute.repo_ref`. Do not add `assertion.ref` to the provider condition; it applies to every repository sharing the provider
 - [ ] Add required reviewers to the `production` GitHub Environment
 - [ ] Enable branch protection on `main`: required checks, required review, no force push
 - [ ] Enable Artifact Registry vulnerability scanning
