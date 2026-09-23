@@ -16,6 +16,8 @@ Every app from this template gets two resources, created by `scripts/gcp-bootstr
 | Cloud Storage | `<project-id>-<app-slug>-media` | Same as the Cloud Run service |
 | Dev bucket    | `...-media-dev`                 | Same                          |
 
+Two collections ship with the template: `examples`, which you delete, and `users`, which holds a profile per signed-in person. See [auth.md](./auth.md).
+
 Both are reached with the Cloud Run runtime service account through Application Default Credentials. There is no key file.
 
 > **Both locations are permanent.** A Firestore database cannot be moved, and neither can a bucket. Choose the region before you run bootstrap.
@@ -45,6 +47,8 @@ export const notes = createRepository({ collection: 'notes', schema: noteSchema 
 
 The schema declares the fields **you** own. It must not declare `id`, `createdAt`, `updatedAt` or `deletedAt` — the repository maintains those, and `update` rejects a patch that touches them.
 
+Anything a user owns carries an `ownerId`, written from the session and never from the request body. See [auth.md](./auth.md).
+
 `createRepository` opens no connection. The Firestore client is built on the first real operation, which is what lets `next build` import every route on a runner with no credentials.
 
 ---
@@ -54,6 +58,10 @@ The schema declares the fields **you** own. It must not declare `id`, `createdAt
 ```ts
 // Create. No id argument — auto ids only, so writes spread across the key space.
 const id = await notes.create({ title: 'Hello', ownerId, ownerName });
+
+// The one exception: an id that is already random AND already meaningful.
+// `assertDistributedId` refuses sequential ids, date prefixes and bare numbers.
+await users.createWithId(uid, profile);
 
 // Read. `null` means absent; anything else throws.
 const note = await notes.get(id);
@@ -85,6 +93,26 @@ page.nextCursor; // string | null — null means this was the last page
 ```
 
 `limit` is required and there is no offset. Firestore charges for every skipped document, so offset pagination gets more expensive the deeper you go. The cursor is opaque: treat it as a token, not as an id.
+
+### Supplying your own id
+
+`create` takes no id, and that is the rule: auto ids are random, so writes spread across the key range from the first document. A monotonic id (`user-1`, `2026-09-22-abc`) sends every write to one end of that range, and Firestore scales a collection by **splitting** that range. A range whose writes all land at one end cannot usefully split.
+
+`createWithId` exists for the case where the id is the point — a profile keyed by its Firebase uid, fetched with one key lookup and no index. A uid is 28 characters of random base62, so it spreads exactly like an auto id; the rule's reason permits it.
+
+`lib/document-ids.ts` keeps the exception narrow:
+
+| Refused                      | Why                                            |
+| ---------------------------- | ---------------------------------------------- |
+| `user-1`, `order_42`         | A counter. Every write lands at the same place |
+| `2026-09-22-abc`             | Date-prefixed, so it sorts and therefore pins  |
+| `1234567890`                 | A bare number is almost always a counter       |
+| Anything under 16 characters | Unlikely to be random                          |
+| `a/b`, `.`, `..`, `__x__`    | Firestore rejects these outright               |
+
+The length floor is the only one a caller may lower, with `{ minLength }`, and only for a collection far below one write per second — a tenant keyed by slug, say. The shape checks hold at any length.
+
+`createWithId` throws `DocumentAlreadyExistsError` rather than overwriting, so a concurrent first write is a detectable race and never silent data loss.
 
 ### Counting
 
@@ -260,6 +288,8 @@ Opening rules up for a client SDK moves authorisation out of your route handlers
 | `5 NOT_FOUND` on the first query                   | `FIRESTORE_DATABASE_ID` names a database that does not exist     |
 | `403` from a signed URL PUT                        | The client did not send the returned headers exactly             |
 | `UnboundedQueryError`                              | A `limit` over 200, or a cursor that no longer resolves          |
+| `InvalidDocumentIdError`                           | `createWithId` was given a hotspot-prone id                      |
+| `DocumentAlreadyExistsError`                       | `createWithId` raced another write for the same id               |
 | `DocumentValidationError` on read                  | Stored data no longer matches the schema — a real bug, not noise |
 
 The full table, with fixes, is in [troubleshooting.md](./troubleshooting.md).

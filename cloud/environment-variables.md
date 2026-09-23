@@ -235,6 +235,39 @@ Pass `--skip-data` to `gcp-bootstrap.sh`, then delete the required block and the
 
 ---
 
+## Authentication configuration
+
+Six variables. The four `NEXT_PUBLIC_FIREBASE_*` values come from the Firebase console; the two `AUTH_*` values have working defaults.
+
+| Variable                           | Default                     | Required in production |
+| ---------------------------------- | --------------------------- | ---------------------- |
+| `NEXT_PUBLIC_FIREBASE_API_KEY`     | —                           | no — see below         |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `<project>.firebaseapp.com` | no (derived)           |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID`  | `GCP_PROJECT_ID`            | no (derived)           |
+| `NEXT_PUBLIC_FIREBASE_APP_ID`      | —                           | no — see below         |
+| `AUTH_SESSION_MAX_AGE_DAYS`        | `14`                        | no                     |
+| `AUTH_CHECK_REVOKED`               | `false`                     | no                     |
+
+### Why these are not required in production
+
+Requiring them would refuse to start, which turns a half-finished Firebase setup into an outage. Instead the app **fails closed**: `authEnabled` in `lib/env.ts` is derived from the web config being complete, and when it is not, the app serves public reads and answers 401 to every write.
+
+Missing configuration can therefore never produce an open endpoint. It produces a read-only one.
+
+### These are build-time values, and they are public
+
+`NEXT_PUBLIC_*` is inlined into the JavaScript bundle when the image is built. Setting one on the Cloud Run service does nothing — the value is already inside the code users downloaded. **Rebuild.**
+
+They are also public, which is correct. The Firebase API key identifies the project; it authorises nothing. The browser must send it to reach Identity Platform, so hiding it is not possible and not the control. Restrict it by HTTP referrer in the Google Cloud console under APIs & Services > Credentials.
+
+They go in `build-args` in `deploy.yml`, sourced from repository **variables**. That does not contradict "never put a secret in a build arg" — these are not secrets.
+
+### `AUTH_CHECK_REVOKED`
+
+On, every authenticated request asks Identity Platform whether the underlying refresh token was revoked, so "sign out everywhere" takes effect immediately. That is one call to an external service in the hot path of every request. Off is right for most apps; on is right for money and health data.
+
+---
+
 ## Platform-injected variables
 
 Cloud Run sets these; do not define them yourself.
@@ -256,6 +289,8 @@ Cloud Run sets these; do not define them yourself.
 | `process.env.FOO` in a component                | Untyped, unvalidated, easy to typo                                        | `import { env } from '@/lib/env'`              |
 | Committing `.env.local`                         | Secrets in git history, forever                                           | `.gitignore` already covers it                 |
 | `--build-arg DATABASE_URL=...`                  | Visible in `docker history`                                               | Secret Manager at runtime                      |
+| `gh secret set FIREBASE_API_KEY`                | It is not a secret, and a secret cannot be inlined at build time cleanly  | `gh variable set`, restricted by HTTP referrer |
+| Setting `NEXT_PUBLIC_FIREBASE_*` on the service | Inlined at build time; changing it at runtime does nothing                | Set the variables, then rebuild the image      |
 | Changing `NEXT_PUBLIC_*` on the service         | Silently has no effect                                                    | Rebuild the image                              |
 | A secret with no owner or rotation plan         | Nobody dares to change it later                                           | Document owner and rotation in the PR          |
 | `FIRESTORE_EMULATOR_HOST` on a deployed service | Every read and write routes to a host that does not exist                 | Set it only locally and in the emulator runner |

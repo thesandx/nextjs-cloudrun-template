@@ -108,6 +108,28 @@ Browser uploads need the bucket to allow your origin:
 
 The dev bucket gets `http://localhost:3000` and `http://localhost:8080` automatically.
 
+## Working with sign-in
+
+There is no Auth emulator in this template, so local sign-in talks to real Firebase. Put the web config in `.env.local`:
+
+```bash
+NEXT_PUBLIC_FIREBASE_API_KEY=AIza...
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=my-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=my-project
+NEXT_PUBLIC_FIREBASE_APP_ID=1:...:web:...
+```
+
+Add `localhost` under Authentication > Settings > Authorized domains, or Google sign-in is refused.
+
+Leave the values out and the app runs fine with sign-in unavailable. Every write route then answers 401, which is the same behaviour a production deployment has without the config. If you are working on a write path, you need the config.
+
+Two local-only details worth knowing:
+
+- **The session cookie is not `Secure` on `http://localhost`.** A browser refuses to store a `Secure` cookie on plain HTTP, so sign-in would silently never work. The carve-out is derived from `NEXT_PUBLIC_APP_URL`, not from the request, so it cannot be triggered in production by a forged header.
+- **Phone OTP sends real messages and costs real money.** Use the Firebase console's test phone numbers — Authentication > Sign-in method > Phone > Phone numbers for testing — which accept a fixed code and send nothing.
+
+Full guide: [auth.md](./auth.md).
+
 ## Editor setup
 
 VS Code picks up the recommended extensions and settings from `.vscode/`. The two that matter:

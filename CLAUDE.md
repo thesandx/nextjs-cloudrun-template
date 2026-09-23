@@ -17,13 +17,14 @@ It exists because several things here look wrong but are correct. Several obviou
 7. [Where files go](#where-files-go)
 8. [Architecture in brief](#architecture-in-brief)
 9. [Firestore data modeling](#firestore-data-modeling)
-10. [Traps — things that look wrong and are not](#traps--things-that-look-wrong-and-are-not)
-11. [Never do this](#never-do-this)
-12. [Task recipes](#task-recipes)
-13. [Verification protocol](#verification-protocol)
-14. [Dependency policy](#dependency-policy)
-15. [Security invariants](#security-invariants)
-16. [Decision log](#decision-log)
+10. [Authentication in brief](#authentication-in-brief)
+11. [Traps — things that look wrong and are not](#traps--things-that-look-wrong-and-are-not)
+12. [Never do this](#never-do-this)
+13. [Task recipes](#task-recipes)
+14. [Verification protocol](#verification-protocol)
+15. [Dependency policy](#dependency-policy)
+16. [Security invariants](#security-invariants)
+17. [Decision log](#decision-log)
 
 ---
 
@@ -54,6 +55,8 @@ A clean install, a full build, a `--no-cache` Docker build and a running contain
 | `@google-cloud/storage`   | `^8.2.0`   | V4 signed URLs, no key file              |
 | zod                       | `^4.6.5`   | Runtime validation at every boundary     |
 | `server-only`             | `^0.0.1`   | Makes a client import a build error      |
+| `firebase`                | `^12.19.0` | Client SDK, **auth only** — never data   |
+| `firebase-admin`          | `^14.4.0`  | Verifies and mints sessions. No key file |
 
 **Measured facts:**
 
@@ -82,6 +85,7 @@ This file is the index and the warnings. The detail lives in `.github/instructio
 | [`docs/local-development.md`](./docs/local-development.md)                                 | Setting up, or confused by tooling.                            |
 | [`docs/testing.md`](./docs/testing.md)                                                     | Writing tests. Explains the Server Component limitation.       |
 | [`docs/data-layer.md`](./docs/data-layer.md)                                               | Firestore or Cloud Storage. Read before writing a query.       |
+| [`docs/auth.md`](./docs/auth.md)                                                           | Sign-in, sessions, profiles, or anything behind a login.       |
 | [`docs/troubleshooting.md`](./docs/troubleshooting.md)                                     | **Anything failing.** Symptom → cause → fix. Check here first. |
 | [`docs/adr/`](./docs/adr/)                                                                 | Asking "why is it done this way?"                              |
 | [`cloud/deployment.md`](./cloud/deployment.md)                                             | Deploying, rolling back, or setting up GCP.                    |
@@ -177,6 +181,7 @@ The lint cannot see everything. Pass the timeout at the `fetch` call site, or th
 | A pure function, no I/O               | `lib/`                       |
 | Anything calling an external system   | `services/`                  |
 | A Firestore collection + its schema   | `services/<name>.service.ts` |
+| Client-side SDK interaction           | `hooks/use<Thing>.ts`        |
 | A composite index or field exemption  | `firestore.indexes.json`     |
 | A Firestore security rule             | `firestore.rules`            |
 | A type used in 2+ places              | `types/`                     |
@@ -211,14 +216,19 @@ with `import 'server-only';`. That import is not decoration: it makes a Client
 Component importing the module a build error rather than a credential in a
 browser bundle.
 
-| Module                 | What it owns                                                                |
-| ---------------------- | --------------------------------------------------------------------------- |
-| `firestore.client.ts`  | The lazy Firestore singleton, pinned to the named database                  |
-| `storage.client.ts`    | The lazy Storage singleton and the app's bucket                             |
-| `repository.ts`        | Typed, zod-validated, cursor-paginated collections                          |
-| `storage.service.ts`   | Signed upload/read URLs, upload verification                                |
-| `sharded-counter.ts`   | Counters above one write per second                                         |
-| `lib/storage-paths.ts` | Path construction and upload rules — pure, so it is tested without a bucket |
+| Module                     | What it owns                                                                |
+| -------------------------- | --------------------------------------------------------------------------- |
+| `firestore.client.ts`      | The lazy Firestore singleton, pinned to the named database                  |
+| `storage.client.ts`        | The lazy Storage singleton and the app's bucket                             |
+| `repository.ts`            | Typed, zod-validated, cursor-paginated collections                          |
+| `storage.service.ts`       | Signed upload/read URLs, upload verification                                |
+| `sharded-counter.ts`       | Counters above one write per second                                         |
+| `auth.service.ts`          | Session cookies: mint, verify, revoke. `requireUser()` gates a write        |
+| `user.service.ts`          | `users/{uid}` profiles, keyed by the Firebase uid                           |
+| `firebase-admin.client.ts` | The lazy Admin app. **Auth only** — never Firestore or Storage              |
+| `lib/storage-paths.ts`     | Path construction and upload rules — pure, so it is tested without a bucket |
+| `lib/document-ids.ts`      | Guards a caller-supplied document id against hotspot shapes — pure          |
+| `lib/session-cookie.ts`    | The cookie's name and attributes — pure                                     |
 
 Both clients are created **lazily**. A module that defines a repository opens no
 connection at import time, which is what lets `next build` import every route on
@@ -381,6 +391,61 @@ This matters for a bulk import, a backfill, or a migration — not for organic g
 
 ---
 
+## Authentication in brief
+
+Full guide in [`docs/auth.md`](./docs/auth.md). The decision is [ADR-0005](./docs/adr/0005-use-firebase-auth-for-sign-in.md).
+
+Firebase Auth, with Google and phone OTP. **Reads are public; writes need a session.**
+
+```
+Browser signs in with Firebase   → an ID token, valid one hour
+POST /api/auth/session           → server verifies it, sets a session cookie
+Every later request              → getCurrentUser() on the server
+```
+
+The ID token is spent once and discarded. The cookie is `httpOnly`, so page script cannot read the session — and neither can an XSS.
+
+### Gating a write is one line
+
+```ts
+const user = await requireUser(); // throws → 401, via lib/http-errors.ts
+```
+
+Put it first in the handler. `getCurrentUser()` is the variant that returns `null` instead, for a page that adapts to who is asking.
+
+**Hiding a form from a signed-out user is a courtesy, not a control.** The control is on the server.
+
+### A session is not permission
+
+`requireUser()` answers _who is asking_. It does not answer _may they touch this_. Those are separate checks, and only the first is automatic:
+
+```ts
+const document = await examples.getOrThrow(id);
+if (document.ownerId !== user.uid) throw new ForbiddenError();
+```
+
+**Write `ownerId` from the session, never from the request body.** A body field named `ownerId` is a field the caller chooses. The same goes for a display name: copy it from the profile, or any caller can post under somebody else's name.
+
+**Judgement:** whether a missing document should answer 404 or 403 depends on whether its existence is a secret. Rows that are publicly listed can answer 403 honestly. Rows that are not must answer 404 for both cases, or a stranger enumerates ids by watching which ones answer 403.
+
+### Profiles live at `users/{uid}`
+
+Keyed by the Firebase uid, so a profile is one key lookup from any authenticated request — no query, no index, no second read.
+
+That needs a caller-supplied id, which [the rule against it](#firestore-data-modeling) otherwise forbids. The rule exists to stop **monotonic** ids, which pin every write to one end of a key range Firestore then cannot split. A uid is 28 characters of random base62 and spreads exactly like an auto id. `repository.createWithId()` takes the exception; `lib/document-ids.ts` keeps it narrow by rejecting sequential ids, date prefixes, bare numbers and anything too short to be random.
+
+### It fails closed
+
+`authEnabled` is **derived** from the Firebase web config being complete, not set by a flag. An app built without that config serves public reads and answers 401 to every write. A half-finished setup can never become an open endpoint.
+
+Those values are `NEXT_PUBLIC_*`, so they are fixed at **build** time. Adding them to a running service enables nothing — see trap 8.
+
+### PII
+
+A `uid` is pseudonymous and safe to log. An email address and a phone number are not: Cloud Logging retains them and many people can read them. **Log the uid.**
+
+---
+
 ## Traps — things that look wrong and are not
 
 Every item here caused a real failure. Do not "fix" any of them without reading the reason.
@@ -521,7 +586,39 @@ gcloud run services describe SERVICE --region REGION \
 
 An address ending `-compute@developer.gserviceaccount.com` is the default one.
 
-### 20. `dumb-init` is PID 1
+### 20. The session cookie MUST be named `__session`
+
+Firebase Hosting and the Cloud CDN in front of it **strip every cookie except one named exactly `__session`**, so a cached response is never varied by a cookie the cache does not know about.
+
+Rename it and the app works perfectly on the direct `*.run.app` URL, then signs every user out the moment traffic arrives through a custom domain fronted by Hosting. The symptom is "auth randomly stops working in production", and it is miserable to trace.
+
+`lib/session-cookie.ts` holds the name as a constant rather than an environment variable, on purpose. There is no legitimate reason to change it.
+
+### 21. Verifying a session needs no IAM; minting one does
+
+`verifySessionCookie` checks a signature against Google's published public keys. It needs no permission at all.
+
+`createSessionCookie` calls the Identity Toolkit API, and needs `roles/firebaseauth.admin` on the runtime service account.
+
+So a missing grant produces a very specific symptom: **existing sessions keep working, and only new sign-ins fail**, with `PERMISSION_DENIED` from `identitytoolkit`. It looks like a client bug. It is not. See [`docs/auth.md`](./docs/auth.md).
+
+### 22. The Firebase API key is public, and that is correct
+
+It ships in every browser bundle, because the browser must send it to reach Identity Platform. It identifies the project; it authorises nothing on its own.
+
+Putting it in a GitHub **secret** achieves nothing and makes debugging harder. It is a repository **variable**, passed as a Docker build arg. That does not weaken [the rule about secrets in build args](#never-do-this) — this simply is not a secret.
+
+Restrict it by HTTP referrer in the console (APIs & Services > Credentials) rather than trying to hide it.
+
+### 23. Phone OTP costs money, and an open endpoint invites fraud
+
+Every SMS is billed to you. SMS pumping fraud is automated: an attacker sends codes to premium-rate numbers they collect revenue from, and finds new endpoints quickly.
+
+The single most effective control is the **SMS region policy** — Authentication > Settings — which defaults to allowing every country on earth. Restrict it to the countries you serve. reCAPTCHA is already wired in `useFirebaseAuth`, and a budget alert is how you find out in hours instead of at month end.
+
+`gcp-bootstrap.sh` prints all three. None of them is automatic.
+
+### 24. `dumb-init` is PID 1
 
 Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy. Verified: the container currently stops in ~1s.
 
@@ -531,30 +628,37 @@ Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, a
 
 Violations here are defects, not style disagreements.
 
-| Never                                                                | Why                                                                                                                                                        |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Push or commit directly to `main`                                    | Every change reaches `main` through a reviewed pull request. A push to `main` deploys to production — see [Architecture in brief](#architecture-in-brief). |
-| Commit a service account key, or write `credentials_json:`           | The pipeline is keyless by design. A key is a permanent bearer credential. See [ADR-0002](./docs/adr/0002-use-workload-identity-federation.md).            |
-| Interpolate `${{ secrets.* }}` into a `run:` block                   | It splices into shell source before execution. Pass via `env:` instead.                                                                                    |
-| Deploy the `:latest` tag                                             | A revision pinned to a moving tag cannot be traced to a commit, and rollback becomes a rebuild.                                                            |
-| Read `process.env` outside `lib/env.ts`                              | Untyped, unvalidated, and bypasses startup validation.                                                                                                     |
-| Use `console.log` for application logging                            | Use `@/lib/logger` — it emits the JSON shape Cloud Logging parses.                                                                                         |
-| Add `'use client'` to `app/layout.tsx`                               | Turns the entire application into a client bundle.                                                                                                         |
-| Create a new top-level folder                                        | Breaks cross-project consistency. Raise it instead.                                                                                                        |
-| Style a UI with ad-hoc values instead of the tokens and primitives   | The design language stops being a system the moment one screen leaves it. See [`design-language.md`](./.github/instructions/design-language.md).           |
-| Weaken `tsconfig.json` strictness                                    | `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` are load-bearing.                                                                       |
-| Disable a CI check to make a PR green                                | Fix the code, or change the check deliberately and say why.                                                                                                |
-| Put a secret in a Docker build arg                                   | Visible in `docker history`. Use Secret Manager at runtime.                                                                                                |
-| Push, claim work is done, or open a PR without `pnpm validate` green | Run it locally first — `format:check` included. CI must never fail from your end. See [Verification protocol](#verification-protocol).                     |
-| Query Firestore without a `limit`                                    | An unbounded read grows with the collection until it times out or exhausts the instance's memory. See [Firestore data modeling](#firestore-data-modeling). |
-| Pass your own document id to `create`                                | Sequential and timestamp-prefixed ids create a write hotspot Firestore cannot split.                                                                       |
-| Paginate with an offset                                              | Firestore bills every skipped document. Use the cursor.                                                                                                    |
-| Store a signed URL in a document                                     | It expires. Store the object path and sign on read.                                                                                                        |
-| Read an upload without `finalizeUpload`                              | The object exists the moment the PUT lands and nothing has checked it. See trap 14.                                                                        |
-| Import `services/` from a Client Component                           | It ships the SDK — and the intent to use credentials — to the browser. `import 'server-only'` makes it a build error; do not work around it.               |
-| Point a Cloud Run probe at `/api/health?deep=1`                      | Deep mode answers 503 when a dependency blips, so the platform would kill healthy containers and amplify the outage. Dashboards only.                      |
-| Set `FIRESTORE_EMULATOR_HOST` in a deployed environment              | Every read and write silently routes to a host that does not exist.                                                                                        |
-| Grant `roles/datastore.user` without an IAM condition                | It grants access to every database in the project, including other apps'. See trap 13.                                                                     |
+| Never                                                                 | Why                                                                                                                                                                      |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Push or commit directly to `main`                                     | Every change reaches `main` through a reviewed pull request. A push to `main` deploys to production — see [Architecture in brief](#architecture-in-brief).               |
+| Commit a service account key, or write `credentials_json:`            | The pipeline is keyless by design. A key is a permanent bearer credential. See [ADR-0002](./docs/adr/0002-use-workload-identity-federation.md).                          |
+| Interpolate `${{ secrets.* }}` into a `run:` block                    | It splices into shell source before execution. Pass via `env:` instead.                                                                                                  |
+| Deploy the `:latest` tag                                              | A revision pinned to a moving tag cannot be traced to a commit, and rollback becomes a rebuild.                                                                          |
+| Read `process.env` outside `lib/env.ts`                               | Untyped, unvalidated, and bypasses startup validation.                                                                                                                   |
+| Use `console.log` for application logging                             | Use `@/lib/logger` — it emits the JSON shape Cloud Logging parses.                                                                                                       |
+| Add `'use client'` to `app/layout.tsx`                                | Turns the entire application into a client bundle.                                                                                                                       |
+| Create a new top-level folder                                         | Breaks cross-project consistency. Raise it instead.                                                                                                                      |
+| Style a UI with ad-hoc values instead of the tokens and primitives    | The design language stops being a system the moment one screen leaves it. See [`design-language.md`](./.github/instructions/design-language.md).                         |
+| Weaken `tsconfig.json` strictness                                     | `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` are load-bearing.                                                                                     |
+| Disable a CI check to make a PR green                                 | Fix the code, or change the check deliberately and say why.                                                                                                              |
+| Put a secret in a Docker build arg                                    | Visible in `docker history`. Use Secret Manager at runtime.                                                                                                              |
+| Push, claim work is done, or open a PR without `pnpm validate` green  | Run it locally first — `format:check` included. CI must never fail from your end. See [Verification protocol](#verification-protocol).                                   |
+| Query Firestore without a `limit`                                     | An unbounded read grows with the collection until it times out or exhausts the instance's memory. See [Firestore data modeling](#firestore-data-modeling).               |
+| Pass your own document id to `create`                                 | Sequential and timestamp-prefixed ids create a write hotspot Firestore cannot split.                                                                                     |
+| Paginate with an offset                                               | Firestore bills every skipped document. Use the cursor.                                                                                                                  |
+| Store a signed URL in a document                                      | It expires. Store the object path and sign on read.                                                                                                                      |
+| Read an upload without `finalizeUpload`                               | The object exists the moment the PUT lands and nothing has checked it. See trap 14.                                                                                      |
+| Import `services/` from a Client Component                            | It ships the SDK — and the intent to use credentials — to the browser. `import 'server-only'` makes it a build error; do not work around it.                             |
+| Point a Cloud Run probe at `/api/health?deep=1`                       | Deep mode answers 503 when a dependency blips, so the platform would kill healthy containers and amplify the outage. Dashboards only.                                    |
+| Set `FIRESTORE_EMULATOR_HOST` in a deployed environment               | Every read and write silently routes to a host that does not exist.                                                                                                      |
+| Grant `roles/datastore.user` without an IAM condition                 | It grants access to every database in the project, including other apps'. See trap 13.                                                                                   |
+| Write a route that changes data without `requireUser()`               | An ungated write is an open endpoint. Hiding the form in the UI stops nobody. See [Authentication in brief](#authentication-in-brief).                                   |
+| Take `ownerId`, `ownerName` or any identity field from a request body | The caller chooses the body. Read identity from the session, always.                                                                                                     |
+| Treat a session as permission                                         | A session says who is asking, not what they may touch. Check ownership separately.                                                                                       |
+| Rename the `__session` cookie                                         | Firebase Hosting strips every other cookie, so auth breaks only behind a custom domain. See trap 20.                                                                     |
+| Log an email address or a phone number                                | They identify a person, and Cloud Logging retains them. Log the `uid`.                                                                                                   |
+| Ship the Firestore client SDK to the browser                          | It moves authorisation into `firestore.rules` permanently, and contradicts the server-only data layer. See [ADR-0005](./docs/adr/0005-use-firebase-auth-for-sign-in.md). |
+| Enable phone auth without an SMS region policy                        | The default allows every country, and you pay per message. See trap 23.                                                                                                  |
 
 ---
 
@@ -594,6 +698,15 @@ Read [Firestore data modeling](#firestore-data-modeling) first. Then, in one pul
 4. `services/<name>.emulator.test.ts` if the collection has logic worth proving
 5. `pnpm test:emulator` — the emulator suites do not run inside `pnpm validate`
 6. The index reaches the database on the next deploy, before the app. Locally: `pnpm db:deploy --project <p> --database <db>`
+
+### Protect a route
+
+1. `const user = await requireUser();` as the first line of the handler's `try`
+2. Check ownership separately — a session is not permission
+3. Take every identity field from `user`, never from the body
+4. Leave `GET` public unless the data itself is private
+5. In the UI, render a sign-in prompt instead of the form — for honesty, not safety
+6. Add the route to the table in [`docs/auth.md`](./docs/auth.md) if it behaves unusually
 
 ### Add a file upload
 
@@ -691,6 +804,9 @@ Full model in [`SECURITY.md`](./SECURITY.md).
 - **The data layer is scoped to one app.** The runtime service account holds `roles/datastore.user` under an IAM condition naming this database, and `roles/storage.objectUser` on this bucket — not project-wide. A second app in the same project reaches neither.
 - **Signed URLs need no key.** The runtime account holds `roles/iam.serviceAccountTokenCreator` on itself, so IAM signs on its behalf. That binding is what replaces a downloadable credential.
 - **The bucket cannot be made public.** Uniform bucket-level access plus enforced public access prevention. Every read goes through a short-lived signed URL.
+- **Writes require a session, and reads do not.** `requireUser()` is the gate. Identity always comes from the session, never from a request body. A session is authentication; ownership is authorisation, and it is a separate check.
+- **The session cookie is `httpOnly`, `Secure` and `SameSite=Lax`,** named `__session` so Firebase Hosting does not strip it. Script cannot read it.
+- **The runtime account holds `roles/firebaseauth.admin`,** the broadest privilege it has, because minting a session cookie needs it and no narrower predefined role exists. Verifying a session needs no IAM at all. See [ADR-0005](./docs/adr/0005-use-firebase-auth-for-sign-in.md).
 - **Firestore rules deny all client access.** Defence in depth only: the app uses admin credentials, which bypass rules. The control that protects today's data is the IAM condition.
 
 ---
@@ -705,6 +821,7 @@ Recorded in [`docs/adr/`](./docs/adr/). Read before proposing a change to any of
 | [0002](./docs/adr/0002-use-workload-identity-federation.md)            | Workload Identity Federation — no service account keys, ever                         |
 | [0003](./docs/adr/0003-scope-workload-identity-to-the-github-owner.md) | WIF provider scoped to the GitHub owner; the repository pin lives in the IAM binding |
 | [0004](./docs/adr/0004-use-firestore-and-cloud-storage.md)             | Firestore + Cloud Storage — over Cloud SQL, over a per-app project                   |
+| [0005](./docs/adr/0005-use-firebase-auth-for-sign-in.md)               | Firebase Auth with server-side session cookies — over Auth.js, over client-only auth |
 
 Add an ADR when a decision is expensive to reverse, affects how everyone works, or rejects an obvious alternative. Never edit an accepted ADR to change its decision — write a new one that supersedes it, and link both ways.
 

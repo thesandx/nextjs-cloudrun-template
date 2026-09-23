@@ -54,7 +54,9 @@ Why it matters: `lib/` stays easy to test because it has no I/O to mock. You can
 
 **The data layer lives entirely in `services/`.** Every module there begins with `import 'server-only';`, which makes a Client Component importing it a build error rather than an SDK in the browser bundle.
 
-The split is deliberate and worth copying: rules that decide **what is allowed** are pure and live in `lib/` (`storage-paths.ts` validates every object path and upload); rules that **talk to Google** live in `services/`. That is why the path and content-type logic is tested exhaustively with no emulator, no bucket and no credential.
+The split is deliberate and worth copying: rules that decide **what is allowed** are pure and live in `lib/` (`storage-paths.ts` validates every object path and upload; `document-ids.ts` validates a caller-supplied id; `session-cookie.ts` holds the cookie contract); rules that **talk to Google** live in `services/`. That is why the path, id and content-type logic is tested exhaustively with no emulator, no bucket and no credential.
+
+Authentication follows the same split, and it is the clearest example of why `hooks/` exists as its own layer. Assembling the Firebase web config is pure, so it lives in `lib/firebase-config.ts`. Calling `initializeApp` opens listeners and touches browser storage — a side effect, but a **client-side** one, which `services/` cannot hold because every module there is `server-only`. It therefore lives in `hooks/useFirebaseAuth.ts`. Nothing else in the app imports `firebase/auth` directly.
 
 Both cloud clients are lazy singletons. A module that defines a repository opens no connection at import time, which is what lets `next build` import every route on a CI runner with no credentials at all.
 
@@ -112,6 +114,19 @@ Three properties are worth stating here because they constrain how you design:
 - **Access is server-side only.** No client SDK reaches the database. Authorisation lives in route handlers and Server Components, not in security rules — the rules deny everything, and admin credentials bypass them anyway.
 - **Isolation is an IAM condition, not a convention.** `roles/datastore.user` is bound with a condition naming this database, so a second app in the same project cannot reach this one's data even with the same role.
 - **Uploads bypass the application.** The browser PUTs to a signed URL, so an upload never occupies a Cloud Run request slot and is never bounded by the 32 MiB request limit.
+- **Ownership is a field, not an assumption.** Anything a user owns carries an `ownerId` written from the session. Every read that must be scoped filters on it, with a composite index that leads with it.
+
+---
+
+## Authentication
+
+Firebase Auth for sign-in, exchanged for a server-side session cookie. The reasoning and its alternatives are in [ADR-0005](../../docs/adr/0005-use-firebase-auth-for-sign-in.md); the practical guide is [`docs/auth.md`](../../docs/auth.md).
+
+Three properties that constrain design:
+
+- **Identity is known on the server, on the first render.** The session is a cookie, so a Server Component calls `getCurrentUser()` directly. There is no client round trip, no loading state and no flash of signed-out UI — but a page that calls it is rendered on demand, never statically.
+- **Reads are public; writes need a session.** `requireUser()` throws, `lib/http-errors.ts` maps it to 401, and the handler needs no special case. Authorisation — whether this user may touch this document — is a separate, explicit check.
+- **Only `firebase/auth` reaches the browser.** No Firestore or Storage client SDK is shipped, so authorisation never moves into `firestore.rules` and the server-only data layer above stays true.
 
 ---
 

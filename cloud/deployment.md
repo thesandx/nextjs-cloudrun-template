@@ -28,7 +28,9 @@ The operator-facing guide: set up once, then deploy by merging to `main`.
 
 The script enables APIs, creates the Artifact Registry repository, sets up Workload Identity Federation, creates the deployer and runtime service accounts with least-privilege roles, provisions the Firestore database and the Cloud Storage buckets, and prints the exact GitHub secrets and variables to configure. Re-running it is safe — every step is idempotent.
 
-`--cors-origin` is optional and can wait. It takes the origin your **app** is served from, which enables direct browser uploads. Run `./scripts/gcp-bootstrap.sh --help` for the format.
+`--cors-origin` is optional and can wait. It takes the origin your **app** is served from, which enables direct browser uploads. Run `./scripts/gcp-bootstrap.sh --help` for the format. **List the `*.run.app` URL too** — it is an origin like any other, and the one people forget.
+
+`--skip-auth` turns off the Firebase Auth steps. Without it the script enables the Identity Platform APIs and grants the runtime account `roles/firebaseauth.admin`, which is what lets it mint session cookies.
 
 > **Run this before the first merge to `main`.** The deploy publishes Firestore indexes _before_ it builds the image, so a missing database fails the whole pipeline — no image, no revision.
 
@@ -299,10 +301,35 @@ gh workflow run deploy.yml -f reason="Inline the production URL"
 
 `NEXT_PUBLIC_APP_URL` is inlined at **build** time. Until you rebuild, canonical URLs, Open Graph tags and metadata still carry the old value. A Cloud Run environment variable change does nothing here.
 
+### Sign-in
+
+Four steps have no gcloud surface, so bootstrap prints them instead of performing them. In the [Firebase console](https://console.firebase.google.com/):
+
+1. Add Firebase to the GCP project. It stays the same project.
+2. Register a **web** app. Copy `apiKey`, `authDomain` and `appId`.
+3. Enable **Google** and **Phone** under Authentication > Sign-in method.
+4. **Restrict the SMS region policy** under Authentication > Settings to the countries you serve.
+
+Step 4 is the one with a bill attached. The default allows every country on earth, and phone auth sends messages you pay for — SMS pumping fraud exists precisely because that default is common. Set a budget alert as well.
+
+Then add every origin the app serves from — including the `*.run.app` URL — to Authentication > Settings > Authorized domains, set the four variables, and **rebuild**:
+
+```bash
+gh variable set FIREBASE_API_KEY     --body "AIza..."
+gh variable set FIREBASE_AUTH_DOMAIN --body "my-gcp-project.firebaseapp.com"
+gh variable set FIREBASE_PROJECT_ID  --body "my-gcp-project"
+gh variable set FIREBASE_APP_ID      --body "1:...:web:..."
+gh workflow run deploy.yml -f reason="Inline the Firebase web config"
+```
+
+These are `NEXT_PUBLIC_*` values, inlined at build time. Setting them on the service does nothing.
+
+Skip all of it and the app still deploys. Sign-in is unavailable, and every write route answers 401 — the intended fail-closed state.
+
 ### Afterwards
 
 - Add `--cors-origin https://app.example.com` and re-run bootstrap, if the app uploads files from the browser.
-- Delete the `/example` route and `services/example.service.ts`.
+- Delete the `/example` route, `services/example.service.ts` and `components/example/`. A demo write path on a public URL is still a write path.
 - Work through the [pre-production checklist](../SECURITY.md#hardening-checklist-for-a-real-deployment).
 
 ---
