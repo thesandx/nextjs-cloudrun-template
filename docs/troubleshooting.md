@@ -174,6 +174,19 @@ Fix it by re-running the bootstrap, which now writes an owner-scoped condition a
 
 If the condition names a different owner, do not force it — that revokes their deploys. Use `--provider github-<repo>` for a separate provider instead. See [ADR-0003](./adr/0003-scope-workload-identity-to-the-github-owner.md).
 
+### `Refusing to overwrite it` when the condition names YOUR repository
+
+```
+[warn]   current: assertion.repository == 'you/your-repo'
+[warn]   new:     assertion.repository_owner == 'you'
+```
+
+A project bootstrapped before ADR-0003 has a provider pinned to one repository. Bootstrap now widens that automatically, without `--force-provider-update`: the new condition accepts every token the old one accepted, so no repository can lose access. Pull the latest script and re-run.
+
+**Do not pass `--force-provider-update` to get past this.** That flag is for a condition naming a different owner, where overwriting really does revoke someone. If bootstrap still refuses, the owner in the current condition does not match the one you passed — read it again before forcing.
+
+One thing the widening does not carry over: an old `--main-only` lived in the provider condition, and now lives in the per-repository binding. Bootstrap warns when it sees a branch clause it is dropping. Re-run with `--main-only` to keep the restriction.
+
 Other causes, if the condition is correct:
 
 - `--main-only` was used and the deploy ran from another branch.
@@ -320,6 +333,37 @@ Then `pnpm db:deploy --project P --database D`, or merge to `main` — the deplo
 
 Indexes build in the background. A large collection takes minutes, and the query keeps failing until the build finishes.
 
+### Firestore or Cloud Storage returns `PERMISSION_DENIED` on a green deploy
+
+The deploy succeeded, `/api/health` is fine, and every data call fails. Two causes, in order of likelihood.
+
+**1. The revision runs as the wrong identity.** Check which one:
+
+```bash
+gcloud run services describe SERVICE --region REGION \
+  --format='value(spec.template.spec.serviceAccountName)'
+```
+
+An address ending `-compute@developer.gserviceaccount.com` is the **default compute service account**, not the one bootstrap created. Repoint the service:
+
+```bash
+gcloud run services update SERVICE --region REGION \
+  --service-account=SERVICE-runtime@PROJECT.iam.gserviceaccount.com
+```
+
+That deploys a new revision. See trap 19 in CLAUDE.md for how a deploy can pick the wrong identity while staying green.
+
+**2. Bootstrap did not finish.** It grants the runtime account `roles/datastore.user` and `roles/storage.objectUser` at steps 10 and 11 of 14, so a run that stopped earlier leaves the identity correct but powerless. Re-run it — it is idempotent.
+
+```bash
+gcloud projects get-iam-policy PROJECT --format=json \
+  | jq '.bindings[] | select(.role=="roles/datastore.user")'
+gcloud storage buckets get-iam-policy gs://BUCKET \
+  --format=json | jq '.bindings[] | select(.role=="roles/storage.objectUser")'
+```
+
+> **A green deploy does not prove the data layer works.** The pipeline's success probe hits `/api/health`, which is deliberately dependency-free so a Firestore blip cannot kill healthy containers. The same property means it passes while every query fails. Verify data operations separately.
+
 ### `Permission 'iam.serviceAccounts.signBlob' denied`
 
 Signing a V4 URL with no key file works by asking IAM to sign, which needs the runtime service account to be able to impersonate **itself**:
@@ -355,12 +399,21 @@ Both matter: `Content-Type` must equal what was signed, and `x-goog-content-leng
 
 ### The PUT fails with a CORS error in the browser
 
-The bucket does not allow your origin. A signed-URL PUT is a cross-origin request to `storage.googleapis.com`.
+The bucket does not allow your origin. A signed-URL PUT is a cross-origin request to `storage.googleapis.com`, and the bucket lists who may make it. The browser console names the origin it refused:
+
+> Access to fetch at `https://storage.googleapis.com/...` from origin
+> `https://my-app-123.asia-south1.run.app` has been blocked by CORS policy
+
+**List every origin the app is served from, and include the Cloud Run URL.** `https://<service>-<number>.<region>.run.app` is an origin like any other. It is the one people forget: the custom domain is added, the platform URL is not, so the live site uploads and a test on the `run.app` address fails.
 
 ```bash
-./scripts/gcp-bootstrap.sh ... --cors-origin https://your-domain
+./scripts/gcp-bootstrap.sh ... \
+  --cors-origin https://your-domain \
+  --cors-origin https://your-service-123.asia-south1.run.app
 gcloud storage buckets describe gs://BUCKET --format='value(cors_config)'   # verify
 ```
+
+The script is idempotent, so re-run it with the flags added. The signed URL in the error message is good news: the server made it, so the signing binding and the bucket name are correct. Only the browser's preflight was refused.
 
 ### `UploadRejectedError: no object at tmp/...`
 

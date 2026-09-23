@@ -667,14 +667,42 @@ if gcloud iam workload-identity-pools providers describe "$PROVIDER_ID" \
   # condition' on their next deploy — hours later, in a repository nobody
   # touched. Re-running for a sibling repository of the same owner is a no-op.
   if [[ -n "$CURRENT_CONDITION" && "$CURRENT_CONDITION" != "$ATTRIBUTE_CONDITION" ]]; then
-    warn "Provider ${PROVIDER_ID} already exists with a different condition:"
-    warn "  current: ${CURRENT_CONDITION}"
-    warn "  new:     ${ATTRIBUTE_CONDITION}"
-    if [[ "$FORCE_PROVIDER_UPDATE" != "true" ]]; then
-      die "Refusing to overwrite it. Every repository federated through this provider would stop deploying.
+
+    # One difference is provably safe, and every project bootstrapped before
+    # ADR-0003 hits it: an earlier version of THIS script pinned the provider
+    # to one repository. Widening `repository == 'OWNER/repo'` to
+    # `repository_owner == 'OWNER'` is a strict superset — every token the old
+    # condition accepted, the new one accepts too. Nothing can stop deploying.
+    #
+    # The owner must match. `repository == 'someone-else/repo'` is a different
+    # person's provider and widening it to YOUR owner revokes them, which is
+    # exactly what the refusal below exists to prevent.
+    REPO_PIN_RE="^assertion\.repository[[:space:]]*==[[:space:]]*'${GITHUB_OWNER}/[^']+'"
+    if [[ "$CURRENT_CONDITION" =~ $REPO_PIN_RE ]]; then
+      warn "Provider ${PROVIDER_ID} is pinned to one repository by an older bootstrap:"
+      warn "  current: ${CURRENT_CONDITION}"
+      warn "  new:     ${ATTRIBUTE_CONDITION}"
+      warn "Same owner, and the new condition accepts everything the old one did,"
+      warn "so no repository loses access. Widening it. See ADR-0003."
+
+      # The old --main-only lived in the provider condition. The new one puts it
+      # in the per-repository binding, so it has to be asked for again.
+      if [[ "$CURRENT_CONDITION" == *"assertion.ref"* && "$RESTRICT_TO_MAIN" != "true" ]]; then
+        warn ""
+        warn "⚠ The old condition also restricted deploys to a branch. That"
+        warn "  restriction is NOT carried over — it now lives in the binding."
+        warn "  Re-run with --main-only to keep it."
+      fi
+    else
+      warn "Provider ${PROVIDER_ID} already exists with a different condition:"
+      warn "  current: ${CURRENT_CONDITION}"
+      warn "  new:     ${ATTRIBUTE_CONDITION}"
+      if [[ "$FORCE_PROVIDER_UPDATE" != "true" ]]; then
+        die "Refusing to overwrite it. Every repository federated through this provider would stop deploying.
   Use a different --pool/--provider for this owner, or re-run with --force-provider-update if you are sure."
+      fi
+      warn "--force-provider-update given; overwriting"
     fi
-    warn "--force-provider-update given; overwriting"
   fi
 
   gcloud iam workload-identity-pools providers update-oidc "$PROVIDER_ID" \
