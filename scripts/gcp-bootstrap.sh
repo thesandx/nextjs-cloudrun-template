@@ -30,6 +30,23 @@
 #   # optional: allow browser uploads from your own domains
 #   ./scripts/gcp-bootstrap.sh ... --cors-origin https://app.example.com
 #
+# --cors-origin is the origin your APP is served from — the address in the
+# user's browser bar — not the bucket's. A signed upload is a cross-origin PUT
+# from your site to storage.googleapis.com, and the bucket lists who may make it.
+#
+#   scheme + host (+ port). No path, no trailing slash:
+#     ✓ https://app.example.com
+#     ✗ https://app.example.com/          (trailing slash)
+#     ✗ https://app.example.com/upload    (path)
+#     ✗ app.example.com                   (no scheme)
+#
+#   Repeat the flag per origin. https://example.com and https://www.example.com
+#   are DIFFERENT origins, and so is every subdomain:
+#     --cors-origin https://example.com --cors-origin https://www.example.com
+#
+#   localhost is added to the dev bucket automatically. Do not know your domain
+#   yet? Leave it out and re-run this script later — it is idempotent.
+#
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
@@ -49,7 +66,7 @@ warn()  { printf '%s[warn]%s %s\n' "${YELLOW}" "${RESET}" "$*" >&2; }
 die()   { printf '%s[error]%s %s\n' "${RED}" "${RESET}" "$*" >&2; exit 1; }
 
 usage() {
-  sed -n '3,33p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,52p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -408,7 +425,8 @@ step "Bucket CORS"
 # direct browser uploads — which is the safe default until you know your domain.
 if [[ ${#CORS_ORIGINS[@]} -eq 0 ]]; then
   skip "No --cors-origin given; browser uploads are not enabled yet"
-  warn "Add them once you know the app's domain:"
+  warn "Server-side reads and writes work regardless. Only a direct browser"
+  warn "upload needs this. Add your app's own origin once you know it:"
   warn "  ./scripts/gcp-bootstrap.sh ... --cors-origin https://app.example.com"
 else
   CORS_FILE="$(mktemp)"
