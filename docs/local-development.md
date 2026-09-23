@@ -2,13 +2,13 @@
 
 ## Prerequisites
 
-| Tool       | Version         | Notes                                                    |
-| ---------- | --------------- | -------------------------------------------------------- |
-| Node.js    | 22 LTS or newer | Pinned in `.nvmrc`; `nvm use` picks it up                |
-| pnpm       | 10 or newer     | `corepack enable` installs the version in `package.json` |
-| Docker     | any recent      | Only needed for container work                           |
-| gcloud CLI | any recent      | Deployment work, and the Firestore emulator              |
-| Java       | 17 or newer     | Only for the Firestore emulator, which is a Java process |
+| Tool       | Version         | Notes                                                          |
+| ---------- | --------------- | -------------------------------------------------------------- |
+| Node.js    | 22 LTS or newer | Pinned in `.nvmrc`; `nvm use` picks it up                      |
+| pnpm       | 10 or newer     | `corepack enable` installs the version in `package.json`       |
+| Docker     | any recent      | Only needed for container work                                 |
+| gcloud CLI | any recent      | Deployment work, and the Firestore emulator                    |
+| Java       | **21 or newer** | Only for the Firestore emulator. It refuses to start below 21. |
 
 ```bash
 # Node via nvm

@@ -176,7 +176,7 @@ pnpm dev               # .env.local was written by step 2
 Want data without a Google Cloud account? Run the Firestore emulator:
 
 ```bash
-gcloud components install cloud-firestore-emulator   # once, needs Java 17+
+gcloud components install cloud-firestore-emulator   # once, needs Java 21+
 pnpm db:emulator                                     # terminal 1
 FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 pnpm dev      # terminal 2
 ```

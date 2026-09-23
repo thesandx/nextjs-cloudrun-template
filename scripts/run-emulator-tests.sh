@@ -16,8 +16,10 @@
 #
 #   gcloud components install cloud-firestore-emulator
 #
-# It needs a Java runtime (17+) and no credentials at all — it never talks to
-# Google.
+# It needs a Java 21+ JRE and no credentials at all — it never talks to Google.
+# 21 is the emulator's own floor, not a guess: below it, `gcloud emulators
+# firestore start` refuses outright. GitHub's ubuntu-latest ships an older
+# default JDK, which is why the CI job installs one.
 #
 # Usage:
 #   ./scripts/run-emulator-tests.sh                # all emulator suites
@@ -67,7 +69,35 @@ command -v gcloud >/dev/null 2>&1 \
   || die "gcloud is not installed: https://cloud.google.com/sdk/docs/install"
 
 command -v java >/dev/null 2>&1 \
-  || die "A Java runtime (17+) is required by the Firestore emulator."
+  || die "The Firestore emulator needs a Java 21+ JRE, and java is not on PATH.
+
+  macOS:  brew install --cask temurin
+  Linux:  sudo apt-get install -y openjdk-21-jre-headless"
+
+# The emulator refuses to start on anything below 21, and its own error arrives
+# only after the process has been spawned and the script is already waiting on
+# a port that will never open. Checking here turns that into one clear line.
+#
+# Two version shapes exist: 1.8.0_402 (8 and earlier) and 21.0.10 (9 onwards).
+java_major() {
+  local version
+  version="$(java -version 2>&1 | awk -F'"' '/ version "/ {print $2; exit}')"
+  if [[ "$version" == 1.* ]]; then
+    cut -d. -f2 <<<"$version"
+  else
+    cut -d. -f1 <<<"$version"
+  fi
+}
+
+JAVA_MAJOR="$(java_major)"
+if [[ ! "$JAVA_MAJOR" =~ ^[0-9]+$ ]] || [[ "$JAVA_MAJOR" -lt 21 ]]; then
+  die "The Firestore emulator needs a Java 21+ JRE. Found: $(java -version 2>&1 | head -1)
+
+  macOS:  brew install --cask temurin
+  Linux:  sudo apt-get install -y openjdk-21-jre-headless
+
+Several JDKs installed? Point JAVA_HOME at the 21+ one and re-run."
+fi
 
 if ! gcloud components list --only-local-state --format='value(id)' 2>/dev/null \
       | grep -q '^cloud-firestore-emulator$'; then

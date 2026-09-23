@@ -179,7 +179,7 @@ Or uncomment `FIRESTORE_EMULATOR_HOST` in `.env.local`. The SDK reads it itself 
 The emulator ships as a gcloud component, not an npm package:
 
 ```bash
-gcloud components install cloud-firestore-emulator   # needs Java 17+
+gcloud components install cloud-firestore-emulator   # needs Java 21+
 ```
 
 **Cloud Storage has no emulator here.** Use the dev bucket instead — see below.

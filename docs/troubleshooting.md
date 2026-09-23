@@ -384,7 +384,7 @@ The message names the document and the failing field. Decide deliberately: migra
 
 ```bash
 gcloud components install cloud-firestore-emulator   # component missing
-java -version                                        # needs 17+
+java -version                                        # needs 21+, not just any JDK
 lsof -i :8085                                        # port already bound
 FIRESTORE_EMULATOR_PORT=8086 pnpm test:emulator      # or use another port
 ```

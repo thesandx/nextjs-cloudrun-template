@@ -112,6 +112,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Set up Java
+        # The Firestore emulator is a Java process and refuses to start on
+        # anything below 21. ubuntu-latest ships an older default JDK, so
+        # without this the emulator exits before it binds a port.
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
       - name: Set up Cloud SDK
         # Installs gcloud and the emulator component. No `auth` step precedes
         # it, on purpose — installing the SDK needs no identity.
