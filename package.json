@@ -21,16 +21,24 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:emulator": "./scripts/run-emulator-tests.sh",
     "validate": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
     "docker:build": "./scripts/docker-build.sh",
     "docker:run": "./scripts/docker-run.sh",
     "rename": "./scripts/rename-project.sh",
+    "db:emulator": "gcloud emulators firestore start --host-port=127.0.0.1:8085 --database-mode=firestore-native",
+    "db:deploy": "./scripts/firestore-deploy.sh",
+    "gcp:teardown": "./scripts/gcp-teardown.sh",
     "clean": "rm -rf .next coverage node_modules"
   },
   "dependencies": {
+    "@google-cloud/firestore": "^9.2.0",
+    "@google-cloud/storage": "^8.2.0",
     "next": "16.2.10",
     "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react-dom": "19.2.7",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

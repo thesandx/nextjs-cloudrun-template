@@ -16,13 +16,14 @@ It exists because several things here look wrong but are correct. Several obviou
 6. [Which rules the tooling enforces](#which-rules-the-tooling-enforces)
 7. [Where files go](#where-files-go)
 8. [Architecture in brief](#architecture-in-brief)
-9. [Traps — things that look wrong and are not](#traps--things-that-look-wrong-and-are-not)
-10. [Never do this](#never-do-this)
-11. [Task recipes](#task-recipes)
-12. [Verification protocol](#verification-protocol)
-13. [Dependency policy](#dependency-policy)
-14. [Security invariants](#security-invariants)
-15. [Decision log](#decision-log)
+9. [Firestore data modeling](#firestore-data-modeling)
+10. [Traps — things that look wrong and are not](#traps--things-that-look-wrong-and-are-not)
+11. [Never do this](#never-do-this)
+12. [Task recipes](#task-recipes)
+13. [Verification protocol](#verification-protocol)
+14. [Dependency policy](#dependency-policy)
+15. [Security invariants](#security-invariants)
+16. [Decision log](#decision-log)
 
 ---
 
@@ -38,17 +39,21 @@ The template's purpose is that **the path to production already works**: a conta
 
 A clean install, a full build, a `--no-cache` Docker build and a running container confirmed the versions below work together. Do not assume a newer version works. See [Dependency policy](#dependency-policy).
 
-|                      | Version    | Note                                     |
-| -------------------- | ---------- | ---------------------------------------- |
-| Next.js              | `16.2.10`  | App Router, Turbopack                    |
-| React / React DOM    | `19.2.7`   |                                          |
-| TypeScript           | `^6.0.3`   | Major bump; **do not add `baseUrl`**     |
-| ESLint               | `^9.39.5`  | **Pinned to 9 deliberately** — see traps |
-| `eslint-config-next` | `16.2.10`  | Must track the Next version              |
-| Tailwind CSS         | `^4.3.3`   | v4, CSS-first config                     |
-| Vitest               | `^4.1.10`  | jsdom + React Testing Library            |
-| Node                 | `>=22.0.0` | `.nvmrc` pins `22.20.0`                  |
-| pnpm                 | `11.15.1`  | Via `packageManager` + corepack          |
+|                           | Version    | Note                                     |
+| ------------------------- | ---------- | ---------------------------------------- |
+| Next.js                   | `16.2.10`  | App Router, Turbopack                    |
+| React / React DOM         | `19.2.7`   |                                          |
+| TypeScript                | `^6.0.3`   | Major bump; **do not add `baseUrl`**     |
+| ESLint                    | `^9.39.5`  | **Pinned to 9 deliberately** — see traps |
+| `eslint-config-next`      | `16.2.10`  | Must track the Next version              |
+| Tailwind CSS              | `^4.3.3`   | v4, CSS-first config                     |
+| Vitest                    | `^4.1.10`  | jsdom + React Testing Library            |
+| Node                      | `>=22.0.0` | `.nvmrc` pins `22.20.0`                  |
+| pnpm                      | `11.15.1`  | Via `packageManager` + corepack          |
+| `@google-cloud/firestore` | `^9.2.0`   | Native mode, named database              |
+| `@google-cloud/storage`   | `^8.2.0`   | V4 signed URLs, no key file              |
+| zod                       | `^4.6.5`   | Runtime validation at every boundary     |
+| `server-only`             | `^0.0.1`   | Makes a client import a build error      |
 
 **Measured facts:**
 
@@ -76,6 +81,7 @@ This file is the index and the warnings. The detail lives in `.github/instructio
 | [`.github/instructions/github-workflows.md`](./.github/instructions/github-workflows.md)   | Touching `.github/workflows/`.                                 |
 | [`docs/local-development.md`](./docs/local-development.md)                                 | Setting up, or confused by tooling.                            |
 | [`docs/testing.md`](./docs/testing.md)                                                     | Writing tests. Explains the Server Component limitation.       |
+| [`docs/data-layer.md`](./docs/data-layer.md)                                               | Firestore or Cloud Storage. Read before writing a query.       |
 | [`docs/troubleshooting.md`](./docs/troubleshooting.md)                                     | **Anything failing.** Symptom → cause → fix. Check here first. |
 | [`docs/adr/`](./docs/adr/)                                                                 | Asking "why is it done this way?"                              |
 | [`cloud/deployment.md`](./cloud/deployment.md)                                             | Deploying, rolling back, or setting up GCP.                    |
@@ -94,12 +100,21 @@ pnpm dev              # dev server, hot reload
 pnpm build            # production build (also generates types tsc needs)
 pnpm validate         # typecheck + lint + format:check + test  ← the gate
 pnpm test:watch       # tests in watch mode
+pnpm test:emulator    # start the Firestore emulator and run the suites that need it
+pnpm db:emulator      # just the emulator, for `pnpm dev` against local data
+pnpm db:deploy        # push firestore.rules and firestore.indexes.json
 pnpm lint:fix         # fix lint violations and import order
 pnpm format           # write Prettier formatting
 docker compose up --build   # run the real production image locally
 ```
 
-`pnpm validate` is exactly what CI runs. Run it before claiming work is complete.
+`pnpm validate` is the gate, and a green local run is a green CI `validate` job.
+
+**One CI job is not inside it: the Firestore emulator suites.** `*.emulator.test.ts`
+files skip themselves when `FIRESTORE_EMULATOR_HOST` is unset, so `pnpm validate`
+stays green on a clean checkout with no gcloud installed. They are not optional —
+CI runs them in their own job. **Run `pnpm test:emulator` before you push any
+change to `services/repository.ts` or a collection schema.**
 
 ---
 
@@ -151,23 +166,26 @@ The lint cannot see everything. Pass the timeout at the `fetch` call site, or th
 
 ## Where files go
 
-| Writing                               | Goes in                   |
-| ------------------------------------- | ------------------------- |
-| A page at a URL                       | `app/<route>/page.tsx`    |
-| An HTTP endpoint                      | `app/api/<name>/route.ts` |
-| A generic button/card/input           | `components/ui/`          |
-| Header, footer, page shell            | `components/layout/`      |
-| A component for one feature           | `components/<feature>/`   |
-| A `use...` hook                       | `hooks/use<Thing>.ts`     |
-| A pure function, no I/O               | `lib/`                    |
-| Anything calling an external system   | `services/`               |
-| A type used in 2+ places              | `types/`                  |
-| A type used once                      | Next to its consumer      |
-| Images, fonts, `robots.txt`           | `public/`                 |
-| A global style or design token        | `styles/globals.css`      |
-| A script humans run                   | `scripts/`                |
-| An explanation of how something works | `docs/`                   |
-| An explanation of the cloud setup     | `cloud/`                  |
+| Writing                               | Goes in                      |
+| ------------------------------------- | ---------------------------- |
+| A page at a URL                       | `app/<route>/page.tsx`       |
+| An HTTP endpoint                      | `app/api/<name>/route.ts`    |
+| A generic button/card/input           | `components/ui/`             |
+| Header, footer, page shell            | `components/layout/`         |
+| A component for one feature           | `components/<feature>/`      |
+| A `use...` hook                       | `hooks/use<Thing>.ts`        |
+| A pure function, no I/O               | `lib/`                       |
+| Anything calling an external system   | `services/`                  |
+| A Firestore collection + its schema   | `services/<name>.service.ts` |
+| A composite index or field exemption  | `firestore.indexes.json`     |
+| A Firestore security rule             | `firestore.rules`            |
+| A type used in 2+ places              | `types/`                     |
+| A type used once                      | Next to its consumer         |
+| Images, fonts, `robots.txt`           | `public/`                    |
+| A global style or design token        | `styles/globals.css`         |
+| A script humans run                   | `scripts/`                   |
+| An explanation of how something works | `docs/`                      |
+| An explanation of the cloud setup     | `cloud/`                     |
 
 **Naming:** components `PascalCase.tsx`; hooks `camelCase.ts`; utilities/services `kebab-case.ts`; tests `<subject>.test.ts(x)`; docs `kebab-case.md`.
 
@@ -188,10 +206,178 @@ lib/          pure utilities, config, logging      ← no side effects
 types/        shared contracts
 ```
 
+**The data layer lives entirely in `services/`,** and every module there starts
+with `import 'server-only';`. That import is not decoration: it makes a Client
+Component importing the module a build error rather than a credential in a
+browser bundle.
+
+| Module                 | What it owns                                                                |
+| ---------------------- | --------------------------------------------------------------------------- |
+| `firestore.client.ts`  | The lazy Firestore singleton, pinned to the named database                  |
+| `storage.client.ts`    | The lazy Storage singleton and the app's bucket                             |
+| `repository.ts`        | Typed, zod-validated, cursor-paginated collections                          |
+| `storage.service.ts`   | Signed upload/read URLs, upload verification                                |
+| `sharded-counter.ts`   | Counters above one write per second                                         |
+| `lib/storage-paths.ts` | Path construction and upload rules — pure, so it is tested without a bucket |
+
+Both clients are created **lazily**. A module that defines a repository opens no
+connection at import time, which is what lets `next build` import every route on
+a CI runner with no credentials.
+
 **Allowed:** `app/` → `components/` → `lib/`; `app/` → `services/` → `lib/`
 **Forbidden:** `lib/` → `services/`; `components/ui/` → `services/`; anything → `app/`
 
 Deployment: `git push main` → GitHub Actions → OIDC → Artifact Registry → Cloud Run. The pipeline tags each image with the commit SHA and deploys it by that immutable tag, so a rollback is a traffic shift, not a rebuild.
+
+---
+
+## Firestore data modeling
+
+We chose a NoSQL database. A NoSQL database does not stop you designing a relational schema in it — it just performs badly and bills you for the privilege. These rules are the difference.
+
+Most of them are enforced by `services/repository.ts`. The ones that are not are marked **judgement**, and they are the ones an assistant gets wrong.
+
+---
+
+### Model around access patterns, not entities
+
+Write the queries first, then design the documents that answer them in one read. There are no joins. A "clean" normalised model means N reads to render one screen, and N grows with your traffic.
+
+**Denormalise anything the read path needs.** A list of posts that shows an author's name stores that name on each post. Yes, a rename then needs a fan-out update. A rename is rare; the list render is not.
+
+```ts
+// Good — one read renders the row.
+const post = { title, body, authorId, authorName, authorAvatarPath };
+
+// Bad — one read per row to resolve the author.
+const post = { title, body, authorId };
+```
+
+**Keep documents well under 1 MiB.** That is a hard limit, and you pay the whole document's size on every read of it, even for one field.
+
+**Use a subcollection for anything unbounded.** An array inside a document has no natural ceiling, and every append rewrites the entire document.
+
+```ts
+// Good — a subcollection, queried with its own bounded page.
+posts/{postId}/comments/{commentId}
+
+// Bad — the document grows without limit and every write rewrites all of it.
+posts/{postId}  { comments: [...] }
+```
+
+**Judgement:** nothing in the tooling can tell an array that will hold three items from one that will hold thirty thousand. Ask what the maximum is. If the answer is "it depends", it is a subcollection.
+
+---
+
+### Always use auto-generated document ids
+
+`repository.create()` takes no id, on purpose.
+
+Sequential ids (`user-1`, `user-2`) and timestamp-prefixed ids (`2026-09-22-abc`) both send every new write to the same end of the key range. Firestore splits a collection by key range to scale it; a monotonic key means every write lands in the same split, and that split cannot be divided. Throughput stops climbing and latency climbs instead.
+
+Auto ids are random, so writes spread across the key space from the first document.
+
+**Enforced:** `create` generates the id. There is no parameter to pass one.
+
+---
+
+### Every query is bounded
+
+`limit` is a **required** argument on `repository.list()`, capped at `MAX_PAGE_SIZE` (200). Pagination is cursor-based. There is no offset, and there is no "just fetch them all".
+
+```ts
+// Good
+const page = await notes.list({ limit: 25, cursor });
+
+// Rejected at runtime with UnboundedQueryError
+const page = await notes.list({ limit: 5000 });
+```
+
+Offset pagination does not exist in this repository because Firestore charges for every skipped document. Page 500 of an offset query reads 500 pages' worth of documents to return one.
+
+**Enforced:** `UnboundedQueryError` from `services/repository.ts`.
+
+---
+
+### One document takes about one write per second
+
+That is a sustained rate, not a burst. A counter that many users increment at once — likes, views, a stock level — will exceed it, and the symptom is contention errors under exactly the load you wanted.
+
+- **A total you can compute on demand** → an aggregation query. `repository.count()` uses `count()`, which reads index entries, not documents.
+- **A total you must maintain** → `services/sharded-counter.ts`. N shards give N writes/second and cost N reads to total.
+- **Below one write per second** → a plain field. Do not shard by reflex; a shard costs a read.
+
+```ts
+// Good — no documents read at all.
+const total = await notes.count({ where: [['ownerId', '==', ownerId]] });
+
+// Bad — reads every document to produce a number.
+const all = await notes.list({ limit: 200 });
+const total = all.items.length; // and it is wrong past 200
+```
+
+---
+
+### Do not index a monotonically increasing field you write often
+
+An always-increasing indexed value (`createdAt`, `updatedAt`, a sequence number) writes to the same end of the index every time. Above roughly 500 writes/second to one collection, that index becomes the bottleneck.
+
+The remedy is a single-field index exemption in `firestore.indexes.json`:
+
+```json
+{
+  "fieldOverrides": [{ "collectionGroup": "examples", "fieldPath": "updatedAt", "indexes": [] }]
+}
+```
+
+**Judgement, and a real trade-off.** An exempted field can no longer be filtered or ordered on by itself. The template exempts `updatedAt`, which nothing queries, and does **not** exempt `createdAt`, which every list orders by — that one is served by the composite index `(deletedAt, createdAt)` instead. Before exempting a field, check nothing queries it.
+
+---
+
+### Multi-tenancy: pick one shape and hold it
+
+Two options, both valid. Choose once, per application, and write it into an ADR.
+
+**A. Subcollection per tenant** — `tenants/{tenantId}/orders/{orderId}`
+
+- Isolation is structural. A query rooted at the wrong tenant returns nothing, because the path is wrong.
+- A security rule or an IAM condition can match on the path.
+- Cross-tenant reporting needs a collection-group query and its own index.
+
+```ts
+const orders = createRepository({ collection: `tenants/${tenantId}/orders`, schema });
+```
+
+**B. `tenantId` field on every document** — `orders/{orderId}` with `{ tenantId, ... }`
+
+- One collection, so cross-tenant queries and indexes are straightforward.
+- Isolation is a convention, and a convention is one forgotten `where` clause from a data leak. **Every query must carry the filter**, and a composite index must lead with `tenantId`.
+
+```ts
+const page = await orders.list({ limit: 25, where: [['tenantId', '==', tenantId], ...] });
+```
+
+**Prefer A** unless cross-tenant queries are a core feature. Structural isolation cannot be forgotten; a `where` clause can.
+
+---
+
+### Ramp up new high-traffic collections: 500 / 50 / 5
+
+Firestore scales a collection by splitting its key range, and splitting takes time. Starting a brand-new collection at full traffic overruns it before it has split, and the writes fail.
+
+Start at **500 operations/second**, then raise the ceiling by **50%** every **5 minutes**. That reaches 740/s after 5 minutes, 1 100/s after 10, and about 1 M/s in 90 minutes.
+
+This matters for a bulk import, a backfill, or a migration — not for organic growth, which ramps itself.
+
+---
+
+### The checklist before you write a query
+
+1. Is `limit` set, and is there a cursor? (The repository enforces this.)
+2. Does a composite index exist for the filter + order combination? Add it to `firestore.indexes.json` **in the same pull request**.
+3. Is this a count? Use `count()`, not a list.
+4. Multi-tenant? Is the tenant in the path, or in the `where` clause?
+5. Will this collection take more than 500 writes/second at launch? Ramp it.
 
 ---
 
@@ -265,7 +451,56 @@ React Testing Library cannot render them. Test the `services/`/`lib/` helpers th
 
 Free on **public** repositories only. On a private repo without GitHub Advanced Security the analysis runs, scans everything, then fails at upload with `Code scanning is not enabled for this repository`. If you generate a private project from this template: buy GHAS or delete `codeql.yml`. Do not leave a permanently red check — a check everyone ignores is worse than no check.
 
-### 12. `dumb-init` is PID 1
+### 12. `lib/env.ts` skips its production check during `next build`
+
+`next build` runs with `NODE_ENV=production` and imports every route to collect page metadata. Without the `NEXT_PHASE === 'phase-production-build'` guard, the Docker builder stage and CI would demand a production database id and bucket name **in order to compile** — and fail with `Failed to collect page data for /_not-found`.
+
+Only `NEXT_PUBLIC_*` values matter at build time. Everything else is read at runtime. Removing the guard breaks the build; removing the `typeof window` guard next to it breaks every page in the browser, because Next.js replaces a non-`NEXT_PUBLIC_` read with `undefined` in the client bundle.
+
+### 13. The Firestore database is NAMED, never `(default)`
+
+`<app-slug>-db`. The runtime service account gets `roles/datastore.user` under an IAM condition pinned to that exact resource name.
+
+This is what makes one GCP project safe for several apps. `roles/datastore.user` without a condition grants access to **every** database in the project — so an unconditioned binding silently gives this app's identity read and write access to every other app's data. The condition is the control, not the naming convention.
+
+### 14. Uploads land in `tmp/` before they count
+
+A signed URL commits to a content type and a size range, and Cloud Storage does enforce both. It still is not enough: the object exists the moment the PUT succeeds, and nothing has looked at it.
+
+So `createSignedUploadUrl` writes under `tmp/`, and `finalizeUpload` re-reads the real object's metadata before moving it into place. A bucket lifecycle rule deletes anything still under `tmp/` after a day. Skipping the finalize step means user-controlled objects that nothing has validated.
+
+### 15. Signed URLs work without a key file because the account signs for itself
+
+Signing a V4 URL needs a private key. There is no key file in this template, by design — so the library asks the IAM `signBlob` API to sign instead, which requires the runtime service account to hold `roles/iam.serviceAccountTokenCreator` **on itself**.
+
+It looks like a mistake in the bootstrap script. It is the binding that replaces a downloadable credential. Remove it and every signed URL fails with `Permission 'iam.serviceAccounts.signBlob' denied`, naming the account and not the missing role.
+
+### 16. `server-only` has to be stubbed in Vitest
+
+`import 'server-only'` resolves to a module that throws unless the bundler picked its `react-server` export. Next.js does; Vitest does not. So `vitest.config.ts` aliases it to `tests/server-only.stub.ts`.
+
+The guard still does its job in `next build`, which is the build that ships. Delete the alias and every test touching `services/` fails with "This module cannot be imported from a Client Component module".
+
+### 17. `protobufjs` is listed in `allowBuilds` as `false`
+
+It is a transitive dependency of `@google-cloud/firestore` that wants a lifecycle script. That script compiles nothing — it reads the parent `package.json` and prints a warning about version ranges.
+
+It is **listed** rather than omitted because `pnpm install --frozen-lockfile` exits 1 with `ERR_PNPM_IGNORED_BUILDS` for any unlisted package that wants a script, which would fail CI and the Docker build. Listing it as `false` records the decision and keeps the script blocked.
+
+### 18. Firestore's control plane is eventually consistent after `create`
+
+A `databases update` issued straight after `databases create` races the creation and fails:
+
+```
+ERROR: (gcloud.firestore.databases.update) ABORTED:
+There are concurrent database changes, please try again.
+```
+
+The database is **fine** — it exists, in the right region, in the right mode. Only the follow-up write lost the race. `gcp-bootstrap.sh` pauses after creating the database and wraps the point-in-time-recovery and backup-schedule calls in `retry_on_abort`, which retries `ABORTED` with backoff and returns any other error immediately, unretried.
+
+Hit it anyway? Re-run bootstrap. It is idempotent: it skips the database that already exists and finishes the steps that did not.
+
+### 19. `dumb-init` is PID 1
 
 Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy. Verified: the container currently stops in ~1s.
 
@@ -290,10 +525,23 @@ Violations here are defects, not style disagreements.
 | Disable a CI check to make a PR green                                | Fix the code, or change the check deliberately and say why.                                                                                                |
 | Put a secret in a Docker build arg                                   | Visible in `docker history`. Use Secret Manager at runtime.                                                                                                |
 | Push, claim work is done, or open a PR without `pnpm validate` green | Run it locally first — `format:check` included. CI must never fail from your end. See [Verification protocol](#verification-protocol).                     |
+| Query Firestore without a `limit`                                    | An unbounded read grows with the collection until it times out or exhausts the instance's memory. See [Firestore data modeling](#firestore-data-modeling). |
+| Pass your own document id to `create`                                | Sequential and timestamp-prefixed ids create a write hotspot Firestore cannot split.                                                                       |
+| Paginate with an offset                                              | Firestore bills every skipped document. Use the cursor.                                                                                                    |
+| Store a signed URL in a document                                     | It expires. Store the object path and sign on read.                                                                                                        |
+| Read an upload without `finalizeUpload`                              | The object exists the moment the PUT lands and nothing has checked it. See trap 14.                                                                        |
+| Import `services/` from a Client Component                           | It ships the SDK — and the intent to use credentials — to the browser. `import 'server-only'` makes it a build error; do not work around it.               |
+| Point a Cloud Run probe at `/api/health?deep=1`                      | Deep mode answers 503 when a dependency blips, so the platform would kill healthy containers and amplify the outage. Dashboards only.                      |
+| Set `FIRESTORE_EMULATOR_HOST` in a deployed environment              | Every read and write silently routes to a host that does not exist.                                                                                        |
+| Grant `roles/datastore.user` without an IAM condition                | It grants access to every database in the project, including other apps'. See trap 13.                                                                     |
 
 ---
 
 ## Task recipes
+
+### Start a new app from this template — see the README
+
+`README.md` > "New app in 5 commands" is the short path: rename, bootstrap, set the GitHub variables, push. This section covers changes to an existing app.
 
 ### Add an environment variable — four places, one PR
 
@@ -314,6 +562,28 @@ Missing any step breaks somebody:
 6. Mobile-first: base styles target the phone; layer `sm:`/`md:`/`lg:` for wider screens. Fluid widths (`w-full`, `max-w-*`), no fixed pixel widths that overflow, touch targets ≥44px. Verify at 320px wide and up
 7. Colocate `<Name>.test.tsx`
 8. A new or changed `components/ui/` primitive also appears on `/design`, in the same PR
+
+### Add a Firestore collection
+
+Read [Firestore data modeling](#firestore-data-modeling) first. Then, in one pull request:
+
+1. `services/<name>.service.ts` — a zod schema for the payload (never `id`, `createdAt`, `updatedAt` or `deletedAt`) and `createRepository({ collection, schema })`
+2. Write the queries the app will actually run, and add a composite index to `firestore.indexes.json` for each filter + order combination
+3. Add a field exemption for any monotonically increasing field nothing queries
+4. `services/<name>.emulator.test.ts` if the collection has logic worth proving
+5. `pnpm test:emulator` — the emulator suites do not run inside `pnpm validate`
+6. The index reaches the database on the next deploy, before the app. Locally: `pnpm db:deploy --project <p> --database <db>`
+
+### Add a file upload
+
+1. Decide the allow-list of content types and the size ceiling. Never accept `image/svg+xml` — it executes script when served inline
+2. Server: `createSignedUploadUrl({ path: { collection, docId, filename }, contentType, maxBytes })`
+3. Client: `PUT` to the URL with the returned headers **byte for byte** — they are part of the signature
+4. Server: `finalizeUpload(tmpPath)` — verifies the real object and promotes it out of `tmp/`
+5. Store the returned **path** on the document, never the signed URL
+6. Render with `createSignedReadUrl(path)`, freshly signed per request
+
+`app/example/` does all six. Copy it, then delete it.
 
 ### Change the Dockerfile
 
@@ -397,6 +667,10 @@ Full model in [`SECURITY.md`](./SECURITY.md).
 - **The container is hardened:** non-root uid 1001, no source/dev-deps/package manager in the final image, pinned base image, read-only root filesystem, `no-new-privileges`.
 - **Workflows are least-privilege:** `contents: read` by default, `id-token: write` only where OIDC is needed, `persist-credentials: false` on checkout. PR validation needs **no** cloud credentials — keep it that way so fork PRs work.
 - **Secrets** come from Secret Manager at runtime. Never a build arg, never `NEXT_PUBLIC_*`, never the repository.
+- **The data layer is scoped to one app.** The runtime service account holds `roles/datastore.user` under an IAM condition naming this database, and `roles/storage.objectUser` on this bucket — not project-wide. A second app in the same project reaches neither.
+- **Signed URLs need no key.** The runtime account holds `roles/iam.serviceAccountTokenCreator` on itself, so IAM signs on its behalf. That binding is what replaces a downloadable credential.
+- **The bucket cannot be made public.** Uniform bucket-level access plus enforced public access prevention. Every read goes through a short-lived signed URL.
+- **Firestore rules deny all client access.** Defence in depth only: the app uses admin credentials, which bypass rules. The control that protects today's data is the IAM condition.
 
 ---
 
@@ -409,6 +683,7 @@ Recorded in [`docs/adr/`](./docs/adr/). Read before proposing a change to any of
 | [0001](./docs/adr/0001-use-cloud-run-for-hosting.md)                   | Cloud Run for hosting — over Vercel, GKE, App Engine, a VM                           |
 | [0002](./docs/adr/0002-use-workload-identity-federation.md)            | Workload Identity Federation — no service account keys, ever                         |
 | [0003](./docs/adr/0003-scope-workload-identity-to-the-github-owner.md) | WIF provider scoped to the GitHub owner; the repository pin lives in the IAM binding |
+| [0004](./docs/adr/0004-use-firestore-and-cloud-storage.md)             | Firestore + Cloud Storage — over Cloud SQL, over a per-app project                   |
 
 Add an ADR when a decision is expensive to reverse, affects how everyone works, or rejects an obvious alternative. Never edit an accepted ADR to change its decision — write a new one that supersedes it, and link both ways.
 

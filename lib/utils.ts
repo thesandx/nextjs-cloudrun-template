@@ -78,3 +78,33 @@ export async function safeAwait<T>(
     return { ok: false, error: isError(error) ? error : new Error(String(error)) };
   }
 }
+
+/**
+ * Rejects if `promise` has not settled within `ms`.
+ *
+ * `AbortSignal.timeout` covers `fetch`, but the Google Cloud SDKs use gRPC and
+ * their own transports, so a deadline has to be imposed from outside. Without
+ * one, a slow dependency holds a Cloud Run request slot open until the
+ * platform's 300s limit and exhausts concurrency during an incident.
+ *
+ * The underlying work is not cancelled — nothing here can cancel a gRPC call
+ * mid-flight. It is abandoned, so the caller stops waiting on it.
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} did not complete within ${ms}ms`));
+    }, ms);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      },
+    );
+  });
+}

@@ -20,12 +20,17 @@ The operator-facing guide: set up once, then deploy by merging to `main`.
 ```bash
 ./scripts/gcp-bootstrap.sh \
   --project my-gcp-project \
-  --region asia-southeast1 \
+  --region asia-south1 \
   --repo thesandx/my-app \
-  --service my-app
+  --service my-app \
+  --cors-origin https://app.example.com
 ```
 
-The script enables APIs, creates the Artifact Registry repository, sets up Workload Identity Federation, creates the deployer and runtime service accounts with least-privilege roles, and prints the exact GitHub secrets and variables to configure. Re-running it is safe — every step is idempotent.
+The script enables APIs, creates the Artifact Registry repository, sets up Workload Identity Federation, creates the deployer and runtime service accounts with least-privilege roles, provisions the Firestore database and the Cloud Storage buckets, and prints the exact GitHub secrets and variables to configure. Re-running it is safe — every step is idempotent.
+
+`--cors-origin` is optional and can wait. It takes the origin your **app** is served from, which enables direct browser uploads. Run `./scripts/gcp-bootstrap.sh --help` for the format.
+
+> **Run this before the first merge to `main`.** The deploy publishes Firestore indexes _before_ it builds the image, so a missing database fails the whole pipeline — no image, no revision.
 
 Then set what it printed:
 
@@ -33,13 +38,17 @@ Then set what it printed:
 gh secret set WIF_PROVIDER        --body "projects/123456789/locations/global/workloadIdentityPools/github/providers/github"
 gh secret set WIF_SERVICE_ACCOUNT --body "github-deployer@my-gcp-project.iam.gserviceaccount.com"
 
-gh variable set GCP_PROJECT_ID      --body "my-gcp-project"
-gh variable set GCP_REGION          --body "asia-southeast1"
-gh variable set ARTIFACT_REPOSITORY --body "containers"
-gh variable set CLOUD_RUN_SERVICE   --body "my-app"
+gh variable set GCP_PROJECT_ID          --body "my-gcp-project"
+gh variable set GCP_REGION              --body "asia-south1"
+gh variable set ARTIFACT_REPOSITORY     --body "containers"
+gh variable set CLOUD_RUN_SERVICE       --body "my-app"
+gh variable set APP_SLUG                --body "my-app"
+gh variable set RUNTIME_SERVICE_ACCOUNT --body "my-app-runtime@my-gcp-project.iam.gserviceaccount.com"
 ```
 
-Skip to [Deploying](#deploying).
+`FIRESTORE_DATABASE_ID` and `GCS_BUCKET` need no entry. The workflow derives both from `APP_SLUG` and `GCP_PROJECT_ID`. Set them only to point at resources that already carry another name.
+
+Skip to [First deploy, end to end](#first-deploy-end-to-end).
 
 ### The manual path
 
@@ -47,7 +56,7 @@ Useful when you need to understand or audit what the script does, or when org po
 
 ```bash
 export PROJECT_ID="my-gcp-project"
-export REGION="asia-southeast1"
+export REGION="asia-south1"
 export REPO="thesandx/my-app"          # GitHub owner/name
 export SERVICE="my-app"
 export AR_REPO="containers"
@@ -165,17 +174,24 @@ Neither is a credential — both are resource identifiers, useless without a val
 
 **Variables** — same page, Variables tab
 
-| Variable              | Required | Default                | Purpose                              |
-| --------------------- | -------- | ---------------------- | ------------------------------------ |
-| `GCP_PROJECT_ID`      | **yes**  | —                      | Target project                       |
-| `GCP_REGION`          | no       | `asia-southeast1`      | Cloud Run + Artifact Registry region |
-| `ARTIFACT_REPOSITORY` | no       | `containers`           | Artifact Registry repository name    |
-| `CLOUD_RUN_SERVICE`   | no       | repository name        | Cloud Run service name               |
-| `APP_URL`             | no       | —                      | Public URL, inlined at build time    |
-| `APP_NAME`            | no       | `Next.js on Cloud Run` | Display name                         |
-| `LOG_LEVEL`           | no       | `info`                 | Runtime log verbosity                |
-| `MIN_INSTANCES`       | no       | `0`                    | `1` removes cold starts, at a cost   |
-| `MAX_INSTANCES`       | no       | `10`                   | Scaling and bill ceiling             |
+| Variable                     | Required | Default                    | Purpose                                         |
+| ---------------------------- | -------- | -------------------------- | ----------------------------------------------- |
+| `GCP_PROJECT_ID`             | **yes**  | —                          | Target project                                  |
+| `GCP_REGION`                 | no       | `asia-south1`              | Cloud Run + Artifact Registry region            |
+| `ARTIFACT_REPOSITORY`        | no       | `containers`               | Artifact Registry repository name               |
+| `CLOUD_RUN_SERVICE`          | no       | repository name            | Cloud Run service name                          |
+| `APP_SLUG`                   | no       | service name               | Names the database, bucket and runtime identity |
+| `RUNTIME_SERVICE_ACCOUNT`    | no       | `<slug>-runtime@<project>` | Identity the revision runs as                   |
+| `FIRESTORE_DATABASE_ID`      | no       | `<slug>-db`                | Override only for an existing database          |
+| `GCS_BUCKET`                 | no       | `<project>-<slug>-media`   | Override only for an existing bucket            |
+| `HEALTH_DEEP_CHECKS_ENABLED` | no       | `false`                    | Enables `/api/health?deep=1`. Dashboards only   |
+| `APP_URL`                    | no       | —                          | Public URL, inlined at build time               |
+| `APP_NAME`                   | no       | `Next.js on Cloud Run`     | Display name                                    |
+| `LOG_LEVEL`                  | no       | `info`                     | Runtime log verbosity                           |
+| `MIN_INSTANCES`              | no       | `0`                        | `1` removes cold starts, at a cost              |
+| `MAX_INSTANCES`              | no       | `10`                       | Scaling and bill ceiling                        |
+
+> **Set `RUNTIME_SERVICE_ACCOUNT`.** Without it Cloud Run runs the revision as the default compute service account, which holds Editor on the whole project — the opposite of the least-privilege identity bootstrap created.
 
 **Environment** — Settings → Environments → New environment → `production`
 
@@ -198,17 +214,96 @@ gh workflow run deploy.yml -f reason="Redeploy after config change"
 gh run watch
 ```
 
-### First deploy
+---
 
-The first deploy has one extra step: you cannot know `APP_URL` until the service exists, because Cloud Run generates the URL.
+## First deploy, end to end
 
-1. Deploy once with `APP_URL` unset.
-2. Read the URL from the workflow summary, or:
-   ```bash
-   gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)'
-   ```
-3. `gh variable set APP_URL --body "https://..."`
-4. Redeploy so the value is inlined into the client bundle.
+From an empty project to your own domain serving traffic. Eight steps.
+
+The example below uses `my-gcp-project`, the app slug `my-app`, and the domain `app.example.com`. Substitute your own throughout.
+
+### 1. Provision Google Cloud
+
+```bash
+./scripts/gcp-bootstrap.sh \
+  --project my-gcp-project --region asia-south1 \
+  --repo thesandx/my-app --service my-app
+```
+
+Read the confirmation screen before you accept it. **The Firestore location and the bucket location are permanent.** Neither can be moved later.
+
+### 2. Set the secrets and variables
+
+Copy the commands the script printed. See [GitHub configuration](#github-configuration) for what each one does.
+
+```bash
+gh variable list      # confirm they landed
+```
+
+### 3. Deploy
+
+Merge to `main`, or trigger it by hand:
+
+```bash
+gh workflow run deploy.yml -f reason="First deploy"
+gh run watch
+```
+
+The pipeline publishes Firestore indexes and rules, builds the image, deploys a revision, and probes `/api/health` before it reports success.
+
+### 4. Read the generated URL
+
+Cloud Run generates the URL, so it cannot exist before the first deploy.
+
+```bash
+URL=$(gcloud run services describe my-app --region asia-south1 --format='value(status.url)')
+echo "$URL"
+# https://my-app-abc123-el.a.run.app
+```
+
+### 5. Verify on that URL, before any DNS change
+
+```bash
+curl -s "$URL/api/health" | jq
+```
+
+Check `status` is `ok` and `version` matches the commit you merged. A mismatch means the deploy did not land.
+
+Open `$URL/example` too. It creates a document, lists a page and uploads an image, so it exercises Firestore and Cloud Storage end to end. Delete that route once you trust the setup.
+
+**Nothing public has changed yet.** Everything so far is reversible.
+
+### 6. Put a domain in front
+
+Pick one of the three options in [Custom domain](#custom-domain). For most projects that is Firebase Hosting: free, includes a CDN, and works in `asia-south1` where domain mapping does not.
+
+### 7. Point DNS at it
+
+Your registrar — Hostinger, Namecheap, Cloudflare, wherever the domain lives — keeps the records. The option you picked in step 6 prints exactly what to add.
+
+Registration stays where it is. You change records, not ownership.
+
+```bash
+dig +short app.example.com          # confirm the records resolve
+curl -sI https://app.example.com    # confirm the certificate is live
+```
+
+A managed certificate can take minutes or hours. The domain answers only once it is issued.
+
+### 8. Inline the real URL, then redeploy
+
+```bash
+gh variable set APP_URL --body "https://app.example.com"
+gh workflow run deploy.yml -f reason="Inline the production URL"
+```
+
+`NEXT_PUBLIC_APP_URL` is inlined at **build** time. Until you rebuild, canonical URLs, Open Graph tags and metadata still carry the old value. A Cloud Run environment variable change does nothing here.
+
+### Afterwards
+
+- Add `--cors-origin https://app.example.com` and re-run bootstrap, if the app uploads files from the browser.
+- Delete the `/example` route and `services/example.service.ts`.
+- Work through the [pre-production checklist](../SECURITY.md#hardening-checklist-for-a-real-deployment).
 
 ---
 
@@ -263,6 +358,113 @@ Watch error rates in Cloud Monitoring, then move to 100%.
 
 ## Custom domain
 
+**Check your region first.** Cloud Run domain mappings work in only a handful of regions, and `asia-south1` — this template's default — is **not** one of them. Google has said it has no plan to add it. Run this before you plan around it:
+
+```bash
+gcloud run domain-mappings list --region "$REGION"   # errors if unsupported
+```
+
+Three options, in the order most projects should consider them.
+
+### 1. Firebase Hosting — free, and covers `asia-south1`
+
+The cheapest path to a custom domain with a managed certificate, and it includes a CDN. Firebase Hosting rewrites to Cloud Run cover most regions, `asia-south1` and `asia-southeast1` among them — but the list is not every region, so check yours against [Serve dynamic content with Cloud Run](https://firebase.google.com/docs/hosting/cloud-run) before planning around it.
+
+```json
+{
+  "hosting": {
+    "public": "public",
+    "rewrites": [{ "source": "**", "run": { "serviceId": "my-app", "region": "asia-south1" } }]
+  }
+}
+```
+
+`serviceId` is the Cloud Run service name. `region` must be the region it runs in — a rewrite to the wrong region returns 404, not an error you can read.
+
+```bash
+npx firebase-tools login
+npx firebase-tools use my-gcp-project
+npx firebase-tools deploy --only hosting
+```
+
+That publishes to `my-gcp-project.web.app`. Check it works there first:
+
+```bash
+curl -s https://my-gcp-project.web.app/api/health | jq
+```
+
+Then add your own domain: **Firebase console → Hosting → Add custom domain**. It verifies ownership, then prints the records to add at your registrar — a `TXT` record to prove ownership, then `A` records pointing at Firebase.
+
+Add them wherever the domain's DNS lives (Hostinger, Namecheap, Cloudflare). Certificate issuance takes minutes to hours.
+
+```bash
+dig +short app.example.com
+curl -sI https://app.example.com
+```
+
+Next.js sets `Cache-Control: public, max-age=31536000, immutable` on `/_next/static/**`, so those assets cache at the edge. Dynamic pages and route handlers return `no-store` and reach Cloud Run on every request — a CDN cannot change that, whichever one you use.
+
+Good for a single service. It adds a hop, and it is another product to reason about.
+
+### 2. Global External Application Load Balancer — the production answer
+
+Works in every region, and it is what you would end up with anyway once you want Cloud CDN, Cloud Armor, a WAF, or several backends behind one domain. A serverless NEG points the load balancer at the Cloud Run service.
+
+```bash
+gcloud compute network-endpoint-groups create "$SERVICE-neg" \
+  --region "$REGION" \
+  --network-endpoint-type=serverless \
+  --cloud-run-service="$SERVICE"
+```
+
+Then a backend service, a URL map, a managed certificate and a global forwarding rule. Full walkthrough: [Serverless network endpoint groups](https://cloud.google.com/load-balancing/docs/negs/serverless-neg-concepts).
+
+It is not free. Budget roughly **US$18–25/month** for the forwarding rule before traffic — confirm against the [pricing calculator](https://cloud.google.com/products/calculator), because this is the one line item that turns a scale-to-zero service into a fixed monthly bill.
+
+A load balancer also **improves** latency independently of your region: TLS terminates at the Google edge nearest the user, and the rest of the trip runs over Google's private backbone rather than the public internet.
+
+### Moving a domain that is already live
+
+Different problem from setting one up. The domain already serves users, and DNS decides which backend answers.
+
+**You cannot run both at once.** A Cloud Run domain mapping on a subdomain is a `CNAME` to `ghs.googlehosted.com`. Firebase Hosting wants `A` records. DNS forbids a `CNAME` and an `A` record on the same hostname, so the switch is a single atomic edit, not a gradual shift.
+
+**There is a gap.** After DNS points at the new backend, its certificate is not issued yet. Minutes usually, hours sometimes. On an HSTS-preloaded TLD such as `.app` or `.dev`, that gap is a hard outage — browsers refuse HTTP outright, so there is no degraded fallback.
+
+Rehearse on a throwaway subdomain, so the only unknown left is propagation:
+
+**1. Lower the TTL, well ahead.** Caches hold the old record for its full TTL. Drop it to 300 the day before, or the cutover drags for hours.
+
+```bash
+dig +noall +answer hello.example.com     # shows the current record and TTL
+```
+
+**2. Prove the new path on a subdomain nobody uses.** Add `staging.example.com` in the Firebase console, point it at Firebase, and confirm it serves. Nothing about the live domain changes.
+
+```bash
+curl -sI https://staging.example.com
+```
+
+**3. Verify ownership of the real domain early.** Firebase may ask for a `TXT` record. `TXT` coexists with the live `CNAME`, so add it now and let verification finish before the cutover.
+
+**4. Cut over.** Delete the `CNAME`, add the `A` records Firebase gives you. One edit, at a quiet hour.
+
+**5. Watch the certificate.**
+
+```bash
+until curl -sfI "https://hello.example.com" >/dev/null 2>&1; do sleep 30; done; echo "live"
+```
+
+**6. Only now delete the old mapping.** Leaving it is harmless — DNS already decided — so there is no reason to remove it before the new path is proven.
+
+```bash
+gcloud beta run domain-mappings delete --domain hello.example.com --region asia-southeast1
+```
+
+Deleting the mapping first does not speed anything up. It only removes your way back.
+
+### 3. Domain mapping — only where it is supported
+
 ```bash
 gcloud beta run domain-mappings create \
   --service "$SERVICE" \
@@ -270,9 +472,13 @@ gcloud beta run domain-mappings create \
   --region "$REGION"
 ```
 
-Add the DNS records it prints. The managed certificate takes up to ~15 minutes to provision. Afterwards, update `APP_URL` and redeploy so canonical URLs and metadata use the real domain.
+Add the DNS records it prints. The managed certificate takes up to ~15 minutes to provision.
 
-For anything more involved — CDN, WAF, multi-region — put a Cloud Load Balancer in front of Cloud Run instead of using domain mappings.
+Simplest and free, but regionally limited, and it gives you no CDN, no WAF and no path-based routing.
+
+---
+
+Whichever you pick, afterwards update the `APP_URL` repository variable and redeploy, so canonical URLs and metadata use the real domain. `NEXT_PUBLIC_APP_URL` is inlined at build time — a Cloud Run env var change alone does nothing.
 
 ---
 

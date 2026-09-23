@@ -73,7 +73,7 @@ Create the bucket before the first `init`:
 
 ```bash
 gcloud storage buckets create gs://my-project-tf-state \
-  --location=asia-southeast1 \
+  --location=asia-south1 \
   --uniform-bucket-level-access
 
 gcloud storage buckets update gs://my-project-tf-state --versioning
@@ -129,10 +129,10 @@ cd cloud/terraform
 terraform init
 
 terraform import google_artifact_registry_repository.containers \
-  projects/my-project/locations/asia-southeast1/repositories/containers
+  projects/my-project/locations/asia-south1/repositories/containers
 
 terraform import google_cloud_run_v2_service.app \
-  projects/my-project/locations/asia-southeast1/services/my-app
+  projects/my-project/locations/asia-south1/services/my-app
 
 terraform import google_service_account.deployer \
   projects/my-project/serviceAccounts/github-deployer@my-project.iam.gserviceaccount.com

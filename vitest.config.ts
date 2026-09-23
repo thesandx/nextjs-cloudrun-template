@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
@@ -13,9 +15,15 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
   plugins: [react()],
-  // Reuses the `@/*` alias from tsconfig.json, so tests and application code
-  // resolve imports identically. Native since Vite 7 — no plugin needed.
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    // Reuses the `@/*` alias from tsconfig.json, so tests and application code
+    // resolve imports identically. Native since Vite 7 — no plugin needed.
+    tsconfigPaths: true,
+    alias: {
+      // `import 'server-only'` throws outside a Next.js build. See the stub.
+      'server-only': fileURLToPath(new URL('./tests/server-only.stub.ts', import.meta.url)),
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

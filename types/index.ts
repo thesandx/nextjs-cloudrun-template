@@ -18,6 +18,14 @@
 /** ISO-8601 timestamp, e.g. `2026-07-21T09:30:00.000Z`. */
 export type IsoDateString = string;
 
+/** One dependency check in a deep health response. */
+export interface HealthCheck {
+  name: string;
+  ok: boolean;
+  latencyMs: number;
+  error?: string;
+}
+
 /** Health probe payload returned by `GET /api/health`. */
 export interface HealthStatus {
   status: 'ok' | 'degraded';
@@ -25,8 +33,15 @@ export interface HealthStatus {
   version: string;
   environment: 'development' | 'production' | 'test';
   region: string;
+  /** Last deploy time rendered in IST, or null outside the pipeline. */
+  deployedAt: string | null;
   uptimeSeconds: number;
   timestamp: IsoDateString;
+  /**
+   * Present only on `?deep=1`. `null` when deep checks are disabled, which is
+   * the default — see app/api/health/route.ts.
+   */
+  checks?: HealthCheck[] | null;
 }
 
 /**

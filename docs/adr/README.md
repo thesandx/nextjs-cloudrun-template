@@ -16,7 +16,7 @@ Do **not** write one for a routine choice with an obvious answer. An ADR per pul
 ## How
 
 1. Copy [`0000-template.md`](./0000-template.md).
-2. Number it sequentially: `0003-use-cloud-sql-for-persistence.md`.
+2. Number it sequentially: `0005-use-cloud-sql-for-persistence.md`.
 3. Write it in the PR that makes the change, not afterwards.
 4. Never edit an accepted ADR to change its decision. Write a new one that supersedes it and link both ways. The record of the earlier decision is the valuable part.
 
@@ -31,7 +31,9 @@ Do **not** write one for a routine choice with an obvious answer. An ADR per pul
 
 ## Index
 
-| ADR                                                | Title                                                            | Status   |
-| -------------------------------------------------- | ---------------------------------------------------------------- | -------- |
-| [0001](./0001-use-cloud-run-for-hosting.md)        | Use Cloud Run for hosting                                        | Accepted |
-| [0002](./0002-use-workload-identity-federation.md) | Use Workload Identity Federation instead of service account keys | Accepted |
+| ADR                                                           | Title                                                            | Status   |
+| ------------------------------------------------------------- | ---------------------------------------------------------------- | -------- |
+| [0001](./0001-use-cloud-run-for-hosting.md)                   | Use Cloud Run for hosting                                        | Accepted |
+| [0002](./0002-use-workload-identity-federation.md)            | Use Workload Identity Federation instead of service account keys | Accepted |
+| [0003](./0003-scope-workload-identity-to-the-github-owner.md) | Scope the WIF provider to the GitHub owner                       | Accepted |
+| [0004](./0004-use-firestore-and-cloud-storage.md)             | Use Firestore and Cloud Storage for data and files               | Accepted |

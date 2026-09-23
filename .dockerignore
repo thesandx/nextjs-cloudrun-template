@@ -41,3 +41,9 @@ Dockerfile
 docker-compose.yml
 docker-compose.*.yml
 scripts
+
+# Firestore rules and indexes are deployed by CI (scripts/firestore-deploy.sh),
+# never read by the running container. Keeping them out of the build context
+# means editing an index does not invalidate a Docker layer.
+firestore.rules
+firestore.indexes.json

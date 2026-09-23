@@ -8,19 +8,24 @@ How this application is put together, and the reasoning behind each choice. Read
 
 ```
 Browser
-   │  HTTPS
-   ▼
-Google Cloud Run  (managed, autoscaling, scale-to-zero)
+   │  HTTPS                                 ┌──────────────────────────┐
+   ▼                                        │  Cloud Storage bucket    │
+Google Cloud Run  (managed, autoscaling)    │  <project>-<slug>-media  │
+   │                                        └────────────▲─────────────┘
+   ├── Next.js standalone server            signed PUT   │  (bytes never
+   │      ├── Server Components   ──────────────────────┘    touch Cloud Run)
+   │      ├── Route Handlers      ── /api/*
+   │      └── Static assets       ── /_next/static, /public
    │
-   ├── Next.js standalone server (node server.js, non-root, port 8080)
-   │      ├── Server Components  ── render HTML on the server
-   │      ├── Route Handlers     ── /api/*
-   │      └── Static assets      ── /_next/static, /public
+   ├── services/ ──ADC──▶ Firestore  <slug>-db  (Native mode, same region)
+   │              └─────▶ Cloud Storage        (same region)
    │
    └── stdout / stderr ──▶ Cloud Logging (structured JSON)
 ```
 
-There is no database, cache or queue in the template. That is deliberate — see "What is not here" below.
+Both data services are reached with the Cloud Run runtime service account through Application Default Credentials. No key file exists at any point — see [ADR-0004](../../docs/adr/0004-use-firestore-and-cloud-storage.md).
+
+There is no cache or queue in the template. That is deliberate — see "What is not here" below.
 
 ---
 
@@ -46,6 +51,12 @@ Data flows **down**; dependencies point **inward**. A layer may import from the 
 **Forbidden:** `lib/` → `services/`. `components/ui/` → `services/`. Anything → `app/`.
 
 Why it matters: `lib/` stays easy to test because it has no I/O to mock. You can also replace `services/` completely (REST → gRPC, one vendor → another) without changing a single component.
+
+**The data layer lives entirely in `services/`.** Every module there begins with `import 'server-only';`, which makes a Client Component importing it a build error rather than an SDK in the browser bundle.
+
+The split is deliberate and worth copying: rules that decide **what is allowed** are pure and live in `lib/` (`storage-paths.ts` validates every object path and upload); rules that **talk to Google** live in `services/`. That is why the path and content-type logic is tested exhaustively with no emulator, no bucket and no credential.
+
+Both cloud clients are lazy singletons. A module that defines a repository opens no connection at import time, which is what lets `next build` import every route on a CI runner with no credentials at all.
 
 These boundaries are lint rules, not conventions. `eslint.config.mjs` holds one `no-restricted-imports` block per folder, and each message names this section. A change to the layers changes that file in the same PR.
 
@@ -92,6 +103,18 @@ Two timing rules that people often miss:
 
 ---
 
+## Data
+
+Firestore in Native mode for documents, Cloud Storage for files. One named database and one bucket per app, both in the Cloud Run service's region. The full reasoning, including when to reach for Cloud SQL instead, is in [ADR-0004](../../docs/adr/0004-use-firestore-and-cloud-storage.md); the practical guide is [`docs/data-layer.md`](../../docs/data-layer.md).
+
+Three properties are worth stating here because they constrain how you design:
+
+- **Access is server-side only.** No client SDK reaches the database. Authorisation lives in route handlers and Server Components, not in security rules — the rules deny everything, and admin credentials bypass them anyway.
+- **Isolation is an IAM condition, not a convention.** `roles/datastore.user` is bound with a condition naming this database, so a second app in the same project cannot reach this one's data even with the same role.
+- **Uploads bypass the application.** The browser PUTs to a signed URL, so an upload never occupies a Cloud Run request slot and is never bounded by the 32 MiB request limit.
+
+---
+
 ## Observability
 
 Logs are structured JSON on stdout, using the field names Cloud Logging parses natively (`severity`, `message`). No agent, no sidecar, no dependency.
@@ -104,21 +127,26 @@ becomes a queryable LogEntry in Cloud Logging with `jsonPayload.orderId` as a fi
 
 `/api/health` reports the running version (commit SHA), region and uptime — enough to answer "which build is serving traffic?" without opening the console.
 
+It does **not** check dependencies by default, and that is the important part. A probe that fails when Firestore has a bad thirty seconds makes Cloud Run kill healthy containers and turns a dependency blip into an outage of your own making. `?deep=1` adds one Firestore key lookup and one bucket metadata read, gated behind `HEALTH_DEEP_CHECKS_ENABLED` and off by default. Point dashboards and uptime checks at it; never the orchestrator.
+
 **Deliberately not included:** distributed tracing, metrics export, error tracking. Add OpenTelemetry or Cloud Error Reporting when there is a system complex enough to need them.
 
 ---
 
 ## Security posture
 
-| Layer    | Control                                                                    |
-| -------- | -------------------------------------------------------------------------- |
-| Pipeline | Workload Identity Federation — no long-lived service account keys exist    |
-| Pipeline | Least-privilege job permissions; `contents: read` unless more is needed    |
-| Image    | Non-root user (uid 1001), Alpine base, standalone output (small surface)   |
-| Image    | Read-only root filesystem in Compose; `no-new-privileges`                  |
-| Runtime  | Secrets from Secret Manager, mounted as env vars — never baked into layers |
-| Runtime  | Security headers set in `next.config.ts`; `X-Powered-By` removed           |
-| Code     | CodeQL on every PR and weekly; Dependabot on npm, Actions and Docker       |
+| Layer    | Control                                                                                                 |
+| -------- | ------------------------------------------------------------------------------------------------------- |
+| Pipeline | Workload Identity Federation — no long-lived service account keys exist                                 |
+| Pipeline | Least-privilege job permissions; `contents: read` unless more is needed                                 |
+| Image    | Non-root user (uid 1001), Alpine base, standalone output (small surface)                                |
+| Image    | Read-only root filesystem in Compose; `no-new-privileges`                                               |
+| Runtime  | Secrets from Secret Manager, mounted as env vars — never baked into layers                              |
+| Data     | `datastore.user` under an IAM condition naming this database; `storage.objectUser` on this bucket only  |
+| Data     | Signed URLs via IAM `signBlob` — no private key on disk anywhere                                        |
+| Data     | Bucket has uniform access and enforced public access prevention; every read is a short-lived signed URL |
+| Runtime  | Security headers set in `next.config.ts`; `X-Powered-By` removed                                        |
+| Code     | CodeQL on every PR and weekly; Dependabot on npm, Actions and Docker                                    |
 
 ---
 
@@ -163,14 +191,14 @@ The pipeline tags each image with the commit SHA and deploys it by that immutabl
 
 The template stops at the point where choices become project-specific.
 
-| Not included    | Add it when                          | Suggested approach                                                      |
-| --------------- | ------------------------------------ | ----------------------------------------------------------------------- |
-| Database        | There is persistent state            | Cloud SQL + a connector in `services/`, or Firestore                    |
-| Authentication  | There are user accounts              | Identity Platform, or Auth.js behind `services/`                        |
-| Caching         | Measurements show a hot path         | Next's own `revalidate` first; Memorystore only if that is insufficient |
-| Background jobs | Work outlives a request              | Cloud Tasks or Pub/Sub → a second Cloud Run service                     |
-| Terraform       | More than one environment            | See `cloud/terraform.md` for the planned layout                         |
-| CDN             | Global audience with latency SLOs    | Cloud Load Balancer + Cloud CDN in front of Cloud Run                   |
-| Tracing         | Multiple services calling each other | OpenTelemetry → Cloud Trace                                             |
+| Not included    | Add it when                          | Suggested approach                                                                                                                          |
+| --------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Relational DB   | The domain genuinely normalises      | Cloud SQL. Firestore ships by default — see [ADR-0004](../../docs/adr/0004-use-firestore-and-cloud-storage.md) for when it is the wrong fit |
+| Authentication  | There are user accounts              | Identity Platform, or Auth.js behind `services/`                                                                                            |
+| Caching         | Measurements show a hot path         | Next's own `revalidate` first; Memorystore only if that is insufficient                                                                     |
+| Background jobs | Work outlives a request              | Cloud Tasks or Pub/Sub → a second Cloud Run service                                                                                         |
+| Terraform       | More than one environment            | See `cloud/terraform.md` for the planned layout                                                                                             |
+| CDN             | Global audience with latency SLOs    | Cloud Load Balancer + Cloud CDN in front of Cloud Run                                                                                       |
+| Tracing         | Multiple services calling each other | OpenTelemetry → Cloud Trace                                                                                                                 |
 
 Adding any of these changes the architecture. Update this file, `cloud/architecture.md` and the README diagram in the same PR, and record the decision in `docs/adr/`.

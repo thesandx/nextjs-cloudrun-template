@@ -1,8 +1,10 @@
 name: PR Validation
 
 # Runs on every pull request into main, and on direct pushes to main as a
-# safety net. Nothing here touches Google Cloud, so the job needs no cloud
-# credentials at all — keep it that way.
+# safety net. Nothing here touches Google Cloud, so no job needs cloud
+# credentials at all — keep it that way. The `emulator` job installs the gcloud
+# SDK, but only to get the local Firestore emulator; it never authenticates.
+# This is what lets a pull request from a fork run the full validation.
 on:
   pull_request:
     branches: [main]
@@ -75,7 +77,60 @@ jobs:
       - name: Test
         # No tests yet in a fresh project? Vitest exits 0 on an empty run via
         # `passWithNoTests`, so this stays green until real tests land.
+        #
+        # The `*.emulator.test.ts` suites SKIP here, because
+        # FIRESTORE_EMULATOR_HOST is unset. They run in the `emulator` job
+        # below, which is not optional.
         run: pnpm test --passWithNoTests
+
+  emulator:
+    name: Firestore emulator tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # A suite that skips everywhere is a suite nobody runs. This job is the one
+    # place the repository helper meets a real Firestore, so it stays a required
+    # check. It still needs NO cloud credentials: the emulator is a local Java
+    # process that never talks to Google, which is what keeps fork PRs working.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Java
+        # The Firestore emulator is a Java process and refuses to start on
+        # anything below 21. ubuntu-latest ships an older default JDK, so
+        # without this the emulator exits before it binds a port.
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Cloud SDK
+        # Installs gcloud and the emulator component. No `auth` step precedes
+        # it, on purpose — installing the SDK needs no identity.
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          install_components: cloud-firestore-emulator
+
+      - name: Run emulator suites
+        # Starts the emulator, runs the suites against it, stops it again.
+        run: pnpm test:emulator
 
   docker:
     name: Docker image builds
@@ -113,7 +168,17 @@ jobs:
         run: |
           set -euo pipefail
           IMAGE="${{ github.event.repository.name }}:pr-${{ github.sha }}"
-          docker run -d --name smoke -p 8080:8080 -e PORT=8080 "$IMAGE"
+          # The data-layer variables are required in production, so the
+          # container refuses to start without them. Placeholder values are
+          # enough: the smoke test probes /api/health, which is deliberately
+          # dependency-free and never opens a connection to either service.
+          docker run -d --name smoke -p 8080:8080 \
+            -e PORT=8080 \
+            -e APP_SLUG=smoke-test \
+            -e GCP_PROJECT_ID=smoke-test-project \
+            -e FIRESTORE_DATABASE_ID=smoke-test-db \
+            -e GCS_BUCKET=smoke-test-project-smoke-test-media \
+            "$IMAGE"
 
           for attempt in $(seq 1 30); do
             if curl -fsS http://localhost:8080/api/health > /dev/null; then

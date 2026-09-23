@@ -164,7 +164,7 @@ The secret arrives as an ordinary environment variable, so `lib/env.ts` reads it
 
 ```bash
 printf '%s' "$NEW_VALUE" | gcloud secrets versions add DATABASE_URL --data-file=-
-gcloud run services update my-app --region asia-southeast1  # new revision
+gcloud run services update my-app --region asia-south1  # new revision
 gcloud secrets versions disable 1 --secret=DATABASE_URL     # after verifying
 ```
 
@@ -181,22 +181,57 @@ Disable before destroying — disabling is reversible, destroying is not.
 
 Current inventory:
 
-| Name                  | Kind     | Required | Purpose                                                             |
-| --------------------- | -------- | -------- | ------------------------------------------------------------------- |
-| `WIF_PROVIDER`        | secret   | yes      | Workload Identity provider resource name                            |
-| `WIF_SERVICE_ACCOUNT` | secret   | yes      | Deployer service account email                                      |
-| `GCP_PROJECT_ID`      | variable | yes      | Target GCP project                                                  |
-| `GCP_REGION`          | variable | no       | Deployment region (default `asia-southeast1`)                       |
-| `ARTIFACT_REPOSITORY` | variable | no       | Artifact Registry repository (default `containers`)                 |
-| `CLOUD_RUN_SERVICE`   | variable | no       | Service name (defaults to the repository name)                      |
-| `APP_URL`             | variable | no       | Public URL — **inlined at build time**                              |
-| `APP_NAME`            | variable | no       | Display name                                                        |
-| `LOG_LEVEL`           | variable | no       | Runtime verbosity (default `info`)                                  |
-| `MIN_INSTANCES`       | variable | no       | `1` removes cold starts, at a cost                                  |
-| `MAX_INSTANCES`       | variable | no       | Scaling and bill ceiling (default `10`)                             |
-| `DEPLOYED_AT`         | computed | no       | UTC deploy time the workflow injects; `/api/health` shows it in IST |
+| Name                         | Kind     | Required | Purpose                                                                        |
+| ---------------------------- | -------- | -------- | ------------------------------------------------------------------------------ |
+| `WIF_PROVIDER`               | secret   | yes      | Workload Identity provider resource name                                       |
+| `WIF_SERVICE_ACCOUNT`        | secret   | yes      | Deployer service account email                                                 |
+| `GCP_PROJECT_ID`             | variable | yes      | Target GCP project                                                             |
+| `GCP_REGION`                 | variable | no       | Deployment region (default `asia-south1`)                                      |
+| `ARTIFACT_REPOSITORY`        | variable | no       | Artifact Registry repository (default `containers`)                            |
+| `CLOUD_RUN_SERVICE`          | variable | no       | Service name (defaults to the repository name)                                 |
+| `APP_URL`                    | variable | no       | Public URL — **inlined at build time**                                         |
+| `APP_NAME`                   | variable | no       | Display name                                                                   |
+| `LOG_LEVEL`                  | variable | no       | Runtime verbosity (default `info`)                                             |
+| `MIN_INSTANCES`              | variable | no       | `1` removes cold starts, at a cost                                             |
+| `MAX_INSTANCES`              | variable | no       | Scaling and bill ceiling (default `10`)                                        |
+| `APP_SLUG`                   | variable | no       | Names the database, bucket and runtime identity (defaults to the service name) |
+| `RUNTIME_SERVICE_ACCOUNT`    | variable | no       | Identity the revision runs as (default `<slug>-runtime@<project>`)             |
+| `FIRESTORE_DATABASE_ID`      | variable | no       | Override only for an existing database (default `<slug>-db`)                   |
+| `GCS_BUCKET`                 | variable | no       | Override only for an existing bucket (default `<project>-<slug>-media`)        |
+| `HEALTH_DEEP_CHECKS_ENABLED` | variable | no       | Enables `/api/health?deep=1` (default `false`)                                 |
+| `DEPLOYED_AT`                | computed | no       | UTC deploy time the workflow injects; `/api/health` shows it in IST            |
+
+> **`RUNTIME_SERVICE_ACCOUNT` matters more than it looks.** Without it Cloud Run runs the revision as the **default compute service account**, which is Editor on the whole project — the opposite of the least-privilege identity `gcp-bootstrap.sh` created. The workflow derives the right one from `APP_SLUG`, so set this only when the account has a non-default name.
 
 `WIF_PROVIDER` and `WIF_SERVICE_ACCOUNT` are resource identifiers rather than credentials — useless without a valid OIDC token from this repository. They are stored as secrets to avoid publishing your project layout, not because a leak would grant access.
+
+---
+
+## Data layer configuration
+
+Four variables, and only two of them usually need setting. The database id and bucket name derive from the slug and project, so a new app sets `APP_SLUG` and `GCP_PROJECT_ID` and gets the rest.
+
+| Variable                | Default                             | Required in production |
+| ----------------------- | ----------------------------------- | ---------------------- |
+| `APP_SLUG`              | —                                   | **yes**                |
+| `GCP_PROJECT_ID`        | —                                   | **yes**                |
+| `FIRESTORE_DATABASE_ID` | `<APP_SLUG>-db`                     | **yes** (derived)      |
+| `GCS_BUCKET`            | `<GCP_PROJECT_ID>-<APP_SLUG>-media` | **yes** (derived)      |
+
+"Required in production" is literal: `lib/env.ts` throws at container start when `NODE_ENV=production` and any of them is missing, so Cloud Run rejects the revision and keeps serving the previous one. The error lists every missing variable at once.
+
+Two carve-outs, both deliberate:
+
+- **`next build` is exempt.** It runs with `NODE_ENV=production` and imports every route to collect metadata, so without the exemption the Docker builder stage would need production database configuration in order to compile. Only `NEXT_PUBLIC_*` matters at build time.
+- **The browser is exempt.** Next.js replaces a non-`NEXT_PUBLIC_` read with `undefined` in the client bundle, so without the exemption a Client Component that ever imported `lib/env.ts` would throw on every page load while the server was perfectly healthy.
+
+### Overriding the derived names
+
+Only to adopt a resource that already exists under another name. Changing either variable does **not** rename anything — it points the app somewhere else, and an app pointed at a database that does not exist fails with `5 NOT_FOUND` on its first query.
+
+### An app that needs no database
+
+Pass `--skip-data` to `gcp-bootstrap.sh`, then delete the required block and the four fields from `lib/env.ts`. Say so in the pull request.
 
 ---
 
@@ -215,11 +250,14 @@ Cloud Run sets these; do not define them yourself.
 
 ## Anti-patterns
 
-| Don't                                   | Why                                | Do instead                                |
-| --------------------------------------- | ---------------------------------- | ----------------------------------------- |
-| `NEXT_PUBLIC_API_SECRET`                | Shipped to every browser           | Server-side variable, read in `services/` |
-| `process.env.FOO` in a component        | Untyped, unvalidated, easy to typo | `import { env } from '@/lib/env'`         |
-| Committing `.env.local`                 | Secrets in git history, forever    | `.gitignore` already covers it            |
-| `--build-arg DATABASE_URL=...`          | Visible in `docker history`        | Secret Manager at runtime                 |
-| Changing `NEXT_PUBLIC_*` on the service | Silently has no effect             | Rebuild the image                         |
-| A secret with no owner or rotation plan | Nobody dares to change it later    | Document owner and rotation in the PR     |
+| Don't                                           | Why                                                                       | Do instead                                     |
+| ----------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------- |
+| `NEXT_PUBLIC_API_SECRET`                        | Shipped to every browser                                                  | Server-side variable, read in `services/`      |
+| `process.env.FOO` in a component                | Untyped, unvalidated, easy to typo                                        | `import { env } from '@/lib/env'`              |
+| Committing `.env.local`                         | Secrets in git history, forever                                           | `.gitignore` already covers it                 |
+| `--build-arg DATABASE_URL=...`                  | Visible in `docker history`                                               | Secret Manager at runtime                      |
+| Changing `NEXT_PUBLIC_*` on the service         | Silently has no effect                                                    | Rebuild the image                              |
+| A secret with no owner or rotation plan         | Nobody dares to change it later                                           | Document owner and rotation in the PR          |
+| `FIRESTORE_EMULATOR_HOST` on a deployed service | Every read and write routes to a host that does not exist                 | Set it only locally and in the emulator runner |
+| Deploying without `RUNTIME_SERVICE_ACCOUNT`     | The revision runs as the default compute account, which is project Editor | Let the workflow derive it from `APP_SLUG`     |
+| Pointing a Cloud Run probe at `?deep=1`         | A dependency blip kills healthy containers                                | Dashboards and uptime checks only              |

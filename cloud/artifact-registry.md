@@ -21,8 +21,8 @@ Container Registry (`gcr.io`) is deprecated and no longer receives features. Art
 Concretely:
 
 ```
-asia-southeast1-docker.pkg.dev/my-project/containers/my-app:a1b2c3d4...
-asia-southeast1-docker.pkg.dev/my-project/containers/my-app:latest
+asia-south1-docker.pkg.dev/my-project/containers/my-app:a1b2c3d4...
+asia-south1-docker.pkg.dev/my-project/containers/my-app:latest
 ```
 
 One repository (`containers`) holds every service in the project, with one image name per service. A split by team or trust boundary helps only when different groups need different IAM. At that point, separate projects are usually the better choice.
@@ -34,7 +34,7 @@ One repository (`containers`) holds every service in the project, with one image
 ```bash
 gcloud artifacts repositories create containers \
   --repository-format=docker \
-  --location=asia-southeast1 \
+  --location=asia-south1 \
   --description="Container images"
 ```
 
@@ -65,7 +65,7 @@ docker push "$BASE:v1.4.0"
 Handled by Workload Identity Federation. After `google-github-actions/auth`, one command wires Docker up:
 
 ```yaml
-- run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+- run: gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
 ```
 
 No key file, no `docker login` with a password.
@@ -74,8 +74,8 @@ No key file, no `docker login` with a password.
 
 ```bash
 gcloud auth login
-gcloud auth configure-docker asia-southeast1-docker.pkg.dev
-docker pull asia-southeast1-docker.pkg.dev/my-project/containers/my-app:latest
+gcloud auth configure-docker asia-south1-docker.pkg.dev
+docker pull asia-south1-docker.pkg.dev/my-project/containers/my-app:latest
 ```
 
 ## IAM
@@ -90,7 +90,7 @@ Grant at the repository level, not the project level:
 
 ```bash
 gcloud artifacts repositories add-iam-policy-binding containers \
-  --location=asia-southeast1 \
+  --location=asia-south1 \
   --member="serviceAccount:github-deployer@my-project.iam.gserviceaccount.com" \
   --role="roles/artifactregistry.writer"
 ```
@@ -123,7 +123,7 @@ cat > /tmp/cleanup-policy.json <<'EOF'
 EOF
 
 gcloud artifacts repositories set-cleanup-policies containers \
-  --location=asia-southeast1 \
+  --location=asia-south1 \
   --policy=/tmp/cleanup-policy.json
 ```
 
@@ -131,7 +131,7 @@ Dry-run it first — cleanup policies delete permanently:
 
 ```bash
 gcloud artifacts repositories set-cleanup-policies containers \
-  --location=asia-southeast1 \
+  --location=asia-south1 \
   --policy=/tmp/cleanup-policy.json \
   --dry-run
 ```
@@ -150,7 +150,7 @@ Images are then scanned on push, with results in the console under Artifact Regi
 
 ```bash
 gcloud artifacts docker images list \
-  asia-southeast1-docker.pkg.dev/my-project/containers \
+  asia-south1-docker.pkg.dev/my-project/containers \
   --show-occurrences \
   --format="table(IMAGE,DIGEST,vulnerability_counts)"
 ```
@@ -164,24 +164,24 @@ For a stricter posture, add Binary Authorization to block unsigned or unscanned 
 ```bash
 # List images
 gcloud artifacts docker images list \
-  asia-southeast1-docker.pkg.dev/my-project/containers
+  asia-south1-docker.pkg.dev/my-project/containers
 
 # List tags of one image
 gcloud artifacts docker tags list \
-  asia-southeast1-docker.pkg.dev/my-project/containers/my-app
+  asia-south1-docker.pkg.dev/my-project/containers/my-app
 
 # Inspect a specific image
 gcloud artifacts docker images describe \
-  asia-southeast1-docker.pkg.dev/my-project/containers/my-app:latest
+  asia-south1-docker.pkg.dev/my-project/containers/my-app:latest
 
 # Delete a specific version (rollback becomes impossible for that build)
 gcloud artifacts docker images delete \
-  asia-southeast1-docker.pkg.dev/my-project/containers/my-app@sha256:... \
+  asia-south1-docker.pkg.dev/my-project/containers/my-app@sha256:... \
   --delete-tags
 
 # Repository size
 gcloud artifacts repositories describe containers \
-  --location=asia-southeast1 --format='value(sizeBytes)'
+  --location=asia-south1 --format='value(sizeBytes)'
 ```
 
 ## Troubleshooting
