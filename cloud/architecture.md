@@ -160,7 +160,7 @@ Implementation: a GitHub Environment per target, each with its own `GCP_PROJECT_
 
 The deployer and runtime service accounts are deliberately different identities. The pipeline can deploy, and publish Firestore indexes and rules, but cannot read a single document; the running service can use its own database and bucket and read its secrets, but cannot deploy itself.
 
-The runtime account's data access is scoped to **one** database and **one** bucket — `roles/datastore.user` under an IAM condition naming the database, `roles/storage.objectUser` bound on the bucket. That is what makes one project safe for several apps from this template. See [ADR-0003](../docs/adr/0003-use-firestore-and-cloud-storage.md).
+The runtime account's data access is scoped to **one** database and **one** bucket — `roles/datastore.user` under an IAM condition naming the database, `roles/storage.objectUser` bound on the bucket. That is what makes one project safe for several apps from this template. See [ADR-0004](../docs/adr/0004-use-firestore-and-cloud-storage.md).
 
 ## Evolution path
 

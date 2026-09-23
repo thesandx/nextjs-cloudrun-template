@@ -1,7 +1,10 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useId, useState } from 'react';
+import { useState } from 'react';
+
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 
 /**
  * EXAMPLE — the only Client Component in the example.
@@ -16,6 +19,9 @@ import { useId, useState } from 'react';
  *   2. POST /api/example/upload     → get a signed PUT URL
  *   3. PUT  <signed url>            → send the bytes straight to Cloud Storage
  *   4. POST /api/example/finalize   → server verifies and attaches the object
+ *
+ * The UI uses the `Button` and `Input` primitives rather than styling inputs by
+ * hand — see design-language.md rule 1. `pnpm lint` enforces it.
  */
 
 interface SignedUploadResponse {
@@ -45,9 +51,6 @@ export interface ExampleFormProps {
 
 export function ExampleForm({ className }: ExampleFormProps): React.JSX.Element {
   const router = useRouter();
-  const titleId = useId();
-  const ownerId = useId();
-  const fileId = useId();
 
   const [title, setTitle] = useState('');
   const [ownerName, setOwnerName] = useState('');
@@ -57,6 +60,7 @@ export function ExampleForm({ className }: ExampleFormProps): React.JSX.Element 
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    const form = event.currentTarget;
     setStatus('working');
     setError(null);
 
@@ -104,7 +108,7 @@ export function ExampleForm({ className }: ExampleFormProps): React.JSX.Element 
       setTitle('');
       setOwnerName('');
       setFile(null);
-      event.currentTarget.reset();
+      form.reset();
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Something went wrong');
@@ -113,10 +117,6 @@ export function ExampleForm({ className }: ExampleFormProps): React.JSX.Element 
     }
   }
 
-  const fieldClass =
-    'border-border bg-background min-h-11 w-full rounded-md border px-3 py-2 text-base';
-  const labelClass = 'text-muted block text-sm font-medium';
-
   return (
     <form
       onSubmit={(event) => {
@@ -124,63 +124,44 @@ export function ExampleForm({ className }: ExampleFormProps): React.JSX.Element 
       }}
       className={`flex w-full flex-col gap-4 ${className ?? ''}`}
     >
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor={titleId} className={labelClass}>
-          Title
-        </label>
-        <input
-          id={titleId}
-          name="title"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          required
-          maxLength={200}
-          className={fieldClass}
-        />
-      </div>
+      <Input
+        label="Title"
+        name="title"
+        value={title}
+        onChange={(event) => setTitle(event.target.value)}
+        required
+        maxLength={200}
+      />
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor={ownerId} className={labelClass}>
-          Owner name
-        </label>
-        <input
-          id={ownerId}
-          name="ownerName"
-          value={ownerName}
-          onChange={(event) => setOwnerName(event.target.value)}
-          required
-          maxLength={120}
-          className={fieldClass}
-        />
-      </div>
+      <Input
+        label="Owner name"
+        name="ownerName"
+        value={ownerName}
+        onChange={(event) => setOwnerName(event.target.value)}
+        required
+        maxLength={120}
+      />
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor={fileId} className={labelClass}>
-          Image <span className="font-normal">(optional, max 5 MB)</span>
-        </label>
-        <input
-          id={fileId}
-          name="image"
-          type="file"
-          accept={ACCEPTED_IMAGE_TYPES}
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          className={`${fieldClass} file:mr-3 file:rounded file:border-0 file:bg-transparent file:text-sm`}
-        />
-      </div>
+      <Input
+        label="Image"
+        hint="Optional. JPEG, PNG, WebP or AVIF, up to 5 MB."
+        name="image"
+        type="file"
+        accept={ACCEPTED_IMAGE_TYPES}
+        onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+        className="file:bg-sunken file:text-small file:border-line file:rounded-pill file:mr-3 file:border-2 file:px-3 file:py-1"
+      />
 
       {error !== null ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="text-small text-ink flex items-center gap-1.5 font-medium">
+          <span aria-hidden="true" className="bg-danger inline-block size-2.5 rounded-full" />
           {error}
         </p>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={status === 'working'}
-        className="bg-accent text-background min-h-11 rounded-md px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
-      >
+      <Button type="submit" variant="primary" disabled={status === 'working'} block>
         {status === 'working' ? 'Saving…' : 'Create example'}
-      </button>
+      </Button>
     </form>
   );
 }

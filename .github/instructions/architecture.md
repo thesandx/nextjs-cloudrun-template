@@ -23,7 +23,7 @@ Google Cloud Run  (managed, autoscaling)    │  <project>-<slug>-media  │
    └── stdout / stderr ──▶ Cloud Logging (structured JSON)
 ```
 
-Both data services are reached with the Cloud Run runtime service account through Application Default Credentials. No key file exists at any point — see [ADR-0003](../../docs/adr/0003-use-firestore-and-cloud-storage.md).
+Both data services are reached with the Cloud Run runtime service account through Application Default Credentials. No key file exists at any point — see [ADR-0004](../../docs/adr/0004-use-firestore-and-cloud-storage.md).
 
 There is no cache or queue in the template. That is deliberate — see "What is not here" below.
 
@@ -105,7 +105,7 @@ Two timing rules that people often miss:
 
 ## Data
 
-Firestore in Native mode for documents, Cloud Storage for files. One named database and one bucket per app, both in the Cloud Run service's region. The full reasoning, including when to reach for Cloud SQL instead, is in [ADR-0003](../../docs/adr/0003-use-firestore-and-cloud-storage.md); the practical guide is [`docs/data-layer.md`](../../docs/data-layer.md).
+Firestore in Native mode for documents, Cloud Storage for files. One named database and one bucket per app, both in the Cloud Run service's region. The full reasoning, including when to reach for Cloud SQL instead, is in [ADR-0004](../../docs/adr/0004-use-firestore-and-cloud-storage.md); the practical guide is [`docs/data-layer.md`](../../docs/data-layer.md).
 
 Three properties are worth stating here because they constrain how you design:
 
@@ -193,7 +193,7 @@ The template stops at the point where choices become project-specific.
 
 | Not included    | Add it when                          | Suggested approach                                                                                                                          |
 | --------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Relational DB   | The domain genuinely normalises      | Cloud SQL. Firestore ships by default — see [ADR-0003](../../docs/adr/0003-use-firestore-and-cloud-storage.md) for when it is the wrong fit |
+| Relational DB   | The domain genuinely normalises      | Cloud SQL. Firestore ships by default — see [ADR-0004](../../docs/adr/0004-use-firestore-and-cloud-storage.md) for when it is the wrong fit |
 | Authentication  | There are user accounts              | Identity Platform, or Auth.js behind `services/`                                                                                            |
 | Caching         | Measurements show a hot path         | Next's own `revalidate` first; Memorystore only if that is insufficient                                                                     |
 | Background jobs | Work outlives a request              | Cloud Tasks or Pub/Sub → a second Cloud Run service                                                                                         |

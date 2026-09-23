@@ -2,7 +2,7 @@
 
 How to read, write and store files. Read this before your first query.
 
-The rules behind it are in [CLAUDE.md > Firestore data modeling](../CLAUDE.md#firestore-data-modeling). The reasoning is in [ADR-0003](./adr/0003-use-firestore-and-cloud-storage.md). This page is the practical guide.
+The rules behind it are in [CLAUDE.md > Firestore data modeling](../CLAUDE.md#firestore-data-modeling). The reasoning is in [ADR-0004](./adr/0004-use-firestore-and-cloud-storage.md). This page is the practical guide.
 
 ---
 

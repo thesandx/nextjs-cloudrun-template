@@ -9,6 +9,7 @@ This folder is the authoritative rulebook for any AI assistant working in this r
 | [coding-rules.md](./coding-rules.md)           | **Always. Start here.** The non-negotiables, in one page.       |
 | [project-structure.md](./project-structure.md) | Creating any new file — it decides where the file goes.         |
 | [coding-standards.md](./coding-standards.md)   | Writing TypeScript, React, or CSS.                              |
+| [design-language.md](./design-language.md)     | Writing or changing any UI. The Mochi design language.          |
 | [architecture.md](./architecture.md)           | Adding a layer, a dependency, or changing how data flows.       |
 | [deployment.md](./deployment.md)               | Touching the Dockerfile, env vars, or anything Cloud Run reads. |
 | [github-workflows.md](./github-workflows.md)   | Touching anything in `.github/workflows/`.                      |
@@ -17,7 +18,7 @@ This folder is the authoritative rulebook for any AI assistant working in this r
 
 If you only read one paragraph:
 
-> Server Components by default. TypeScript with no `any`. Never invent a new top-level folder. Never add a dependency you could avoid. Never commit a secret or a service account key. Design every UI mobile-first. Explain architectural decisions in the PR. When architecture or behaviour changes, update the docs in the same PR. Write every document in Simplified Technical English.
+> Server Components by default. TypeScript with no `any`. Never invent a new top-level folder. Never add a dependency you could avoid. Never commit a secret or a service account key. Design every UI mobile-first, with the Mochi primitives and tokens — never ad-hoc styles. Explain architectural decisions in the PR. When architecture or behaviour changes, update the docs in the same PR. Write every document in Simplified Technical English.
 
 ## How to use these as an assistant
 

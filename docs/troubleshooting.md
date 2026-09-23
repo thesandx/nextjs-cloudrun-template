@@ -143,6 +143,44 @@ The OIDC exchange failed. In order of likelihood:
 
 Full diagnosis, including how to dump the JWT claims: [`cloud/github-actions.md`](../cloud/github-actions.md#troubleshooting).
 
+### `The given credential is rejected by the attribute condition`
+
+The full error, at the `google-github-actions/auth` step:
+
+```
+unauthorized_client: The given credential is rejected by the attribute condition.
+```
+
+Google received the OIDC token and refused it. The provider's condition evaluated to false. The secrets are fine — the earlier `Verify required configuration` step already proved they are set.
+
+Read the live condition:
+
+```bash
+gcloud iam workload-identity-pools providers describe github \
+  --location=global --workload-identity-pool=github \
+  --project="$GCP_PROJECT_ID" --format='value(attributeCondition)'
+```
+
+Expect `assertion.repository_owner == '<your owner>'`.
+
+**The usual cause: another repository overwrote it.** The pool and the provider are shared by every repository in the project. An older version of `gcp-bootstrap.sh` wrote `assertion.repository == '<one repo>'`, so bootstrapping a second repository revoked the first. The symptom appears on the next deploy of the repository nobody touched.
+
+Fix it by re-running the bootstrap, which now writes an owner-scoped condition and refuses to overwrite another owner's:
+
+```bash
+./scripts/gcp-bootstrap.sh --project "$GCP_PROJECT_ID" \
+  --repo owner/repository --service <service>
+```
+
+If the condition names a different owner, do not force it — that revokes their deploys. Use `--provider github-<repo>` for a separate provider instead. See [ADR-0003](./adr/0003-scope-workload-identity-to-the-github-owner.md).
+
+Other causes, if the condition is correct:
+
+- `--main-only` was used and the deploy ran from another branch.
+- `WIF_PROVIDER` points at a provider in a different project.
+
+---
+
 ### `Permission 'iam.serviceaccounts.actAs' denied`
 
 The deployer cannot assign the runtime service account to the revision:

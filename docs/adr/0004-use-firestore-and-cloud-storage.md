@@ -1,4 +1,4 @@
-# ADR-0003: Use Firestore in Native mode and Cloud Storage for every app from this template
+# ADR-0004: Use Firestore in Native mode and Cloud Storage for every app from this template
 
 - **Status:** Accepted
 - **Date:** 2026-09-22

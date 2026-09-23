@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 
 import { ExampleForm } from '@/components/example/ExampleForm';
+import { Card } from '@/components/ui/Card';
+import { Face } from '@/components/ui/Face';
 import { formatUtc } from '@/lib/utils';
 import { type ExampleView, listExamples } from '@/services/example.service';
 
@@ -31,10 +33,10 @@ const PAGE_SIZE = 10;
 
 function ExampleCard({ item }: { item: ExampleView }): React.JSX.Element {
   return (
-    <li className="border-border flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:gap-4">
+    <Card as="li" className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
       {item.imageUrl === null ? (
-        <div className="border-border text-muted flex h-24 w-full shrink-0 items-center justify-center rounded border border-dashed text-xs sm:w-24">
-          No image
+        <div className="border-line bg-sunken rounded-input flex h-24 w-full shrink-0 items-center justify-center border-2 border-dashed sm:w-24">
+          <span className="text-small text-ink-soft">No image</span>
         </div>
       ) : (
         // A plain <img>, not next/image: the source is a signed URL that
@@ -44,17 +46,17 @@ function ExampleCard({ item }: { item: ExampleView }): React.JSX.Element {
         <img
           src={item.imageUrl}
           alt=""
-          className="h-24 w-full shrink-0 rounded object-cover sm:w-24"
+          className="border-line rounded-input h-24 w-full shrink-0 border-2 object-cover sm:w-24"
           loading="lazy"
         />
       )}
 
       <div className="min-w-0">
-        <h3 className="truncate font-medium">{item.title}</h3>
-        <p className="text-muted mt-1 text-sm">{item.ownerName}</p>
-        <p className="text-muted mt-1 font-mono text-xs">{formatUtc(item.createdAt)}</p>
+        <h3 className="text-heading truncate">{item.title}</h3>
+        <p className="text-body text-ink-soft mt-1">{item.ownerName}</p>
+        <p className="text-small text-ink-soft mt-1">{formatUtc(item.createdAt)}</p>
       </div>
-    </li>
+    </Card>
   );
 }
 
@@ -64,30 +66,34 @@ export default async function ExamplePage(): Promise<React.JSX.Element> {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:px-6 sm:py-16">
       <header className="flex flex-col gap-2">
-        <p className="text-muted font-mono text-xs uppercase tracking-wider">Example</p>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Data layer</h1>
-        <p className="text-muted text-balance text-sm sm:text-base">
+        <p className="text-small text-ink-soft">Example</p>
+        <h1 className="text-hero">Data layer</h1>
+        <p className="text-body text-ink-soft max-w-prose">
           Firestore for documents, Cloud Storage for files, both reached with the Cloud Run service
           account and no key file. Copy the pattern, then delete this page.
         </p>
       </header>
 
       <section aria-labelledby="create-heading" className="flex flex-col gap-4">
-        <h2 id="create-heading" className="text-lg font-medium">
+        <h2 id="create-heading" className="text-title">
           Create
         </h2>
         <ExampleForm />
       </section>
 
       <section aria-labelledby="list-heading" className="flex flex-col gap-4">
-        <h2 id="list-heading" className="text-lg font-medium">
+        <h2 id="list-heading" className="text-title">
           Latest {PAGE_SIZE}
         </h2>
 
         {items.length === 0 ? (
-          <p className="text-muted text-sm">Nothing yet. Create one above.</p>
+          // An empty state is one of the places a face belongs — rule 10.
+          <Card className="flex flex-col items-center gap-3 text-center">
+            <Face mood="sleepy" size={56} label="Nothing here yet" />
+            <p className="text-body text-ink-soft">Nothing yet. Create one above.</p>
+          </Card>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul className="flex flex-col gap-4">
             {items.map((item) => (
               <ExampleCard key={item.id} item={item} />
             ))}
@@ -95,10 +101,9 @@ export default async function ExamplePage(): Promise<React.JSX.Element> {
         )}
 
         {nextCursor !== null ? (
-          <p className="text-muted text-sm">
-            More rows exist. Pass <code className="font-mono text-xs">?cursor={nextCursor}</code> to{' '}
-            <code className="font-mono text-xs">/api/example</code> for the next page — cursors,
-            never offsets.
+          <p className="text-small text-ink-soft max-w-prose">
+            More rows exist. Pass <code>?cursor={nextCursor}</code> to <code>/api/example</code> for
+            the next page — cursors, never offsets.
           </p>
         ) : null}
       </section>

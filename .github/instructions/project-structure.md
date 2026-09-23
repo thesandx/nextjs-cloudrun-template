@@ -14,7 +14,7 @@ Where every file goes, and why. **This layout is fixed** — see rule 1 in [codi
 │   ├── error.tsx           #   Route-segment error boundary (Client Component)
 │   ├── layout.tsx          #   Root layout — must stay a Server Component
 │   ├── not-found.tsx       #   404 page
-│   └── page.tsx            #   GET / — the Hello World page
+│   └── page.tsx            #   GET / — template home page, built from components/ui/
 │
 ├── components/             # Reusable React components
 │   ├── ui/                 #   Presentational primitives: Button, Card, Input

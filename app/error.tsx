@@ -2,6 +2,9 @@
 
 import { useEffect } from 'react';
 
+import { Button } from '@/components/ui/Button';
+import { Speech } from '@/components/ui/Speech';
+
 /**
  * Route-segment error boundary.
  *
@@ -12,6 +15,9 @@ import { useEffect } from 'react';
  * Note: `error.message` is redacted to a generic string in production builds by
  * Next.js, and only `error.digest` is preserved. Search Cloud Logging for that
  * digest to find the real server-side stack trace.
+ *
+ * The layout follows the error-state recipe in design-language.md: the mascot
+ * says what happened, the interface offers the fix.
  */
 export default function Error({
   error,
@@ -27,21 +33,17 @@ export default function Error({
   }, [error]);
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center px-6 text-center">
-      <h1 className="text-3xl font-semibold tracking-tight">Something went wrong</h1>
-      <p className="text-muted mt-4 max-w-md text-balance">
-        An unexpected error occurred. The team has been notified.
-      </p>
+    <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center gap-6 px-5 py-12 sm:px-8">
+      <h1 className="text-title">Something went wrong</h1>
+      <Speech mood="sad">This page did not load. Try it again.</Speech>
       {error.digest ? (
-        <p className="text-muted mt-2 font-mono text-xs">Reference: {error.digest}</p>
+        <p className="text-small text-ink-soft">
+          Give this reference to support: <span className="font-display">{error.digest}</span>
+        </p>
       ) : null}
-      <button
-        type="button"
-        onClick={reset}
-        className="border-border mt-8 rounded-md border px-4 py-2 text-sm font-medium transition-colors hover:border-current"
-      >
-        Try again
-      </button>
+      <div>
+        <Button onClick={reset}>Try again</Button>
+      </div>
     </main>
   );
 }
