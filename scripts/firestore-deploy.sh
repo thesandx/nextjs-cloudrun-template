@@ -75,6 +75,37 @@ command -v jq     >/dev/null 2>&1 || die "jq is not installed"
 command -v curl   >/dev/null 2>&1 || die "curl is not installed"
 
 # ---------------------------------------------------------------------------
+# The database has to exist first
+#
+# In the pipeline this script runs BEFORE the build, so a missing database
+# fails the whole deploy — no image, no revision. Without this check that
+# surfaces as a raw NOT_FOUND from the first `indexes composite create`, in a
+# step nobody expects to be the one that provisions anything.
+#
+# Bootstrap creates the database. This script only ever publishes to it.
+# ---------------------------------------------------------------------------
+if ! gcloud firestore databases describe \
+     --project="$PROJECT_ID" --database="$DATABASE_ID" >/dev/null 2>&1; then
+  die "Firestore database '${DATABASE_ID}' does not exist in project ${PROJECT_ID}.
+
+Indexes and rules cannot be published before the database exists, and this
+step runs ahead of the build — so the deploy stops here.
+
+Create it first, then deploy again:
+
+  ./scripts/gcp-bootstrap.sh \\
+    --project ${PROJECT_ID} \\
+    --region <region> \\
+    --repo <owner>/<repo> \\
+    --service <app-slug>
+
+Already have a database under another name? Set the FIRESTORE_DATABASE_ID
+repository variable to match it. List them with:
+
+  gcloud firestore databases list --project=${PROJECT_ID} --format='table(name,locationId,type)'"
+fi
+
+# ---------------------------------------------------------------------------
 # Composite indexes
 # ---------------------------------------------------------------------------
 deploy_indexes() {
