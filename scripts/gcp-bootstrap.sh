@@ -65,6 +65,45 @@ skip()  { printf '    %s·%s %s\n' "${YELLOW}" "${RESET}" "$*"; }
 warn()  { printf '%s[warn]%s %s\n' "${YELLOW}" "${RESET}" "$*" >&2; }
 die()   { printf '%s[error]%s %s\n' "${RED}" "${RESET}" "$*" >&2; exit 1; }
 
+# ---------------------------------------------------------------------------
+# Retry helper for Firestore's eventually-consistent control plane
+#
+# An update issued straight after `databases create` races the creation and
+# comes back `ABORTED: There are concurrent database changes, please try
+# again.` The database itself is fine — the write just arrived while Google was
+# still finishing. Retrying with backoff is the documented remedy.
+#
+# Only ABORTED is retried. Any other failure returns immediately, with the
+# real gcloud output, so a genuine error is never hidden behind five retries.
+#
+# FIRESTORE_RETRY_DELAY overrides the first delay, for tests.
+# ---------------------------------------------------------------------------
+retry_on_abort() {
+  local description="$1"; shift
+  local attempt output
+  local delay="${FIRESTORE_RETRY_DELAY:-5}"
+
+  for attempt in 1 2 3 4 5; do
+    if output="$("$@" 2>&1)"; then
+      return 0
+    fi
+    if ! grep -qiE 'ABORTED|concurrent database changes' <<<"$output"; then
+      printf '%s\n' "$output" >&2
+      return 1
+    fi
+    if [[ "$attempt" -lt 5 ]]; then
+      skip "${description}: database still settling, retrying in ${delay}s (${attempt}/5)"
+      sleep "$delay"
+      delay=$(( delay * 2 ))
+    fi
+  done
+
+  printf '%s\n' "$output" >&2
+  warn "${description} still reports concurrent changes after 5 attempts."
+  warn "The database exists and is usable. Re-run this script in a minute to finish."
+  return 1
+}
+
 usage() {
   sed -n '3,52p' "$0" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
@@ -308,6 +347,11 @@ else
     --type=firestore-native \
     --quiet
   ok "Created ${DATABASE_ID} in ${REGION} — this location is now permanent"
+  # The control plane needs a moment before it accepts an update to this
+  # database. Without the pause the very next step usually loses the race and
+  # comes back ABORTED. retry_on_abort recovers from that anyway; this just
+  # means the common case does not have to.
+  sleep "${FIRESTORE_SETTLE_DELAY:-10}"
 fi
 
 # ---------------------------------------------------------------------------
@@ -322,10 +366,12 @@ PITR_STATE="$(gcloud firestore databases describe --database="$DATABASE_ID" \
 if [[ "$PITR_STATE" == "POINT_IN_TIME_RECOVERY_ENABLED" ]]; then
   skip "Point-in-time recovery already enabled"
 else
-  gcloud firestore databases update \
+  retry_on_abort "Point-in-time recovery" \
+    gcloud firestore databases update \
     --database="$DATABASE_ID" \
     --enable-pitr \
-    --quiet >/dev/null
+    --quiet \
+    || die "Could not enable point-in-time recovery. See the output above."
   ok "Point-in-time recovery enabled (7-day window)"
 fi
 
@@ -335,11 +381,13 @@ if gcloud firestore backups schedules list --database="$DATABASE_ID" \
      --format='value(name)' 2>/dev/null | grep -q .; then
   skip "A backup schedule already exists"
 else
-  gcloud firestore backups schedules create \
+  retry_on_abort "Backup schedule" \
+    gcloud firestore backups schedules create \
     --database="$DATABASE_ID" \
     --recurrence=daily \
     --retention="${BACKUP_RETENTION_DAYS}d" \
-    --quiet >/dev/null
+    --quiet \
+    || die "Could not create the backup schedule. See the output above."
   ok "Daily backups, ${BACKUP_RETENTION_DAYS}-day retention"
 fi
 

@@ -483,7 +483,20 @@ It is a transitive dependency of `@google-cloud/firestore` that wants a lifecycl
 
 It is **listed** rather than omitted because `pnpm install --frozen-lockfile` exits 1 with `ERR_PNPM_IGNORED_BUILDS` for any unlisted package that wants a script, which would fail CI and the Docker build. Listing it as `false` records the decision and keeps the script blocked.
 
-### 18. `dumb-init` is PID 1
+### 18. Firestore's control plane is eventually consistent after `create`
+
+A `databases update` issued straight after `databases create` races the creation and fails:
+
+```
+ERROR: (gcloud.firestore.databases.update) ABORTED:
+There are concurrent database changes, please try again.
+```
+
+The database is **fine** — it exists, in the right region, in the right mode. Only the follow-up write lost the race. `gcp-bootstrap.sh` pauses after creating the database and wraps the point-in-time-recovery and backup-schedule calls in `retry_on_abort`, which retries `ABORTED` with backoff and returns any other error immediately, unretried.
+
+Hit it anyway? Re-run bootstrap. It is idempotent: it skips the database that already exists and finishes the steps that did not.
+
+### 19. `dumb-init` is PID 1
 
 Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy. Verified: the container currently stops in ~1s.
 
