@@ -112,6 +112,8 @@ git push origin main
 
 Then `pnpm install && pnpm dev`, and open <http://localhost:3000/example> — a working page showing the whole data layer: create a document, list a bounded page, upload an image, display it from a signed URL. Copy the pattern and delete it.
 
+Going from an empty project all the way to your own domain? [`cloud/deployment.md` > First deploy, end to end](./cloud/deployment.md#first-deploy-end-to-end) is the eight-step walkthrough, including DNS and the rebuild that inlines the real URL.
+
 > **`--service` must be 22 characters or fewer.** The runtime service account id is `<service>-runtime`, and a Google service account id must be 6–30 characters.
 
 > **A Firestore database's location is permanent,** and so is a bucket's. Neither can be moved. Pick the region before step 3.
