@@ -174,6 +174,19 @@ Fix it by re-running the bootstrap, which now writes an owner-scoped condition a
 
 If the condition names a different owner, do not force it — that revokes their deploys. Use `--provider github-<repo>` for a separate provider instead. See [ADR-0003](./adr/0003-scope-workload-identity-to-the-github-owner.md).
 
+### `Refusing to overwrite it` when the condition names YOUR repository
+
+```
+[warn]   current: assertion.repository == 'you/your-repo'
+[warn]   new:     assertion.repository_owner == 'you'
+```
+
+A project bootstrapped before ADR-0003 has a provider pinned to one repository. Bootstrap now widens that automatically, without `--force-provider-update`: the new condition accepts every token the old one accepted, so no repository can lose access. Pull the latest script and re-run.
+
+**Do not pass `--force-provider-update` to get past this.** That flag is for a condition naming a different owner, where overwriting really does revoke someone. If bootstrap still refuses, the owner in the current condition does not match the one you passed — read it again before forcing.
+
+One thing the widening does not carry over: an old `--main-only` lived in the provider condition, and now lives in the per-repository binding. Bootstrap warns when it sees a branch clause it is dropping. Re-run with `--main-only` to keep the restriction.
+
 Other causes, if the condition is correct:
 
 - `--main-only` was used and the deploy ran from another branch.
