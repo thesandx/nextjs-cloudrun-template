@@ -7,10 +7,14 @@
 #   - an Artifact Registry repository
 #   - a deployer service account (impersonated by GitHub Actions)
 #   - a runtime service account (the identity the app runs as)
-#   - a Workload Identity Pool + provider pinned to your repository
-#   - the IAM bindings that tie them together
+#   - a Workload Identity Pool + provider, shared by every repository you
+#     bootstrap into this project, and pinned to your GitHub owner
+#   - the IAM bindings that tie them together, pinned to this repository
 #
-# Every step is idempotent: re-running after a partial failure is safe.
+# Every step is idempotent: re-running after a partial failure is safe, and so
+# is running it again for a second repository in the same project. The provider
+# is shared, so the script refuses to overwrite a condition set by a different
+# owner rather than silently breaking their deploys.
 #
 # There are NO service account keys anywhere in this script, by design.
 # See cloud/github-actions.md for why.
@@ -21,6 +25,12 @@
 #     --region asia-southeast1 \
 #     --repo owner/repository \
 #     --service my-app
+#
+# Options:
+#   --main-only               only refs/heads/main of this repository may deploy
+#   --pool / --provider       use a non-default pool or provider id
+#   --force-provider-update   overwrite a provider condition set by another
+#                             owner (this revokes their deploys — read ADR-0003)
 #
 set -euo pipefail
 
@@ -56,6 +66,7 @@ AR_REPOSITORY="containers"
 POOL_ID="github"
 PROVIDER_ID="github"
 RESTRICT_TO_MAIN="false"
+FORCE_PROVIDER_UPDATE="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -65,6 +76,9 @@ while [[ $# -gt 0 ]]; do
     --service)    SERVICE_NAME="${2:-}"; shift 2 ;;
     --ar-repo)    AR_REPOSITORY="${2:-}"; shift 2 ;;
     --main-only)  RESTRICT_TO_MAIN="true"; shift ;;
+    --pool)       POOL_ID="${2:-}"; shift 2 ;;
+    --provider)   PROVIDER_ID="${2:-}"; shift 2 ;;
+    --force-provider-update) FORCE_PROVIDER_UPDATE="true"; shift ;;
     -h|--help)    usage 0 ;;
     *)            die "Unknown argument: $1 (try --help)" ;;
   esac
@@ -74,6 +88,9 @@ done
 [[ -n "$GITHUB_REPO"  ]] || die "--repo is required (format: owner/repository)"
 [[ "$GITHUB_REPO" == */* ]] || die "--repo must be in owner/repository format"
 [[ -n "$SERVICE_NAME" ]] || die "--service is required"
+
+# The provider's attribute condition names the owner, not the repository.
+GITHUB_OWNER="${GITHUB_REPO%%/*}"
 
 command -v gcloud >/dev/null 2>&1 || die "gcloud is not installed: https://cloud.google.com/sdk/docs/install"
 
@@ -99,6 +116,7 @@ ${BOLD}Google Cloud bootstrap${RESET}
   Deployer SA         ${DEPLOYER_SA}
   Runtime SA          ${RUNTIME_SA}
   Restrict to main    ${RESTRICT_TO_MAIN}
+  Pool / provider     ${POOL_ID} / ${PROVIDER_ID}  (shared by every repo of ${GITHUB_OWNER})
 
 EOF
 
@@ -214,20 +232,53 @@ fi
 step "Workload Identity provider"
 # ---------------------------------------------------------------------------
 
-# THE SECURITY CONTROL. Without an attribute condition, any repository on
-# GitHub could exchange a token for access to this project.
-ATTRIBUTE_CONDITION="assertion.repository == '${GITHUB_REPO}'"
-if [[ "$RESTRICT_TO_MAIN" == "true" ]]; then
-  ATTRIBUTE_CONDITION+=" && assertion.ref == 'refs/heads/main'"
-fi
+# THE FIRST SECURITY CONTROL. Without an attribute condition, any repository
+# on GitHub could exchange a token for access to this project.
+#
+# The condition names the OWNER, not one repository. The pool and the provider
+# are shared by every repository in this project, so a per-repository condition
+# would be overwritten each time you bootstrap the next repository — silently
+# breaking the deploy of the previous one. See ADR-0003.
+#
+# Scoping to the owner is safe because the condition is not what authorises a
+# deploy. The `principalSet://` binding below is: it names this repository
+# exactly, and it is additive. A repository can mint a token from this provider
+# and still impersonate nothing.
+ATTRIBUTE_CONDITION="assertion.repository_owner == '${GITHUB_OWNER}'"
 
 ATTRIBUTE_MAPPING="google.subject=assertion.sub"
 ATTRIBUTE_MAPPING+=",attribute.repository=assertion.repository"
 ATTRIBUTE_MAPPING+=",attribute.repository_owner=assertion.repository_owner"
 ATTRIBUTE_MAPPING+=",attribute.ref=assertion.ref"
+# Repository and ref in one attribute, so `--main-only` can stay a per-repository
+# binding instead of a provider-wide condition that every sibling repository
+# would inherit.
+ATTRIBUTE_MAPPING+=",attribute.repo_ref=assertion.repository + '@' + assertion.ref"
 
 if gcloud iam workload-identity-pools providers describe "$PROVIDER_ID" \
      --location=global --workload-identity-pool="$POOL_ID" >/dev/null 2>&1; then
+
+  CURRENT_CONDITION="$(gcloud iam workload-identity-pools providers describe "$PROVIDER_ID" \
+    --location=global \
+    --workload-identity-pool="$POOL_ID" \
+    --format='value(attributeCondition)')"
+
+  # Never overwrite a condition that belongs to a different owner. Doing so
+  # revokes every repository already federated through this provider, and the
+  # only symptom is 'The given credential is rejected by the attribute
+  # condition' on their next deploy — hours later, in a repository nobody
+  # touched. Re-running for a sibling repository of the same owner is a no-op.
+  if [[ -n "$CURRENT_CONDITION" && "$CURRENT_CONDITION" != "$ATTRIBUTE_CONDITION" ]]; then
+    warn "Provider ${PROVIDER_ID} already exists with a different condition:"
+    warn "  current: ${CURRENT_CONDITION}"
+    warn "  new:     ${ATTRIBUTE_CONDITION}"
+    if [[ "$FORCE_PROVIDER_UPDATE" != "true" ]]; then
+      die "Refusing to overwrite it. Every repository federated through this provider would stop deploying.
+  Use a different --pool/--provider for this owner, or re-run with --force-provider-update if you are sure."
+    fi
+    warn "--force-provider-update given; overwriting"
+  fi
+
   gcloud iam workload-identity-pools providers update-oidc "$PROVIDER_ID" \
     --location=global \
     --workload-identity-pool="$POOL_ID" \
@@ -251,13 +302,32 @@ ok "Condition: ${ATTRIBUTE_CONDITION}"
 # ---------------------------------------------------------------------------
 step "Allowing the repository to impersonate the deployer"
 # ---------------------------------------------------------------------------
-PRINCIPAL="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}/attribute.repository/${GITHUB_REPO}"
+# THE SECOND SECURITY CONTROL, and the one that actually authorises a deploy.
+# The provider's condition only decides who may mint a token. This binding
+# decides which service account that token can impersonate, and it names this
+# repository exactly.
+#
+# It is additive, so bootstrapping a sibling repository adds its own binding and
+# leaves this one alone. That is the whole reason the per-repository pin lives
+# here and not in the provider condition. See ADR-0003.
+POOL_PRINCIPAL="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}"
+
+if [[ "$RESTRICT_TO_MAIN" == "true" ]]; then
+  # repo_ref is repository and ref in one mapped attribute, so this stays a
+  # per-repository restriction. A provider-wide 'assertion.ref' condition would
+  # force every sibling repository onto main too.
+  PRINCIPAL="${POOL_PRINCIPAL}/attribute.repo_ref/${GITHUB_REPO}@refs/heads/main"
+  GRANTED_TO="${GITHUB_REPO} on refs/heads/main"
+else
+  PRINCIPAL="${POOL_PRINCIPAL}/attribute.repository/${GITHUB_REPO}"
+  GRANTED_TO="${GITHUB_REPO} (any ref)"
+fi
 
 gcloud iam service-accounts add-iam-policy-binding "$DEPLOYER_SA" \
   --role="roles/iam.workloadIdentityUser" \
   --member="$PRINCIPAL" \
   --quiet >/dev/null
-ok "workloadIdentityUser granted to ${GITHUB_REPO}"
+ok "workloadIdentityUser granted to ${GRANTED_TO}"
 
 WIF_PROVIDER="$(gcloud iam workload-identity-pools providers describe "$PROVIDER_ID" \
   --location=global \

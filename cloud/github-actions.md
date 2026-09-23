@@ -42,7 +42,9 @@ Google's own guidance is to avoid downloading keys, and many organisations disab
 │      - issuer matches the configured issuer-uri              │
 │      - signature verifies against GitHub's public keys       │
 │      - attribute-condition passes:                           │
-│          assertion.repository == 'thesandx/my-app'           │
+│          assertion.repository_owner == 'thesandx'            │
+│                                                              │
+│      - the deployer's principalSet binding names this repo   │
 │                                                              │
 │    ★ Without the attribute-condition, ANY repository on      │
 │      GitHub could complete this exchange.                    │
@@ -138,8 +140,10 @@ The default attribute condition allows any workflow in the repository — includ
 gcloud iam workload-identity-pools providers update-oidc github \
   --location=global \
   --workload-identity-pool=github \
-  --attribute-condition="assertion.repository == 'thesandx/my-app' && assertion.ref == 'refs/heads/main'"
+  --attribute-condition="assertion.repository_owner == 'thesandx' && assertion.ref == 'refs/heads/main'"
 ```
+
+**Do not do this if the project hosts more than one repository.** The condition is provider-wide, so it forces every sibling repository onto `main` too. Use `--main-only` in the bootstrap script instead. It restricts this repository alone, through the `attribute.repo_ref` binding. See [ADR-0003](../docs/adr/0003-scope-workload-identity-to-the-github-owner.md).
 
 Or bind the principal more narrowly instead of widening the condition:
 
@@ -182,7 +186,7 @@ The exchange failed. Almost always one of:
 
 1. **`id-token: write` missing** from the job's `permissions`. The most common cause by far.
 2. **Wrong `WIF_PROVIDER`** — check it uses the project _number_ and the full `projects/.../providers/...` path.
-3. **`attribute-condition` does not match.** Compare the exact `owner/repo` string, including case.
+3. **`attribute-condition` does not match.** It names the owner, so compare the exact owner string, including case. If it names one repository, an older bootstrap wrote it — re-run the script. See [ADR-0003](../docs/adr/0003-scope-workload-identity-to-the-github-owner.md).
 4. **Missing `roles/iam.workloadIdentityUser`** binding on the deployer SA for the `principalSet://` member.
 
 Inspect what GitHub actually asserted by adding a temporary debug step:
@@ -238,7 +242,8 @@ The `principalSubject` contains the repository and ref, so an unexpected entry i
 
 - [ ] No `credentials_json` or key file anywhere in the repository
 - [ ] `permissions: id-token: write` on every job that authenticates
-- [ ] `attribute-condition` pins the provider to this repository
+- [ ] `attribute-condition` pins the provider to your GitHub owner
+- [ ] The deployer binding pins impersonation to this repository
 - [ ] Deployer and runtime service accounts are separate identities
 - [ ] `roles/iam.serviceAccountUser` granted on the runtime SA to the deployer
 - [ ] Production deploys gated by a GitHub Environment
