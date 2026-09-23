@@ -16,6 +16,7 @@ import {
 } from '@google-cloud/firestore';
 import type { z } from 'zod';
 
+import { assertDistributedId, type SuppliedIdOptions } from '@/lib/document-ids';
 import { logger } from '@/lib/logger';
 import { getFirestore } from '@/services/firestore.client';
 
@@ -29,10 +30,12 @@ import { getFirestore } from '@/services/firestore.client';
  *     indistinguishable at the type level from one this build wrote. Parsing on
  *     read turns that into a loud, located failure instead of `undefined`
  *     propagating into a template.
- *   - **Auto-generated ids only.** `create` takes no id. Sequential and
+ *   - **Auto-generated ids by default.** `create` takes no id. Sequential and
  *     timestamp-prefixed ids put every new write on the same key range, which
  *     is a hotspot Firestore cannot split. See CLAUDE.md > Firestore data
- *     modeling.
+ *     modeling. `createWithId` is the narrow exception, for an id that is
+ *     already random and already meaningful — a Firebase uid. It refuses the
+ *     shapes that cause the hotspot; see `lib/document-ids.ts`.
  *   - **Bounded queries only.** `limit` is a required argument on `list`, and
  *     it is capped. Pagination is cursor-based; there is no offset, because
  *     Firestore bills and scans every skipped document.
@@ -146,6 +149,34 @@ export class UnboundedQueryError extends Error {
   }
 }
 
+/** Raised when `createWithId` names a document that already exists. */
+export class DocumentAlreadyExistsError extends Error {
+  constructor(
+    readonly collection: string,
+    readonly docId: string,
+  ) {
+    super(`Document ${collection}/${docId} already exists`);
+    this.name = 'DocumentAlreadyExistsError';
+  }
+}
+
+/**
+ * Recognises Firestore's ALREADY_EXISTS.
+ *
+ * gRPC status 6. Matched on the numeric `code` rather than the message, which
+ * is not part of any contract and is localised in some client versions.
+ */
+const GRPC_ALREADY_EXISTS = 6;
+
+function isAlreadyExists(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code: unknown }).code === GRPC_ALREADY_EXISTS
+  );
+}
+
 function formatZodIssues(error: z.ZodError): string {
   return error.issues
     .map((issue) => `${issue.path.join('.') || '<root>'}: ${issue.message}`)
@@ -236,6 +267,8 @@ export interface TransactionalRepository<TPayload> {
   /** Reads must all happen before any write in a Firestore transaction. */
   get(docId: string): Promise<StoredDocument<TPayload> | null>;
   create(payload: TPayload): string;
+  /** See `Repository.createWithId`. Throws on a hotspot-prone id. */
+  createWithId(docId: string, payload: TPayload, options?: SuppliedIdOptions): void;
   update(docId: string, patch: Partial<TPayload>): void;
   softDelete(docId: string): void;
 }
@@ -265,6 +298,20 @@ export interface Repository<TPayload> {
   ): Promise<StoredDocument<TPayload>>;
   /** Creates a document with an auto-generated id. Returns that id. */
   create(payload: TPayload): Promise<string>;
+  /**
+   * Creates a document under an id the caller supplies.
+   *
+   * **Prefer `create`.** This exists for the case where the id is the point —
+   * a profile keyed by its Firebase uid, fetched with one key lookup and no
+   * index — and it is not a general escape hatch. The id is checked by
+   * `assertDistributedId`, which refuses the shapes that create a write
+   * hotspot: sequential counters, timestamp prefixes, bare numbers, and
+   * anything too short to be random.
+   *
+   * Throws `DocumentAlreadyExistsError` rather than overwriting, so a repeated
+   * call is a detectable race and never silent data loss.
+   */
+  createWithId(docId: string, payload: TPayload, options?: SuppliedIdOptions): Promise<void>;
   /** Merges a partial payload into an existing document. */
   update(docId: string, patch: Partial<TPayload>): Promise<void>;
   /** Marks the document deleted. Recoverable with `restore`. */
@@ -464,6 +511,19 @@ export function createRepository<TPayload extends Record<string, unknown>>(
       return docRef.id;
     },
 
+    async createWithId(docId, payload, idOptions): Promise<void> {
+      assertDistributedId(docId, idOptions);
+      try {
+        // `.create()` (not `.set()`) fails when the document already exists,
+        // which turns a concurrent first write into a detectable error rather
+        // than one caller silently overwriting the other.
+        await db().collection(collection).doc(docId).create(creationFields(payload));
+      } catch (error) {
+        if (isAlreadyExists(error)) throw new DocumentAlreadyExistsError(collection, docId);
+        throw error;
+      }
+    },
+
     async update(docId, patch): Promise<void> {
       const fields = validatePatch(patch);
       // `update` (not `set`) fails when the document is gone, so a lost write
@@ -547,6 +607,13 @@ export function createRepository<TPayload extends Record<string, unknown>>(
             const docRef = db().collection(collection).doc();
             tx.set(docRef, creationFields(payload));
             return docRef.id;
+          },
+          createWithId(docId, payload, idOptions) {
+            assertDistributedId(docId, idOptions);
+            // `tx.create` fails the whole transaction when the document
+            // exists, which is what makes a read-then-create sequence safe
+            // against another instance doing the same thing concurrently.
+            tx.create(db().collection(collection).doc(docId), creationFields(payload));
           },
           update(docId, patch) {
             tx.update(db().collection(collection).doc(docId), {

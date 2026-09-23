@@ -31,6 +31,13 @@ const BY_NAME: Record<string, { status: number; code: string; exposeDetail: bool
   DocumentNotFoundError: { status: 404, code: 'not_found', exposeDetail: true },
   DocumentValidationError: { status: 400, code: 'invalid_document', exposeDetail: true },
   UnboundedQueryError: { status: 400, code: 'invalid_query', exposeDetail: true },
+  DocumentAlreadyExistsError: { status: 409, code: 'already_exists', exposeDetail: true },
+  InvalidDocumentIdError: { status: 400, code: 'invalid_document_id', exposeDetail: true },
+  // Authentication and authorisation. 401 says "no valid session"; 403 says
+  // "a valid session, but not yours to touch". Neither message names the
+  // owner of the resource — that would confirm it exists to a stranger.
+  UnauthenticatedError: { status: 401, code: 'unauthenticated', exposeDetail: true },
+  ForbiddenError: { status: 403, code: 'forbidden', exposeDetail: true },
   InvalidStoragePathError: { status: 400, code: 'invalid_path', exposeDetail: true },
   UploadRejectedError: { status: 400, code: 'upload_rejected', exposeDetail: true },
   // A missing environment variable is an operator error. Telling a caller which

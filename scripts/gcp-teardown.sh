@@ -169,7 +169,7 @@ if gcloud iam service-accounts describe "$RUNTIME_SA" >/dev/null 2>&1; then
   # Project-level conditional bindings do not disappear with the account; they
   # linger as deleted-principal entries in the policy. Remove them by name
   # first, so the policy stays readable.
-  for role in roles/datastore.user; do
+  for role in roles/datastore.user roles/firebaseauth.admin; do
     gcloud projects remove-iam-policy-binding "$PROJECT_ID" \
       --member="serviceAccount:${RUNTIME_SA}" \
       --role="$role" \

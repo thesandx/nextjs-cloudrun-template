@@ -7,13 +7,28 @@
 #   sharp         - native image codecs used by next/image optimisation
 #   unrs-resolver - native module resolver used by the ESLint import plugin
 #
+# Two entries are deliberate DENIES. See the notes below each one.
+#
 # Adding a dependency that needs a build step? Add it here explicitly and
 # explain why in the PR description. Never disable this safety net wholesale.
 # -----------------------------------------------------------------------------
 allowBuilds:
+  "@firebase/util": false
   protobufjs: false
   sharp: true
   unrs-resolver: true
+
+# `@firebase/util: false` is a deliberate deny. Its postinstall reads the
+# FIREBASE_WEBAPP_CONFIG environment variable and, when that is set, makes a
+# NETWORK CALL to firebase.googleapis.com during `pnpm install` to expand the
+# config. This template never sets that variable — the web config is supplied
+# through NEXT_PUBLIC_FIREBASE_* at build time — so the script has exactly one
+# possible effect here: rewriting dist/postinstall.js with `undefined`.
+#
+# That is already what the published tarball contains, so blocking the script
+# changes no behaviour and removes an install-time network call from the
+# supply chain. Verified by reading dist/postinstall.js in the installed
+# package: it exports `getDefaultsFromPostinstall = () => undefined`.
 
 # `protobufjs: false` is a deliberate deny, not an oversight. It is a transitive
 # dependency of @google-cloud/firestore. Its postinstall script compiles nothing

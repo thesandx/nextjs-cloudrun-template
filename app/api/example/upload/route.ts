@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { mapHttpError } from '@/lib/http-errors';
 import { logger } from '@/lib/logger';
+import { requireUser } from '@/services/auth.service';
 import { createExampleImageUpload } from '@/services/example.service';
 
 /**
@@ -11,6 +12,10 @@ import { createExampleImageUpload } from '@/services/example.service';
  * Step 1 of the three-step upload. Returns a short-lived signed PUT URL and the
  * headers the browser must send with it. The bytes never pass through Cloud
  * Run; see services/storage.service.ts for why that matters.
+ *
+ * Requires a session, and requires that session to own the document. A signed
+ * URL is a bearer credential to write into the bucket, so handing one to an
+ * anonymous caller is handing out write access.
  */
 
 export const runtime = 'nodejs';
@@ -38,7 +43,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
-    const upload = await createExampleImageUpload(parsed);
+    const user = await requireUser();
+    const upload = await createExampleImageUpload({ ...parsed, ownerId: user.uid });
     return NextResponse.json(upload, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     const mapped = mapHttpError(error);

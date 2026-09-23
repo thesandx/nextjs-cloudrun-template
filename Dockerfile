@@ -65,6 +65,26 @@ ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ENV NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME}
 ENV NEXT_PUBLIC_APP_VERSION=${NEXT_PUBLIC_APP_VERSION}
 
+# Firebase web configuration, for sign-in. Also build-time, for the same
+# reason, and each value is public by design — none of them grants access on
+# its own. See docs/auth.md.
+#
+# These are NOT secrets and must never be passed as one: a build arg is
+# visible in `docker history`. The rule against secrets in build args is
+# unchanged; these simply are not secrets.
+#
+# Empty by default. A build with no Firebase configuration produces an image
+# where sign-in is unavailable and every write route answers 401 — the
+# intended fail-closed state, not a broken one.
+ARG NEXT_PUBLIC_FIREBASE_API_KEY=""
+ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=""
+ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID=""
+ARG NEXT_PUBLIC_FIREBASE_APP_ID=""
+ENV NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY}
+ENV NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+ENV NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+ENV NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID}
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 

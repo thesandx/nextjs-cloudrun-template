@@ -3,8 +3,10 @@ import { z } from 'zod';
 
 import { mapHttpError } from '@/lib/http-errors';
 import { logger } from '@/lib/logger';
+import { requireUser } from '@/services/auth.service';
 import { createExample, listExamples } from '@/services/example.service';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@/services/repository';
+import { requireUserProfile } from '@/services/user.service';
 
 /**
  * EXAMPLE — `GET /api/example` and `POST /api/example`.
@@ -13,6 +15,11 @@ import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@/services/repository';
  * of a route handler over the data layer: parse the request at the boundary,
  * call one service function, map typed errors to status codes, log the ones the
  * caller must not see.
+ *
+ * GET is public. POST requires a session — `requireUser()` throws
+ * `UnauthenticatedError`, which `mapHttpError` turns into a 401. That one line
+ * is the whole gate, and it is what stops an anonymous script filling the
+ * collection and the bucket.
  */
 
 // The Firestore and Cloud Storage SDKs use gRPC and Node APIs, so these
@@ -29,9 +36,13 @@ const querySchema = z.object({
   cursor: z.string().min(1).optional(),
 });
 
+/**
+ * Note what is NOT here: `ownerName`. It comes from the signed-in user's
+ * profile. Accepting it from the body would let any caller write a row under
+ * somebody else's name.
+ */
 const createSchema = z.object({
   title: z.string().trim().min(1).max(200),
-  ownerName: z.string().trim().min(1).max(120),
 });
 
 export async function GET(request: Request): Promise<NextResponse> {
@@ -75,7 +86,14 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
-    const id = await createExample(parsed);
+    const user = await requireUser();
+    const profile = await requireUserProfile(user);
+
+    const id = await createExample({
+      title: parsed.title,
+      ownerId: user.uid,
+      ownerName: profile.displayName,
+    });
     return NextResponse.json({ id }, { status: 201 });
   } catch (error) {
     const mapped = mapHttpError(error);
