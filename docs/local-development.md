@@ -7,7 +7,8 @@
 | Node.js    | 22 LTS or newer | Pinned in `.nvmrc`; `nvm use` picks it up                |
 | pnpm       | 10 or newer     | `corepack enable` installs the version in `package.json` |
 | Docker     | any recent      | Only needed for container work                           |
-| gcloud CLI | any recent      | Only needed for deployment work                          |
+| gcloud CLI | any recent      | Deployment work, and the Firestore emulator              |
+| Java       | 17 or newer     | Only for the Firestore emulator, which is a Java process |
 
 ```bash
 # Node via nvm
@@ -23,33 +24,89 @@ Corepack reads the `packageManager` field in `package.json`, so everyone gets th
 
 ```bash
 pnpm install
-cp .env.example .env.local
 pnpm dev
 ```
 
-Open <http://localhost:3000>.
+Open <http://localhost:3000>, and <http://localhost:3000/example> for the data layer.
+
+`scripts/rename-project.sh` writes `.env.local` when you generate a project from the template. Working on the template itself, or cloned instead of generated? `cp .env.example .env.local` and fill in `APP_SLUG`.
+
+The app starts with no Google Cloud configuration at all. Those variables are required only in production — see [Working with data](#working-with-data).
 
 ## Scripts
 
-| Command              | What it does                                                    |
-| -------------------- | --------------------------------------------------------------- |
-| `pnpm dev`           | Dev server with hot reload                                      |
-| `pnpm build`         | Production build                                                |
-| `pnpm start`         | Serve the production build (run `build` first)                  |
-| `pnpm typecheck`     | `tsc --noEmit` — **run `build` at least once first**, see below |
-| `pnpm lint`          | ESLint                                                          |
-| `pnpm lint:fix`      | ESLint with `--fix`, including import sorting                   |
-| `pnpm format`        | Prettier, writing changes                                       |
-| `pnpm format:check`  | Prettier, verifying only (what CI runs)                         |
-| `pnpm test`          | Vitest, once                                                    |
-| `pnpm test:watch`    | Vitest in watch mode                                            |
-| `pnpm test:coverage` | Vitest with a coverage report                                   |
-| `pnpm validate`      | Everything CI runs, in one command                              |
-| `pnpm docker:build`  | Build the production image locally                              |
-| `pnpm docker:run`    | Run it and wait for health                                      |
-| `pnpm clean`         | Remove `.next`, `coverage`, `node_modules`                      |
+| Command              | What it does                                                       |
+| -------------------- | ------------------------------------------------------------------ |
+| `pnpm dev`           | Dev server with hot reload                                         |
+| `pnpm build`         | Production build                                                   |
+| `pnpm start`         | Serve the production build (run `build` first)                     |
+| `pnpm typecheck`     | `tsc --noEmit` — **run `build` at least once first**, see below    |
+| `pnpm lint`          | ESLint                                                             |
+| `pnpm lint:fix`      | ESLint with `--fix`, including import sorting                      |
+| `pnpm format`        | Prettier, writing changes                                          |
+| `pnpm format:check`  | Prettier, verifying only (what CI runs)                            |
+| `pnpm test`          | Vitest, once                                                       |
+| `pnpm test:watch`    | Vitest in watch mode                                               |
+| `pnpm test:coverage` | Vitest with a coverage report                                      |
+| `pnpm test:emulator` | Start the Firestore emulator, run the suites that need it, stop it |
+| `pnpm validate`      | The gate: typecheck, lint, format check, test                      |
+| `pnpm db:emulator`   | Just the Firestore emulator, for `pnpm dev` against local data     |
+| `pnpm db:deploy`     | Publish `firestore.rules` and `firestore.indexes.json`             |
+| `pnpm gcp:teardown`  | Destroy one app's cloud resources (types the slug to confirm)      |
+| `pnpm docker:build`  | Build the production image locally                                 |
+| `pnpm docker:run`    | Run it and wait for health                                         |
+| `pnpm clean`         | Remove `.next`, `coverage`, `node_modules`                         |
+
+> **`pnpm validate` does not include the emulator suites.** `*.emulator.test.ts` files skip themselves when `FIRESTORE_EMULATOR_HOST` is unset, so the gate stays green on a clean checkout with no gcloud installed. CI runs them in a separate, required job. Run `pnpm test:emulator` yourself before pushing a change to `services/repository.ts` or a collection schema.
 
 > **`pnpm typecheck` on a fresh clone fails until you have built once.** `next build` generates `next-env.d.ts` and `.next/types/**`, which `tsc` needs to resolve JSX and typed routes. Both are gitignored. `pnpm dev` also generates them. CI runs `build` before `typecheck` for the same reason.
+
+## Working with data
+
+Two ways to develop against Firestore and Cloud Storage. The full guide is [`data-layer.md`](./data-layer.md); this is the setup.
+
+### Option A — the Firestore emulator, no cloud account
+
+```bash
+gcloud components install cloud-firestore-emulator   # once
+pnpm db:emulator                                     # terminal 1
+```
+
+Then uncomment this in `.env.local` and restart `pnpm dev`:
+
+```bash
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8085
+```
+
+The SDK reads that variable itself and sends no credentials. Data lives in memory and disappears when the emulator stops.
+
+> **Never set `FIRESTORE_EMULATOR_HOST` in a deployed environment.** Every read and write would silently route to a host that does not exist.
+
+**Cloud Storage has no emulator here.** Use the dev bucket for file work, as below.
+
+### Option B — real cloud resources
+
+```bash
+gcloud auth application-default login
+```
+
+That writes Application Default Credentials the SDKs find automatically. The same code path runs in production, where Cloud Run's metadata server supplies the runtime service account instead — there is no key file in either case.
+
+Point `GCS_BUCKET` at the **dev** bucket, `<bucket>-dev`, which `gcp-bootstrap.sh` creates alongside the production one:
+
+```bash
+GCS_BUCKET=my-project-my-app-media-dev
+```
+
+**A laptop must never write into the production bucket.** `scripts/rename-project.sh` writes the dev name into `.env.local` for exactly this reason.
+
+Browser uploads need the bucket to allow your origin:
+
+```bash
+./scripts/gcp-bootstrap.sh ... --cors-origin http://localhost:3000
+```
+
+The dev bucket gets `http://localhost:3000` and `http://localhost:8080` automatically.
 
 ## Editor setup
 
@@ -89,6 +146,8 @@ pnpm docker:run
 Problems that appear only here: wrong `PORT` handling, binding to localhost, missing static assets, permission errors from the non-root user, and slow cold starts.
 
 ## Environment variables
+
+> Nothing in the data layer needs configuring to run `pnpm dev`. `APP_SLUG`, `GCP_PROJECT_ID`, `FIRESTORE_DATABASE_ID` and `GCS_BUCKET` are required **only** in production, where the container refuses to start without them so a misconfigured revision fails fast.
 
 ```bash
 cp .env.example .env.local   # gitignored

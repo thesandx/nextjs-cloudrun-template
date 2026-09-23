@@ -1,0 +1,34 @@
+rules_version = '2';
+
+// Firestore security rules — deny every direct client request.
+//
+// This is not a placeholder. The application reaches Firestore only from the
+// server, with the Cloud Run runtime service account, and no Firebase client
+// SDK is shipped to the browser. Nothing legitimate is denied here.
+//
+// Read this before "opening it up for the client":
+//
+//   Admin credentials BYPASS these rules entirely. The runtime service account
+//   holds roles/datastore.user and is unaffected by anything written below.
+//   So this file protects exactly one thing — a browser or mobile client
+//   talking to Firestore directly — and that path does not exist in this
+//   template. It is defence in depth against a future change, not the control
+//   that keeps today's data safe. The control that does that is the IAM
+//   condition in scripts/gcp-bootstrap.sh, which pins datastore.user to this
+//   one named database.
+//
+//   Allowing direct client access is a real architectural decision. It moves
+//   authorisation out of your route handlers and into this file, permanently.
+//   Write an ADR (docs/adr/) before doing it, and never grant a blanket
+//   `allow read, write: if request.auth != null` — an authenticated user is
+//   not the same as an authorised one.
+//
+// Deployed by scripts/firestore-deploy.sh, which CI runs before the app
+// deploy. See .github/workflows/deploy.yml.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

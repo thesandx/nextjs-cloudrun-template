@@ -39,7 +39,7 @@ Keep module-level work trivial. Do expensive setup lazily, inside the first requ
 The container filesystem is ephemeral, and Cloud Run creates and destroys instances without warning. Anything you write to disk is lost, and no other instance sees it.
 
 - Session state → a shared store, not memory
-- Uploads → Cloud Storage, not `/tmp`
+- Uploads → Cloud Storage, not `/tmp`. Sign a URL and let the browser PUT straight to the bucket; see `services/storage.service.ts`.
 - Caches → correctness must not depend on them
 - In-memory rate limiting → wrong, because each instance counts separately
 

@@ -1,6 +1,18 @@
 # `services/`
 
-The integration layer: every call that leaves this process lives here. Intentionally empty in the template.
+The integration layer: every call that leaves this process lives here.
+
+The template ships the data layer in this folder — Firestore, Cloud Storage, and a typed repository over both. Read [`docs/data-layer.md`](../docs/data-layer.md) before adding a collection, and [CLAUDE.md > Firestore data modeling](../CLAUDE.md#firestore-data-modeling) before writing a query.
+
+| Module                | Owns                                                     |
+| --------------------- | -------------------------------------------------------- |
+| `firestore.client.ts` | Lazy Firestore singleton, pinned to the named database   |
+| `storage.client.ts`   | Lazy Cloud Storage singleton and the app's bucket        |
+| `repository.ts`       | Typed, zod-validated, cursor-paginated collections       |
+| `storage.service.ts`  | Signed upload and read URLs, upload verification         |
+| `sharded-counter.ts`  | Counters above one write per second                      |
+| `health.service.ts`   | The opt-in dependency checks behind `/api/health?deep=1` |
+| `example.service.ts`  | **Example.** Delete it once you have copied the pattern  |
 
 ## Why this layer exists
 
@@ -16,12 +28,14 @@ Without it, `fetch` calls, retry logic, auth headers and response parsing spread
 
 ## Rules
 
-1. **Server-side only.** Files here may read secrets and MUST NOT be imported from a `'use client'` component. Add `import 'server-only';` at the top of any module holding credentials — the build then fails loudly if a client component imports it.
+1. **Server-side only.** Files here may read secrets and MUST NOT be imported from a `'use client'` component. Add `import 'server-only';` at the top of **every** module here — the build then fails loudly if a client component imports it. Note that Vitest needs the stub aliased in `vitest.config.ts`; the guard still applies to `next build`, which is the build that ships.
 2. **One module per external system**, named `<domain>.service.ts` or `<system>.client.ts`.
 3. **Validate at the boundary.** Never assume an external payload matches its declared type; parse and narrow, then return your own domain type from `types/`.
 4. **Return `Result<T>` (see `types/index.ts`) or throw a typed error.** Do not return `null` to mean three different failures.
-5. **Every outbound call gets a timeout.** An un-timed `fetch` on Cloud Run holds a request slot open until the platform's 300s limit. This exhausts concurrency during a downstream outage.
+5. **Every outbound call gets a timeout.** An un-timed `fetch` on Cloud Run holds a request slot open until the platform's 300s limit. This exhausts concurrency during a downstream outage. `AbortSignal.timeout` covers `fetch`; the Google Cloud SDKs use gRPC, so wrap those in `withTimeout` from `@/lib/utils`.
 6. **Log failures via `@/lib/logger`**, never `console.log`.
+7. **Log identifiers, never contents.** A collection name, a document id and an object path are safe and make an error traceable. File contents, personal data and a signed URL are not — a signed URL is a bearer credential for as long as it lives.
+8. **Construct a cloud client lazily.** A module-level `new Firestore()` opens a gRPC channel at import time, which makes `next build` reach for credentials on a CI runner that has none.
 
 ## Template
 

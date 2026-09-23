@@ -28,6 +28,18 @@ services:
       PORT: 8080
       HOSTNAME: 0.0.0.0
       LOG_LEVEL: info
+      # The data-layer variables are required in production, and this image runs
+      # as production. The placeholders below let the container start so port
+      # binding, permissions, health checks and signal handling can be verified;
+      # /api/health is dependency-free and opens no connection to either service.
+      #
+      # To exercise Firestore or Cloud Storage for real, override them in
+      # .env.local with your own project, the dev bucket, and mounted
+      # Application Default Credentials. See docs/local-development.md.
+      APP_SLUG: ${APP_SLUG:-local-app}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-local-project}
+      FIRESTORE_DATABASE_ID: ${FIRESTORE_DATABASE_ID:-local-app-db}
+      GCS_BUCKET: ${GCS_BUCKET:-local-project-local-app-media}
     env_file:
       # Optional: create .env.local from .env.example for secrets.
       # `required: false` keeps `docker compose up` working without it.

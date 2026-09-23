@@ -20,7 +20,7 @@ The operator-facing guide: set up once, then deploy by merging to `main`.
 ```bash
 ./scripts/gcp-bootstrap.sh \
   --project my-gcp-project \
-  --region asia-southeast1 \
+  --region asia-south1 \
   --repo thesandx/my-app \
   --service my-app
 ```
@@ -34,7 +34,7 @@ gh secret set WIF_PROVIDER        --body "projects/123456789/locations/global/wo
 gh secret set WIF_SERVICE_ACCOUNT --body "github-deployer@my-gcp-project.iam.gserviceaccount.com"
 
 gh variable set GCP_PROJECT_ID      --body "my-gcp-project"
-gh variable set GCP_REGION          --body "asia-southeast1"
+gh variable set GCP_REGION          --body "asia-south1"
 gh variable set ARTIFACT_REPOSITORY --body "containers"
 gh variable set CLOUD_RUN_SERVICE   --body "my-app"
 ```
@@ -47,7 +47,7 @@ Useful when you need to understand or audit what the script does, or when org po
 
 ```bash
 export PROJECT_ID="my-gcp-project"
-export REGION="asia-southeast1"
+export REGION="asia-south1"
 export REPO="thesandx/my-app"          # GitHub owner/name
 export SERVICE="my-app"
 export AR_REPO="containers"
@@ -168,7 +168,7 @@ Neither is a credential — both are resource identifiers, useless without a val
 | Variable              | Required | Default                | Purpose                              |
 | --------------------- | -------- | ---------------------- | ------------------------------------ |
 | `GCP_PROJECT_ID`      | **yes**  | —                      | Target project                       |
-| `GCP_REGION`          | no       | `asia-southeast1`      | Cloud Run + Artifact Registry region |
+| `GCP_REGION`          | no       | `asia-south1`          | Cloud Run + Artifact Registry region |
 | `ARTIFACT_REPOSITORY` | no       | `containers`           | Artifact Registry repository name    |
 | `CLOUD_RUN_SERVICE`   | no       | repository name        | Cloud Run service name               |
 | `APP_URL`             | no       | —                      | Public URL, inlined at build time    |

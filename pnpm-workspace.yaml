@@ -11,8 +11,18 @@
 # explain why in the PR description. Never disable this safety net wholesale.
 # -----------------------------------------------------------------------------
 allowBuilds:
+  protobufjs: false
   sharp: true
   unrs-resolver: true
+
+# `protobufjs: false` is a deliberate deny, not an oversight. It is a transitive
+# dependency of @google-cloud/firestore. Its postinstall script compiles nothing
+# — it reads the parent package.json and prints a warning when the declared
+# version range does not start with `~`. Blocking it changes no behaviour.
+#
+# It is listed rather than omitted because pnpm exits 1 with
+# ERR_PNPM_IGNORED_BUILDS on any unlisted package that wants a lifecycle script,
+# which would fail CI and the Docker build. Listing it records the decision.
 
 # -----------------------------------------------------------------------------
 # Supply-chain: minimum release age

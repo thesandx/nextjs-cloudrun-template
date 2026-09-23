@@ -15,10 +15,30 @@ lib/utils.ts
 lib/utils.test.ts
 components/ui/Button.tsx
 components/ui/Button.test.tsx
-tests/setup.ts          ← global setup, loaded before every test file
+services/repository.emulator.test.ts   ← needs a running emulator, see below
+tests/setup.ts                          ← global setup, loaded before every test file
+tests/server-only.stub.ts               ← aliased over the `server-only` package
 ```
 
 Colocation makes a test hard to overlook when you change the implementation. When you move a module, its test moves with it.
+
+### Environments
+
+The default is jsdom. A file opts into Node with a directive on its first line:
+
+```ts
+// @vitest-environment node
+```
+
+Use it for anything that is not React. `services/*.emulator.test.ts` needs it because the Google Cloud SDKs use gRPC and Node APIs jsdom does not provide. `lib/env.test.ts` needs it for a subtler reason: `lib/env.ts` skips its production requirement when `window` is defined, and jsdom defines `window` — under the default environment those tests would pass while proving nothing about container startup.
+
+`tests/setup.ts` runs for every file regardless, so everything DOM-specific in it is guarded. Without the guard a Node-environment file fails during setup with `window is not defined`, before a single test runs.
+
+### `server-only`
+
+Every module in `services/` starts with `import 'server-only'`, which resolves to a module that throws unless the bundler picked its `react-server` export. Next.js does; Vitest does not.
+
+`vitest.config.ts` therefore aliases it to `tests/server-only.stub.ts`. The guard still applies to `next build`, which is the build that ships. Remove the alias and every test touching `services/` fails with "This module cannot be imported from a Client Component module".
 
 ## The Server Component constraint
 
@@ -125,6 +145,54 @@ describe('getUser', () => {
 ```
 
 **Test the failure paths.** Most incidents come from a failure path, not the happy path.
+
+## Testing the data layer
+
+Three different problems, three different answers.
+
+### Pure rules — test them exhaustively
+
+`lib/storage-paths.ts` decides which object paths and uploads are allowed, and it calls nothing. That is the whole reason it is in `lib/`: the rules most worth testing are also the cheapest to test.
+
+```ts
+it('never produces a name that buildObjectPath then rejects', () => {
+  for (const hostile of ['../../etc/passwd', 'emoji-🙂.png', 'null\u0000byte.png']) {
+    const filename = sanitiseFilename(hostile);
+    expect(() => buildObjectPath({ collection: 'x', docId: 'y', filename })).not.toThrow();
+  }
+});
+```
+
+No emulator, no bucket, no credential. These run in `pnpm validate` like any other test.
+
+### The repository — against a real emulator
+
+```bash
+pnpm test:emulator
+```
+
+Mocks are the wrong tool here. The behaviour worth testing is Firestore's, not ours: whether `update` rejects a missing document, whether a cursor stays stable across a page boundary, whether `serverTimestamp` has resolved by the next read. A mock answers each of those the way its author expected — which is exactly the assumption that needs checking.
+
+So the suites talk to the emulator, and skip when it is absent:
+
+```ts
+// @vitest-environment node
+
+const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST ?? '';
+const describeEmulator = emulatorHost === '' ? describe.skip : describe;
+
+describeEmulator('createRepository (emulator)', () => {
+  // ...
+});
+```
+
+Name the file `*.emulator.test.ts`, give each run a fresh collection (`notes_${Date.now()}_${random}`) so a crashed earlier run cannot fail this one, and clean up in `afterAll`.
+
+**The skip is a convenience, not permission to ignore them.** CI runs `pnpm test:emulator` in its own required job. Run it yourself before pushing a change to `services/repository.ts` or a collection schema.
+
+### Cloud Storage — there is no emulator
+
+Test the path and validation logic (pure, above), and leave the signing and the moving to the dev bucket. The parts worth automating are already the pure ones.
 
 ## Route handlers
 

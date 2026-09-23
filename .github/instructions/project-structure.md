@@ -8,7 +8,9 @@ Where every file goes, and why. **This layout is fixed** — see rule 1 in [codi
 .
 ├── app/                    # Next.js App Router: routes, layouts, route handlers
 │   ├── api/                #   Route handlers (server-side HTTP endpoints)
-│   │   └── health/         #     GET /api/health — liveness probe
+│   │   ├── health/         #     GET /api/health — liveness probe
+│   │   └── example/        #     EXAMPLE — data layer endpoints, delete these
+│   ├── example/            #   EXAMPLE — the page that uses them
 │   ├── error.tsx           #   Route-segment error boundary (Client Component)
 │   ├── layout.tsx          #   Root layout — must stay a Server Component
 │   ├── not-found.tsx       #   404 page
@@ -16,16 +18,26 @@ Where every file goes, and why. **This layout is fixed** — see rule 1 in [codi
 │
 ├── components/             # Reusable React components
 │   ├── ui/                 #   Presentational primitives: Button, Card, Input
-│   └── layout/             #   Structural chrome: Header, Footer, Sidebar
+│   ├── layout/             #   Structural chrome: Header, Footer, Sidebar
+│   └── example/            #   EXAMPLE — delete with the rest of the example
 │
 ├── hooks/                  # Reusable React hooks (client-side by definition)
 ├── lib/                    # Pure utilities, config, cross-cutting concerns
 │   ├── env.ts              #   Validated environment variables — the ONLY
 │   │                       #   place process.env is read
 │   ├── logger.ts           #   Structured logging for Cloud Logging
+│   ├── storage-paths.ts    #   Object paths and upload rules — pure, so it is
+│   │                       #   tested without a bucket or a credential
+│   ├── http-errors.ts      #   Typed errors to HTTP status codes
 │   └── utils.ts            #   Small generic helpers
 │
 ├── services/               # External I/O: APIs, databases, cloud SDKs
+│   ├── firestore.client.ts #   Lazy Firestore singleton, named database
+│   ├── storage.client.ts   #   Lazy Cloud Storage singleton and the bucket
+│   ├── repository.ts       #   Typed, validated, cursor-paginated collections
+│   ├── storage.service.ts  #   Signed URLs and upload verification
+│   ├── sharded-counter.ts  #   Counters above one write per second
+│   └── health.service.ts   #   Opt-in dependency checks for /api/health?deep=1
 ├── types/                  # Shared TypeScript types
 │   └── index.ts
 │
@@ -51,10 +63,16 @@ Where every file goes, and why. **This layout is fixed** — see rule 1 in [codi
 │   └── terraform.md
 │
 ├── scripts/                # Executable operational scripts
-│   ├── gcp-bootstrap.sh    #   One-time GCP + Workload Identity setup
+│   ├── gcp-bootstrap.sh    #   One-time GCP setup: identity, database, bucket
+│   ├── gcp-teardown.sh     #   The inverse, for one app slug
+│   ├── firestore-deploy.sh #   Publishes rules and indexes; CI runs it
+│   ├── run-emulator-tests.sh
 │   ├── docker-build.sh
 │   ├── docker-run.sh
 │   └── rename-project.sh
+│
+├── firestore.rules         # Security rules — deny all client access
+├── firestore.indexes.json  # Composite indexes and field exemptions, as code
 │
 ├── .github/
 │   ├── workflows/          #   CI/CD pipelines
@@ -76,30 +94,41 @@ Where every file goes, and why. **This layout is fixed** — see rule 1 in [codi
 
 ## Decision table — "where does this file go?"
 
-| I am writing...                           | It goes in                |
-| ----------------------------------------- | ------------------------- |
-| A page at a URL                           | `app/<route>/page.tsx`    |
-| A shared shell around routes              | `app/<route>/layout.tsx`  |
-| An HTTP endpoint                          | `app/api/<name>/route.ts` |
-| A loading skeleton                        | `app/<route>/loading.tsx` |
-| A button, card, modal — no business logic | `components/ui/`          |
-| A header, footer, page shell              | `components/layout/`      |
-| A component used by one feature only      | `components/<feature>/`   |
-| A `use...` React hook                     | `hooks/use<Thing>.ts`     |
-| A pure function with no I/O               | `lib/`                    |
-| Anything that calls an external system    | `services/`               |
-| A type used in more than one place        | `types/`                  |
-| A type used in exactly one place          | Next to its consumer      |
-| An image, font, favicon, `robots.txt`     | `public/`                 |
-| A CSS custom property or global style     | `styles/globals.css`      |
-| A shell script humans run                 | `scripts/`                |
-| An explanation of how something works     | `docs/`                   |
-| An explanation of the cloud setup         | `cloud/`                  |
-| A rule for future assistants              | `.github/instructions/`   |
+| I am writing...                           | It goes in                   |
+| ----------------------------------------- | ---------------------------- |
+| A page at a URL                           | `app/<route>/page.tsx`       |
+| A shared shell around routes              | `app/<route>/layout.tsx`     |
+| An HTTP endpoint                          | `app/api/<name>/route.ts`    |
+| A loading skeleton                        | `app/<route>/loading.tsx`    |
+| A button, card, modal — no business logic | `components/ui/`             |
+| A header, footer, page shell              | `components/layout/`         |
+| A component used by one feature only      | `components/<feature>/`      |
+| A `use...` React hook                     | `hooks/use<Thing>.ts`        |
+| A pure function with no I/O               | `lib/`                       |
+| Anything that calls an external system    | `services/`                  |
+| A Firestore collection and its schema     | `services/<name>.service.ts` |
+| A composite index or field exemption      | `firestore.indexes.json`     |
+| A Firestore security rule                 | `firestore.rules`            |
+| A type used in more than one place        | `types/`                     |
+| A type used in exactly one place          | Next to its consumer         |
+| An image, font, favicon, `robots.txt`     | `public/`                    |
+| A CSS custom property or global style     | `styles/globals.css`         |
+| A shell script humans run                 | `scripts/`                   |
+| An explanation of how something works     | `docs/`                      |
+| An explanation of the cloud setup         | `cloud/`                     |
+| A rule for future assistants              | `.github/instructions/`      |
 
 ## The distinctions people get wrong
 
-### `lib/` vs `services/`
+### `lib/` vs `services/` — the data layer is the clearest example
+
+The split is not "cloud code goes in `services/`". It is **rules versus I/O**.
+
+`lib/storage-paths.ts` decides what an object path may look like, which filenames are safe, and which content types and sizes are allowed. It calls nothing. `services/storage.service.ts` takes those decisions and talks to Google.
+
+The payoff is direct: the rules that decide whether a user-supplied byte may be written are tested exhaustively, with no emulator, no bucket and no credential — and they are the rules most worth testing. Put validation in `services/` and it can only be tested against a live system, so in practice it is not tested at all.
+
+### `lib/` vs `services/` — the general rule
 
 |                                        | `lib/`                           | `services/`                   |
 | -------------------------------------- | -------------------------------- | ----------------------------- |

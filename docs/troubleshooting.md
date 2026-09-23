@@ -180,6 +180,8 @@ The single most common Cloud Run failure. In order:
 2. **Hardcoded port.** The server must read `process.env.PORT`.
 3. **Startup exceeded the deadline.** Check the logs for a crash during boot — usually env validation or a hanging top-level `await`.
 
+**Since the data layer landed, the most common cause is env validation.** Look for `EnvValidationError` in the logs. `APP_SLUG`, `GCP_PROJECT_ID`, `FIRESTORE_DATABASE_ID` and `GCS_BUCKET` are all required in production, and the container refuses to start without them — deliberately, so Cloud Run rejects the revision and keeps serving the previous one. The message lists every missing variable at once. The deploy workflow sets all four, so a missing one means a repository variable was cleared or the workflow was edited.
+
 ```bash
 gcloud run services logs read SERVICE --region REGION --limit 100
 ```
@@ -257,9 +259,123 @@ This takes seconds, with no rebuild. Then fix forward with a normal PR.
 
 ---
 
+## Firestore and Cloud Storage
+
+### `FAILED_PRECONDITION: The query requires an index`
+
+The error message contains a console link that creates the index in one click. **Do not use it** — an index created by hand exists in one project and nowhere else, so the next environment fails the same way.
+
+Add it to `firestore.indexes.json` instead:
+
+```json
+{
+  "collectionGroup": "notes",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "deletedAt", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" }
+  ]
+}
+```
+
+Then `pnpm db:deploy --project P --database D`, or merge to `main` — the deploy publishes indexes before the app for exactly this reason. Leave `__name__` out; Firestore appends it automatically, matching the last field's direction.
+
+Indexes build in the background. A large collection takes minutes, and the query keeps failing until the build finishes.
+
+### `Permission 'iam.serviceAccounts.signBlob' denied`
+
+Signing a V4 URL with no key file works by asking IAM to sign, which needs the runtime service account to be able to impersonate **itself**:
+
+```bash
+gcloud iam service-accounts add-iam-policy-binding \
+  my-app-runtime@my-project.iam.gserviceaccount.com \
+  --member="serviceAccount:my-app-runtime@my-project.iam.gserviceaccount.com" \
+  --role="roles/iam.serviceAccountTokenCreator"
+```
+
+`gcp-bootstrap.sh` creates this binding. The error usually means the script was not re-run after the runtime account was recreated.
+
+### `5 NOT_FOUND` on the first query
+
+`FIRESTORE_DATABASE_ID` names a database that does not exist. Check which do:
+
+```bash
+gcloud firestore databases list --format='table(name,locationId,type)'
+```
+
+Common causes: the app is pointed at `(default)` when bootstrap created a named database; the slug changed without re-running bootstrap; the wrong project.
+
+### `403` from the signed-URL PUT
+
+The client did not send the headers exactly as returned. They are part of the signature, and Cloud Storage recomputes it from the request.
+
+```ts
+await fetch(upload.url, { method: 'PUT', headers: upload.headers, body: file });
+```
+
+Both matter: `Content-Type` must equal what was signed, and `x-goog-content-length-range` must be present and unmodified.
+
+### The PUT fails with a CORS error in the browser
+
+The bucket does not allow your origin. A signed-URL PUT is a cross-origin request to `storage.googleapis.com`.
+
+```bash
+./scripts/gcp-bootstrap.sh ... --cors-origin https://your-domain
+gcloud storage buckets describe gs://BUCKET --format='value(cors_config)'   # verify
+```
+
+### `UploadRejectedError: no object at tmp/...`
+
+`finalizeUpload` ran but the object is not there. Either the PUT did not actually succeed — check its status, not just that it returned — or finalize already ran and moved it, or more than a day passed and the lifecycle rule swept it.
+
+### `DocumentValidationError` when reading
+
+Stored data no longer matches the collection's zod schema. This is a real bug surfacing, not noise: a field written by an older build, a console edit, or a half-finished migration.
+
+The message names the document and the failing field. Decide deliberately: migrate the data, or widen the schema (a new field should usually be `.optional()` until every document has it).
+
+### `UnboundedQueryError`
+
+`limit` is missing, not a positive integer, over `MAX_PAGE_SIZE` (200), or a cursor no longer resolves to a document. Paginate with `nextCursor` rather than asking for a bigger page. A cursor pointing at a hard-deleted document is gone — restart from the first page.
+
+### Contention errors on a hot document
+
+`ABORTED` or `DEADLINE_EXCEEDED` on writes to one document means you are past Firestore's ~1 sustained write per second per document. Use `services/sharded-counter.ts`, or drop the maintained total and use `repository.count()`. See [CLAUDE.md > Firestore data modeling](../CLAUDE.md#firestore-data-modeling).
+
+### The emulator will not start
+
+```bash
+gcloud components install cloud-firestore-emulator   # component missing
+java -version                                        # needs 17+
+lsof -i :8085                                        # port already bound
+FIRESTORE_EMULATOR_PORT=8086 pnpm test:emulator      # or use another port
+```
+
+A previous run that was killed rather than stopped can leave the Java process holding the port. `scripts/run-emulator-tests.sh` signals the whole process group to avoid this.
+
+### Emulator tests are skipped rather than run
+
+That is by design when `FIRESTORE_EMULATOR_HOST` is unset — it keeps `pnpm validate` green with no gcloud installed. Run them with `pnpm test:emulator`, which sets the variable for you.
+
+### The app talks to the emulator in a deployed environment
+
+`FIRESTORE_EMULATOR_HOST` is set in Cloud Run. Remove it:
+
+```bash
+gcloud run services update SERVICE --region REGION --remove-env-vars FIRESTORE_EMULATOR_HOST
+```
+
+### Rules did not deploy: `HTTP 403` from `firebaserules.googleapis.com`
+
+The project is not enrolled in Firebase, or the API is not enabled. The deploy **continues** rather than failing, because rules are defence in depth here — the app uses admin credentials, which bypass them.
+
+To fix it properly: enable `firebaserules.googleapis.com`, add the project to Firebase, and confirm the deployer holds `roles/firebaserules.admin`.
+
+---
+
 ## Still stuck
 
-1. What does `/api/health` say? The `version` field is the commit SHA serving traffic — confirm it is the code you expect.
+1. What does `/api/health` say? The `version` field is the commit SHA serving traffic — confirm it is the code you expect. With `HEALTH_DEEP_CHECKS_ENABLED=true`, `/api/health?deep=1` also reports Firestore and bucket reachability with latencies.
 2. What do the logs say? `gcloud run services logs read SERVICE --region REGION --limit 100`
 3. Does it reproduce in the local container? `docker compose up --build` — if yes, it is not a Cloud Run problem.
 4. Did it work before? `git log` the Dockerfile, the workflow and `next.config.ts`.

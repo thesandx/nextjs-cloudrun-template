@@ -83,6 +83,43 @@ Deeper detail — request path, scaling behaviour, security boundaries, evolutio
 
 ---
 
+## New app in 5 commands
+
+From nothing to a deployed app with its own database and file store.
+
+```bash
+# 1. Create the repository from this template
+gh repo create my-app --template thesandx/nextjs-cloudrun-template --private --clone && cd my-app
+
+# 2. Make it yours. Writes .env.local with the app slug and derived names.
+./scripts/rename-project.sh my-app --owner my-github-org --project my-gcp-project
+
+# 3. Provision Google Cloud. Idempotent, and no key is ever created.
+#    Creates: APIs, Artifact Registry, Workload Identity Federation,
+#    two service accounts, the Firestore database my-app-db, the bucket
+#    my-gcp-project-my-app-media, a dev bucket, backups, and least-privilege IAM.
+./scripts/gcp-bootstrap.sh \
+  --project my-gcp-project --region asia-south1 \
+  --repo my-github-org/my-app --service my-app \
+  --cors-origin https://app.example.com
+
+# 4. Set the GitHub variables and secrets the script just printed
+gh secret   set WIF_PROVIDER --body "..."   # the script prints every line
+
+# 5. Deploy
+git push origin main
+```
+
+Then `pnpm install && pnpm dev`, and open <http://localhost:3000/example> — a working page showing the whole data layer: create a document, list a bounded page, upload an image, display it from a signed URL. Copy the pattern and delete it.
+
+> **`--service` must be 22 characters or fewer.** The runtime service account id is `<service>-runtime`, and a Google service account id must be 6–30 characters.
+
+> **A Firestore database's location is permanent,** and so is a bucket's. Neither can be moved. Pick the region before step 3.
+
+The rest of this section explains each step.
+
+---
+
 ## Quick start
 
 ### 1. Create your repository
@@ -101,21 +138,30 @@ cd my-app
 ### 2. Rename it
 
 ```bash
-./scripts/rename-project.sh my-app --owner my-github-org
+./scripts/rename-project.sh my-app --owner my-github-org --project my-gcp-project
 ```
 
-Replaces the template name across `package.json`, Compose, docs and issue templates. Add `--reset-git` to start from a single fresh commit.
+Replaces the template name across `package.json`, Compose, docs and issue templates, and writes a `.env.local` holding the app slug and the names derived from it. Add `--reset-git` to start from a single fresh commit.
+
+The new name is the **app slug**: one name for the Cloud Run service, the runtime service account, the Firestore database and the bucket. That is what keeps two apps in one GCP project from reaching each other's data.
 
 ### 3. Run it
 
 ```bash
 corepack enable        # gets the right pnpm version from package.json
 pnpm install
-cp .env.example .env.local
-pnpm dev
+pnpm dev               # .env.local was written by step 2
 ```
 
-<http://localhost:3000>
+<http://localhost:3000>, and <http://localhost:3000/example> for the data layer.
+
+Want data without a Google Cloud account? Run the Firestore emulator:
+
+```bash
+gcloud components install cloud-firestore-emulator   # once, needs Java 17+
+pnpm db:emulator                                     # terminal 1
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 pnpm dev      # terminal 2
+```
 
 ### 4. Set up Google Cloud
 
@@ -124,14 +170,35 @@ One command, idempotent, no keys created:
 ```bash
 ./scripts/gcp-bootstrap.sh \
   --project my-gcp-project \
-  --region asia-southeast1 \
+  --region asia-south1 \
   --repo my-github-org/my-app \
   --service my-app            # keep this to 22 characters or fewer — see the note below
 ```
 
 > **Keep `--service` to 22 characters or fewer.** The script derives the runtime service account id as `<service>-runtime`, and a Google service account id must be 6–30 characters. A longer service name fails with `does not have a length between 6 and 30`.
 
-It enables APIs, creates the Artifact Registry repository, sets up Workload Identity Federation, creates least-privilege service accounts, and prints the exact `gh secret` / `gh variable` commands to run.
+It enables APIs, creates the Artifact Registry repository, sets up Workload Identity Federation, creates least-privilege service accounts, provisions the Firestore database and the Cloud Storage bucket, and prints the exact `gh secret` / `gh variable` commands to run.
+
+What it creates for the data layer:
+
+| Resource           | Name                                    | Notes                                                 |
+| ------------------ | --------------------------------------- | ----------------------------------------------------- |
+| Firestore database | `my-app-db`                             | Native mode, `$GCP_REGION`, **location is permanent** |
+| Backups            | daily, 7-day retention                  | Plus point-in-time recovery                           |
+| Storage bucket     | `my-gcp-project-my-app-media`           | Uniform access, public access prevention, soft delete |
+| Dev bucket         | `...-media-dev`                         | So a laptop never writes to production storage        |
+| Lifecycle rule     | delete `tmp/` after 1 day               | Sweeps uploads that were started but never finalized  |
+| Runtime IAM        | `datastore.user` + `storage.objectUser` | Scoped to **this** database and **this** bucket only  |
+
+Add `--cors-origin https://your-domain` for direct browser uploads, and `--skip-data` if an app genuinely needs no database.
+
+**Tearing one down:**
+
+```bash
+./scripts/gcp-teardown.sh --project my-gcp-project --service my-app
+```
+
+It deletes the database, the buckets, the Cloud Run service and the runtime identity, and leaves everything shared with other apps alone. You must type the app slug to confirm — there is no `--yes` flag, on purpose.
 
 ### 5. Deploy
 
@@ -149,6 +216,8 @@ That is the whole deployment procedure. The pipeline builds the image, pushes it
 .
 ├── app/                    # Routes, layouts, route handlers (App Router)
 │   ├── api/health/         #   Liveness probe for Docker + Cloud Run
+│   ├── api/example/        #   EXAMPLE — data layer endpoints, delete these
+│   ├── example/            #   EXAMPLE — the page that uses them
 │   ├── layout.tsx          #   Root layout — a Server Component, keep it that way
 │   ├── page.tsx            #   The Hello World page
 │   ├── error.tsx           #   Error boundary
@@ -159,8 +228,15 @@ That is the whole deployment procedure. The pipeline builds the image, pushes it
 ├── lib/                    # Pure utilities — no I/O
 │   ├── env.ts              #   Validated env vars; the ONLY reader of process.env
 │   ├── logger.ts           #   Structured logging for Cloud Logging
+│   ├── storage-paths.ts    #   Object paths and upload rules — pure, so testable
+│   ├── http-errors.ts      #   Typed errors to HTTP status codes
 │   └── utils.ts
 ├── services/               # External I/O: APIs, databases, cloud SDKs
+│   ├── firestore.client.ts #   Lazy Firestore singleton, named database
+│   ├── storage.client.ts   #   Lazy Cloud Storage singleton and the bucket
+│   ├── repository.ts       #   Typed, validated, cursor-paginated collections
+│   ├── storage.service.ts  #   Signed URLs and upload verification
+│   └── sharded-counter.ts  #   Counters above one write per second
 ├── types/                  # Shared TypeScript types
 │
 ├── public/                 # Static assets
@@ -169,7 +245,10 @@ That is the whole deployment procedure. The pipeline builds the image, pushes it
 │
 ├── docs/                   # Guides, ADRs, troubleshooting
 ├── cloud/                  # Google Cloud documentation and runbooks
-├── scripts/                # gcp-bootstrap, docker-build, docker-run, rename
+├── scripts/                # gcp-bootstrap, gcp-teardown, firestore-deploy, rename
+│
+├── firestore.rules         # Security rules — deny all client access
+├── firestore.indexes.json  # Composite indexes and field exemptions, as code
 │
 ├── .github/
 │   ├── workflows/          #   pr-validation · deploy · codeql
@@ -255,8 +334,8 @@ merge  →  build  →  push to Artifact Registry  →  deploy revision  →  pr
 The pipeline tags each image with the commit SHA and deploys it by that immutable tag — never `:latest`. So a rollback is a traffic shift, not a rebuild:
 
 ```bash
-gcloud run revisions list --service my-app --region asia-southeast1
-gcloud run services update-traffic my-app --region asia-southeast1 \
+gcloud run revisions list --service my-app --region asia-south1
+gcloud run services update-traffic my-app --region asia-south1 \
   --to-revisions my-app-<good-sha>=100
 ```
 
@@ -264,13 +343,17 @@ This takes seconds. Then you can fix forward without time pressure.
 
 **Tunable via repository variables** — no workflow edits needed:
 
-| Variable            | Default           |                                           |
-| ------------------- | ----------------- | ----------------------------------------- |
-| `GCP_REGION`        | `asia-southeast1` | Cloud Run + Artifact Registry region      |
-| `CLOUD_RUN_SERVICE` | repository name   | Service name                              |
-| `MIN_INSTANCES`     | `0`               | `1` removes cold starts (~$10–15/month)   |
-| `MAX_INSTANCES`     | `10`              | Bounds both a traffic spike and your bill |
-| `LOG_LEVEL`         | `info`            | Runtime log verbosity                     |
+| Variable                     | Default                  |                                                        |
+| ---------------------------- | ------------------------ | ------------------------------------------------------ |
+| `GCP_REGION`                 | `asia-south1`            | Cloud Run, Artifact Registry, Firestore and the bucket |
+| `CLOUD_RUN_SERVICE`          | repository name          | Service name                                           |
+| `APP_SLUG`                   | service name             | Names the database, bucket and runtime identity        |
+| `MIN_INSTANCES`              | `0`                      | `1` removes cold starts (~$10–15/month)                |
+| `MAX_INSTANCES`              | `10`                     | Bounds both a traffic spike and your bill              |
+| `LOG_LEVEL`                  | `info`                   | Runtime log verbosity                                  |
+| `FIRESTORE_DATABASE_ID`      | `<slug>-db`              | Override only for an existing database                 |
+| `GCS_BUCKET`                 | `<project>-<slug>-media` | Override only for an existing bucket                   |
+| `HEALTH_DEEP_CHECKS_ENABLED` | `false`                  | Enables `/api/health?deep=1`. Dashboards only          |
 
 Full runbook — first deploy, custom domains, gradual rollout, making the service private, cleanup: [`cloud/deployment.md`](./cloud/deployment.md).
 
@@ -278,13 +361,15 @@ Full runbook — first deploy, custom domains, gradual rollout, making the servi
 
 ## GitHub Actions
 
-| Workflow                                                     | Runs on        | Does                                                                                                                                   |
-| ------------------------------------------------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| [`pr-validation.yml`](./.github/workflows/pr-validation.yml) | Every PR       | Format check, lint, build, typecheck, test — **plus** builds the real Docker image and boots it to verify the health endpoint responds |
-| [`deploy.yml`](./.github/workflows/deploy.yml)               | Push to `main` | Build → push → deploy → probe the live URL. Fails if the deployed revision does not actually serve.                                    |
-| [`codeql.yml`](./.github/workflows/codeql.yml)               | PRs and weekly | Static security analysis into the Security tab                                                                                         |
+| Workflow                                                     | Runs on        | Does                                                                                                                                         |
+| ------------------------------------------------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`pr-validation.yml`](./.github/workflows/pr-validation.yml) | Every PR       | Format check, lint, build, typecheck, test — **plus** a Firestore emulator job, and a real Docker image booted to verify the health endpoint |
+| [`deploy.yml`](./.github/workflows/deploy.yml)               | Push to `main` | Firestore indexes and rules → build → push → deploy → probe the live URL. Fails if the deployed revision does not actually serve.            |
+| [`codeql.yml`](./.github/workflows/codeql.yml)               | PRs and weekly | Static security analysis into the Security tab                                                                                               |
 
-PR validation deliberately needs **no cloud credentials**, so pull requests from forks work.
+PR validation deliberately needs **no cloud credentials**, so pull requests from forks work. The emulator job installs the gcloud SDK to get the local Firestore emulator, but never authenticates — the emulator is a Java process that does not talk to Google.
+
+Indexes deploy **before** the application, on purpose: a revision that queries an index which does not exist yet fails at request time, while an index nothing queries yet costs nothing.
 
 The container smoke test in PR validation is the step most templates omit. It catches the failures a build cannot: wrong port, wrong bind address, missing static assets, non-root permission errors.
 

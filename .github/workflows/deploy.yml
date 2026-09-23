@@ -34,9 +34,12 @@ env:
   # retargeted without editing the workflow.
   # ---------------------------------------------------------------------------
   GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-  GCP_REGION: ${{ vars.GCP_REGION || 'asia-southeast1' }}
+  GCP_REGION: ${{ vars.GCP_REGION || 'asia-south1' }}
   ARTIFACT_REPOSITORY: ${{ vars.ARTIFACT_REPOSITORY || 'containers' }}
   SERVICE_NAME: ${{ vars.CLOUD_RUN_SERVICE || github.event.repository.name }}
+  # One slug names the service, the runtime identity, the database and the
+  # bucket. Defaults derive from it, so a new app usually sets only APP_SLUG.
+  APP_SLUG: ${{ vars.APP_SLUG || vars.CLOUD_RUN_SERVICE || github.event.repository.name }}
   NEXT_TELEMETRY_DISABLED: 1
 
 jobs:
@@ -113,6 +116,41 @@ jobs:
         # visible without opening GitHub.
         run: echo "deployed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve data layer names
+        id: data
+        # Same defaults as lib/env.ts and scripts/gcp-bootstrap.sh. Three places
+        # derive these names and they must agree, so each one states the rule
+        # rather than assuming another got there first.
+        #
+        # The overrides come in through `env:` rather than ${{ }} inside the
+        # script. Interpolation splices a value into the shell source before it
+        # runs, so a stray quote in a repository variable changes what executes.
+        # Reading them as environment variables keeps them as data. Same rule as
+        # the secrets above, applied for the same reason.
+        env:
+          DATABASE_ID_OVERRIDE: ${{ vars.FIRESTORE_DATABASE_ID }}
+          BUCKET_OVERRIDE: ${{ vars.GCS_BUCKET }}
+        run: |
+          set -euo pipefail
+          echo "database_id=${DATABASE_ID_OVERRIDE:-${APP_SLUG}-db}" >> "$GITHUB_OUTPUT"
+          echo "bucket=${BUCKET_OVERRIDE:-${GCP_PROJECT_ID}-${APP_SLUG}-media}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy Firestore rules and indexes
+        # BEFORE the application deploy, deliberately. A revision that queries
+        # on an index that does not exist yet fails at request time with
+        # FAILED_PRECONDITION; an index nothing queries yet costs nothing. The
+        # safe ordering is therefore always indexes first.
+        #
+        # The script is idempotent: an index that exists is skipped, and the
+        # rules are re-released from the file in the repository.
+        env:
+          DATABASE_ID: ${{ steps.data.outputs.database_id }}
+        run: |
+          set -euo pipefail
+          ./scripts/firestore-deploy.sh \
+            --project "${GCP_PROJECT_ID}" \
+            --database "${DATABASE_ID}"
+
       - name: Resolve image tags
         id: image
         # Two tags per build:
@@ -159,11 +197,19 @@ jobs:
           # Deploy the immutable SHA tag, never :latest. Deploying a moving tag
           # makes it impossible to tell what a revision is actually running.
           image: ${{ steps.image.outputs.sha_tag }}
+          # The runtime identity. Without it Cloud Run uses the default
+          # compute service account, which is Editor on the whole project —
+          # the opposite of the least-privilege account bootstrap created.
+          service_account: ${{ vars.RUNTIME_SERVICE_ACCOUNT || format('{0}-runtime@{1}.iam.gserviceaccount.com', env.APP_SLUG, env.GCP_PROJECT_ID) }}
           env_vars: |-
             NODE_ENV=production
             LOG_LEVEL=${{ vars.LOG_LEVEL || 'info' }}
+            APP_SLUG=${{ env.APP_SLUG }}
             GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
             GCP_REGION=${{ env.GCP_REGION }}
+            FIRESTORE_DATABASE_ID=${{ steps.data.outputs.database_id }}
+            GCS_BUCKET=${{ steps.data.outputs.bucket }}
+            HEALTH_DEEP_CHECKS_ENABLED=${{ vars.HEALTH_DEEP_CHECKS_ENABLED || 'false' }}
             DEPLOYED_AT=${{ steps.meta.outputs.deployed_at }}
           flags: >-
             --allow-unauthenticated
@@ -215,6 +261,8 @@ jobs:
             echo "| Region | \`${GCP_REGION}\` |"
             echo "| Project | \`${GCP_PROJECT_ID}\` |"
             echo "| Image | \`${{ steps.image.outputs.sha_tag }}\` |"
+            echo "| Database | \`${{ steps.data.outputs.database_id }}\` |"
+            echo "| Bucket | \`gs://${{ steps.data.outputs.bucket }}\` |"
             echo "| URL | ${{ steps.deploy.outputs.url }} |"
             echo "| Commit | \`${GITHUB_SHA}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
