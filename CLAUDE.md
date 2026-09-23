@@ -500,7 +500,28 @@ The database is **fine** — it exists, in the right region, in the right mode. 
 
 Hit it anyway? Re-run bootstrap. It is idempotent: it skips the database that already exists and finishes the steps that did not.
 
-### 19. `dumb-init` is PID 1
+### 19. The runtime service account goes in `flags`, not a `service_account` input
+
+`google-github-actions/deploy-cloudrun` has **no `service_account` input**. Pass one and the action does not fail — it prints
+
+```
+##[warning]Unexpected input(s) 'service_account', valid inputs are ['service', 'job', ...]
+```
+
+and deploys anyway. The run is green, the warning scrolls past, and the revision runs as the **default compute service account** — Editor on the whole project, the opposite of the least-privilege identity `gcp-bootstrap.sh` just created.
+
+This shipped once and reached a live service. The identity now goes through `flags` as `--service-account=`, where gcloud reads it.
+
+Check any service you are unsure about:
+
+```bash
+gcloud run services describe SERVICE --region REGION \
+  --format='value(spec.template.spec.serviceAccountName)'
+```
+
+An address ending `-compute@developer.gserviceaccount.com` is the default one.
+
+### 20. `dumb-init` is PID 1
 
 Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy. Verified: the container currently stops in ~1s.
 

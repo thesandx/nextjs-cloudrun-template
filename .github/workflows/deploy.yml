@@ -197,10 +197,6 @@ jobs:
           # Deploy the immutable SHA tag, never :latest. Deploying a moving tag
           # makes it impossible to tell what a revision is actually running.
           image: ${{ steps.image.outputs.sha_tag }}
-          # The runtime identity. Without it Cloud Run uses the default
-          # compute service account, which is Editor on the whole project —
-          # the opposite of the least-privilege account bootstrap created.
-          service_account: ${{ vars.RUNTIME_SERVICE_ACCOUNT || format('{0}-runtime@{1}.iam.gserviceaccount.com', env.APP_SLUG, env.GCP_PROJECT_ID) }}
           env_vars: |-
             NODE_ENV=production
             LOG_LEVEL=${{ vars.LOG_LEVEL || 'info' }}
@@ -211,7 +207,15 @@ jobs:
             GCS_BUCKET=${{ steps.data.outputs.bucket }}
             HEALTH_DEEP_CHECKS_ENABLED=${{ vars.HEALTH_DEEP_CHECKS_ENABLED || 'false' }}
             DEPLOYED_AT=${{ steps.meta.outputs.deployed_at }}
+          # The runtime identity goes through `flags`, NOT a `service_account`
+          # input. This action has no such input: it accepts one and warns
+          # `Unexpected input(s) 'service_account'`, then deploys anyway. The
+          # warning is easy to miss in a green run, and the revision silently
+          # runs as the default compute service account — Editor on the whole
+          # project, the opposite of the least-privilege account bootstrap
+          # created. Keep this in flags, where gcloud actually reads it.
           flags: >-
+            --service-account=${{ vars.RUNTIME_SERVICE_ACCOUNT || format('{0}-runtime@{1}.iam.gserviceaccount.com', env.APP_SLUG, env.GCP_PROJECT_ID) }}
             --allow-unauthenticated
             --port=8080
             --cpu=1

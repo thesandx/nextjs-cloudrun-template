@@ -320,6 +320,37 @@ Then `pnpm db:deploy --project P --database D`, or merge to `main` — the deplo
 
 Indexes build in the background. A large collection takes minutes, and the query keeps failing until the build finishes.
 
+### Firestore or Cloud Storage returns `PERMISSION_DENIED` on a green deploy
+
+The deploy succeeded, `/api/health` is fine, and every data call fails. Two causes, in order of likelihood.
+
+**1. The revision runs as the wrong identity.** Check which one:
+
+```bash
+gcloud run services describe SERVICE --region REGION \
+  --format='value(spec.template.spec.serviceAccountName)'
+```
+
+An address ending `-compute@developer.gserviceaccount.com` is the **default compute service account**, not the one bootstrap created. Repoint the service:
+
+```bash
+gcloud run services update SERVICE --region REGION \
+  --service-account=SERVICE-runtime@PROJECT.iam.gserviceaccount.com
+```
+
+That deploys a new revision. See trap 19 in CLAUDE.md for how a deploy can pick the wrong identity while staying green.
+
+**2. Bootstrap did not finish.** It grants the runtime account `roles/datastore.user` and `roles/storage.objectUser` at steps 10 and 11 of 14, so a run that stopped earlier leaves the identity correct but powerless. Re-run it — it is idempotent.
+
+```bash
+gcloud projects get-iam-policy PROJECT --format=json \
+  | jq '.bindings[] | select(.role=="roles/datastore.user")'
+gcloud storage buckets get-iam-policy gs://BUCKET \
+  --format=json | jq '.bindings[] | select(.role=="roles/storage.objectUser")'
+```
+
+> **A green deploy does not prove the data layer works.** The pipeline's success probe hits `/api/health`, which is deliberately dependency-free so a Firestore blip cannot kill healthy containers. The same property means it passes while every query fails. Verify data operations separately.
+
 ### `Permission 'iam.serviceAccounts.signBlob' denied`
 
 Signing a V4 URL with no key file works by asking IAM to sign, which needs the runtime service account to be able to impersonate **itself**:
