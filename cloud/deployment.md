@@ -423,6 +423,46 @@ It is not free. Budget roughly **US$18–25/month** for the forwarding rule befo
 
 A load balancer also **improves** latency independently of your region: TLS terminates at the Google edge nearest the user, and the rest of the trip runs over Google's private backbone rather than the public internet.
 
+### Moving a domain that is already live
+
+Different problem from setting one up. The domain already serves users, and DNS decides which backend answers.
+
+**You cannot run both at once.** A Cloud Run domain mapping on a subdomain is a `CNAME` to `ghs.googlehosted.com`. Firebase Hosting wants `A` records. DNS forbids a `CNAME` and an `A` record on the same hostname, so the switch is a single atomic edit, not a gradual shift.
+
+**There is a gap.** After DNS points at the new backend, its certificate is not issued yet. Minutes usually, hours sometimes. On an HSTS-preloaded TLD such as `.app` or `.dev`, that gap is a hard outage — browsers refuse HTTP outright, so there is no degraded fallback.
+
+Rehearse on a throwaway subdomain, so the only unknown left is propagation:
+
+**1. Lower the TTL, well ahead.** Caches hold the old record for its full TTL. Drop it to 300 the day before, or the cutover drags for hours.
+
+```bash
+dig +noall +answer hello.example.com     # shows the current record and TTL
+```
+
+**2. Prove the new path on a subdomain nobody uses.** Add `staging.example.com` in the Firebase console, point it at Firebase, and confirm it serves. Nothing about the live domain changes.
+
+```bash
+curl -sI https://staging.example.com
+```
+
+**3. Verify ownership of the real domain early.** Firebase may ask for a `TXT` record. `TXT` coexists with the live `CNAME`, so add it now and let verification finish before the cutover.
+
+**4. Cut over.** Delete the `CNAME`, add the `A` records Firebase gives you. One edit, at a quiet hour.
+
+**5. Watch the certificate.**
+
+```bash
+until curl -sfI "https://hello.example.com" >/dev/null 2>&1; do sleep 30; done; echo "live"
+```
+
+**6. Only now delete the old mapping.** Leaving it is harmless — DNS already decided — so there is no reason to remove it before the new path is proven.
+
+```bash
+gcloud beta run domain-mappings delete --domain hello.example.com --region asia-southeast1
+```
+
+Deleting the mapping first does not speed anything up. It only removes your way back.
+
 ### 3. Domain mapping — only where it is supported
 
 ```bash
