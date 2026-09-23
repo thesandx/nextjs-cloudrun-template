@@ -271,14 +271,26 @@ gcloud run domain-mappings list --region "$REGION"   # errors if unsupported
 
 Three options, in the order most projects should consider them.
 
-### 1. Firebase Hosting — free, works in every region
+### 1. Firebase Hosting — free, and covers `asia-south1`
 
-The cheapest path to a custom domain with a managed certificate. Firebase Hosting sits in front of Cloud Run and is not tied to your service's region.
+The cheapest path to a custom domain with a managed certificate, and it includes a CDN. Firebase Hosting rewrites to Cloud Run cover most regions, `asia-south1` and `asia-southeast1` among them — but the list is not every region, so check yours against [Serve dynamic content with Cloud Run](https://firebase.google.com/docs/hosting/cloud-run) before planning around it.
+
+```json
+{
+  "hosting": {
+    "public": "public",
+    "rewrites": [{ "source": "**", "run": { "serviceId": "my-app", "region": "asia-south1" } }]
+  }
+}
+```
 
 ```bash
-firebase init hosting          # rewrite all paths to the Cloud Run service
 firebase deploy --only hosting
 ```
+
+Then add the domain in the Firebase console and copy the records it prints into your registrar's DNS.
+
+Next.js sets `Cache-Control: public, max-age=31536000, immutable` on `/_next/static/**`, so those assets cache at the edge. Dynamic pages and route handlers return `no-store` and reach Cloud Run on every request — a CDN cannot change that, whichever one you use.
 
 Good for a single service. It adds a hop, and it is another product to reason about.
 
