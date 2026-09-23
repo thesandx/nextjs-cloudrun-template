@@ -116,6 +116,8 @@ Then `pnpm install && pnpm dev`, and open <http://localhost:3000/example> — a 
 
 > **A Firestore database's location is permanent,** and so is a bucket's. Neither can be moved. Pick the region before step 3.
 
+> **`asia-south1` does not support Cloud Run domain mappings.** Nothing else in this template is affected, and the alternatives are better anyway — Firebase Hosting (free) or a Global External Application Load Balancer. See [`cloud/deployment.md`](./cloud/deployment.md#custom-domain).
+
 The rest of this section explains each step.
 
 ---

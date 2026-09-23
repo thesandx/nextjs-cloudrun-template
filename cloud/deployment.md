@@ -263,6 +263,44 @@ Watch error rates in Cloud Monitoring, then move to 100%.
 
 ## Custom domain
 
+**Check your region first.** Cloud Run domain mappings work in only a handful of regions, and `asia-south1` — this template's default — is **not** one of them. Google has said it has no plan to add it. Run this before you plan around it:
+
+```bash
+gcloud run domain-mappings list --region "$REGION"   # errors if unsupported
+```
+
+Three options, in the order most projects should consider them.
+
+### 1. Firebase Hosting — free, works in every region
+
+The cheapest path to a custom domain with a managed certificate. Firebase Hosting sits in front of Cloud Run and is not tied to your service's region.
+
+```bash
+firebase init hosting          # rewrite all paths to the Cloud Run service
+firebase deploy --only hosting
+```
+
+Good for a single service. It adds a hop, and it is another product to reason about.
+
+### 2. Global External Application Load Balancer — the production answer
+
+Works in every region, and it is what you would end up with anyway once you want Cloud CDN, Cloud Armor, a WAF, or several backends behind one domain. A serverless NEG points the load balancer at the Cloud Run service.
+
+```bash
+gcloud compute network-endpoint-groups create "$SERVICE-neg" \
+  --region "$REGION" \
+  --network-endpoint-type=serverless \
+  --cloud-run-service="$SERVICE"
+```
+
+Then a backend service, a URL map, a managed certificate and a global forwarding rule. Full walkthrough: [Serverless network endpoint groups](https://cloud.google.com/load-balancing/docs/negs/serverless-neg-concepts).
+
+It is not free. Budget roughly **US$18–25/month** for the forwarding rule before traffic — confirm against the [pricing calculator](https://cloud.google.com/products/calculator), because this is the one line item that turns a scale-to-zero service into a fixed monthly bill.
+
+A load balancer also **improves** latency independently of your region: TLS terminates at the Google edge nearest the user, and the rest of the trip runs over Google's private backbone rather than the public internet.
+
+### 3. Domain mapping — only where it is supported
+
 ```bash
 gcloud beta run domain-mappings create \
   --service "$SERVICE" \
@@ -270,9 +308,13 @@ gcloud beta run domain-mappings create \
   --region "$REGION"
 ```
 
-Add the DNS records it prints. The managed certificate takes up to ~15 minutes to provision. Afterwards, update `APP_URL` and redeploy so canonical URLs and metadata use the real domain.
+Add the DNS records it prints. The managed certificate takes up to ~15 minutes to provision.
 
-For anything more involved — CDN, WAF, multi-region — put a Cloud Load Balancer in front of Cloud Run instead of using domain mappings.
+Simplest and free, but regionally limited, and it gives you no CDN, no WAF and no path-based routing.
+
+---
+
+Whichever you pick, afterwards update the `APP_URL` repository variable and redeploy, so canonical URLs and metadata use the real domain. `NEXT_PUBLIC_APP_URL` is inlined at build time — a Cloud Run env var change alone does nothing.
 
 ---
 
