@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/Input';
 import { Progress } from '@/components/ui/Progress';
 import { RadioGroup } from '@/components/ui/RadioGroup';
 import { Select } from '@/components/ui/Select';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Speech } from '@/components/ui/Speech';
 import { Spinner } from '@/components/ui/Spinner';
 import { Sticker } from '@/components/ui/Sticker';
@@ -203,6 +204,16 @@ export default function DesignPage() {
         <Alert title="The host paused the game." />
         <Progress label="Round" value={3} max={5} valueText="3 of 5" />
         <Spinner label="Loading rounds" />
+        <div className="flex items-center gap-3" aria-hidden="true">
+          <Skeleton shape="circle" className="size-11" />
+          <div className="flex flex-1 flex-col gap-2">
+            <Skeleton className="w-3/5" />
+            <Skeleton className="w-2/5" />
+          </div>
+        </div>
+        <p className="text-small text-ink-soft">
+          A skeleton holds the shape of content on its way, so the screen appears at once.
+        </p>
       </section>
 
       <section className="flex flex-col gap-5">

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 
 import { APP_TABS, isTabActive, type TabIcon, TABLESS_PATHS } from '@/lib/navigation';
 import { cn } from '@/lib/utils';
@@ -33,13 +34,30 @@ export interface TabBarProps {
  * It floats above the page, as the nav bar does in a native app, and hides on
  * focused screens such as sign-in. Destinations live in `lib/navigation.ts`.
  *
- * A client component for one reason: it reads the current path to mark the
- * active tab. The active tab lifts onto a base and has `aria-current`, so the
- * state never rests on colour alone.
+ * The active tab sits on a raised pill that springs across to the tab the user
+ * pressed. It moves on the press itself, not when the next page arrives, so the
+ * bar answers at once even on a slow network. The pill, the lift and
+ * `aria-current` mark the tab together, so the state never rests on colour alone.
+ *
+ * A client component: it reads the current path and remembers the pressed tab.
  */
 export function TabBar({ className }: TabBarProps) {
   const pathname = usePathname();
+  const [pressed, setPressed] = useState<string | null>(null);
+  const [lastPath, setLastPath] = useState(pathname);
+
+  // The new page has arrived, so the path is the truth again. Updating state
+  // during render is React's pattern for resetting on a prop change.
+  if (lastPath !== pathname) {
+    setLastPath(pathname);
+    setPressed(null);
+  }
+
   if (TABLESS_PATHS.includes(pathname)) return null;
+
+  const activeIndex = APP_TABS.findIndex((tab) =>
+    pressed !== null ? tab.href === pressed : isTabActive(tab.href, pathname),
+  );
 
   return (
     <nav
@@ -49,26 +67,42 @@ export function TabBar({ className }: TabBarProps) {
         className,
       )}
     >
-      <ul className="bg-surface border-line shadow-mochi rounded-pill flex gap-1 border-2 p-1.5">
-        {APP_TABS.map((tab) => {
-          const active = isTabActive(tab.href, pathname);
+      <ul className="bg-surface border-line shadow-mochi rounded-pill relative flex border-2 p-1.5">
+        <span
+          aria-hidden="true"
+          className={cn(
+            'bg-brand border-line shadow-mochi-sm rounded-pill absolute top-1.5 bottom-1.5 left-1.5 border-2',
+            'ease-spring transition-[transform,opacity] duration-300',
+            activeIndex === -1 && 'opacity-0',
+          )}
+          style={{
+            // 0.75rem is the ul's padding on both sides, p-1.5 twice.
+            width: `calc((100% - 0.75rem) / ${APP_TABS.length})`,
+            transform: `translateX(${Math.max(activeIndex, 0) * 100}%)`,
+          }}
+        />
+        {APP_TABS.map((tab, index) => {
+          const active = index === activeIndex;
           return (
-            <li key={tab.href} className="flex-1">
+            <li key={tab.href} className="relative flex-1">
               <Link
                 href={tab.href}
-                aria-current={active ? 'page' : undefined}
+                aria-current={isTabActive(tab.href, pathname) ? 'page' : undefined}
+                onClick={(event) => {
+                  // A modified click opens a new browser tab; this page stays put.
+                  const newTab = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+                  if (!newTab && event.button === 0) setPressed(tab.href);
+                }}
                 className={cn(
-                  'rounded-pill flex min-h-13 flex-col items-center justify-center gap-0.5 border-2 px-2',
-                  'text-small ease-squish font-medium transition-[transform,box-shadow] duration-150',
-                  active
-                    ? 'bg-brand border-line shadow-mochi-sm text-ink -translate-y-px'
-                    : 'text-ink-soft hover:text-ink border-transparent',
+                  'press rounded-pill flex min-h-13 flex-col items-center justify-center gap-0.5 px-2',
+                  'text-small font-medium transition-colors duration-200',
+                  active ? 'text-ink' : 'text-ink-soft hover:text-ink',
                 )}
               >
                 <svg
                   viewBox="0 0 24 24"
                   aria-hidden="true"
-                  className="stroke-current size-5"
+                  className={cn('stroke-current size-5', active && 'animate-check')}
                   fill="none"
                   strokeWidth="2.2"
                   strokeLinecap="round"

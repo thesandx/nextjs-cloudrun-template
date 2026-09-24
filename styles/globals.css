@@ -80,10 +80,81 @@
   /* Motion */
   --ease-squish: cubic-bezier(0.34, 1.56, 0.64, 1); /* overshoots — for things that pop */
   --ease-settle: cubic-bezier(0.22, 1, 0.36, 1); /* no overshoot — for things that move */
+  --ease-spring: cubic-bezier(
+    0.32,
+    1.28,
+    0.6,
+    1
+  ); /* a soft overshoot — for things that slide into place */
 
+  /*
+   * Every animation below moves only `transform` and `opacity`, which the
+   * browser composites on the GPU without layout or paint. Each one is CSS, so
+   * motion adds no JavaScript to any page. Reduced motion stops them all — see
+   * the base layer. Where an animation plays on first paint, it starts from a
+   * visible state (opacity above 0), so it never delays Largest Contentful Paint.
+   *
+   * `backwards`, not `both`, on anything that wraps content: a filled
+   * `transform` would stay on the element after the animation and turn it into
+   * a containing block for every `position: fixed` child.
+   */
   --animate-pop: pop 420ms var(--ease-squish) both;
   --animate-wobble: wobble 520ms var(--ease-settle) both;
   --animate-blink: blink 6s steps(1, end) infinite;
+  --animate-page-enter: page-enter 320ms var(--ease-settle) backwards;
+  --animate-rise-in: rise-in 260ms var(--ease-settle) backwards;
+  --animate-fade-in: fade-in 200ms var(--ease-settle) backwards;
+  --animate-slide-in-next: slide-in-next 320ms var(--ease-settle) backwards;
+  --animate-slide-in-back: slide-in-back 320ms var(--ease-settle) backwards;
+  --animate-check: check 320ms var(--ease-squish) backwards;
+  --animate-breathe: breathe 1.4s ease-in-out infinite;
+
+  @keyframes page-enter {
+    from {
+      opacity: 0.4;
+      transform: translateY(10px);
+    }
+  }
+
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes slide-in-next {
+    from {
+      opacity: 0;
+      transform: translateX(28px);
+    }
+  }
+
+  @keyframes slide-in-back {
+    from {
+      opacity: 0;
+      transform: translateX(-28px);
+    }
+  }
+
+  @keyframes check {
+    from {
+      opacity: 0;
+      transform: scale(0.3);
+    }
+  }
+
+  @keyframes breathe {
+    50% {
+      opacity: 0.55;
+    }
+  }
 
   @keyframes pop {
     0% {
@@ -227,5 +298,71 @@
   &[aria-disabled='true'] {
     transform: none;
     box-shadow: none;
+  }
+}
+
+/* The sheet: a modal <dialog> that rises in and sinks out. `@starting-style`
+   gives the entry its first frame; `allow-discrete` keeps the dialog in the
+   top layer until the exit finishes. A browser without either simply shows
+   and hides it at once — the dialog still works. Used by Dialog only. */
+@utility sheet-motion {
+  opacity: 0;
+  transform: translateY(32px);
+  transition:
+    opacity 220ms var(--ease-settle),
+    transform 320ms var(--ease-spring),
+    overlay 320ms allow-discrete,
+    display 320ms allow-discrete;
+
+  &[open] {
+    opacity: 1;
+    transform: none;
+  }
+
+  @starting-style {
+    &[open] {
+      opacity: 0;
+      transform: translateY(32px);
+    }
+  }
+
+  &::backdrop {
+    opacity: 0;
+    transition:
+      opacity 220ms var(--ease-settle),
+      overlay 320ms allow-discrete,
+      display 320ms allow-discrete;
+  }
+
+  &[open]::backdrop {
+    opacity: 1;
+  }
+
+  @starting-style {
+    &[open]::backdrop {
+      opacity: 0;
+    }
+  }
+
+  @media (width >= 40rem) {
+    transform: translateY(12px) scale(0.97);
+
+    @starting-style {
+      &[open] {
+        transform: translateY(12px) scale(0.97);
+      }
+    }
+  }
+}
+
+/* Press feedback for a pressable thing with no base to sink onto — a tab, an
+   icon. It dips slightly under the finger and springs back on release. Never
+   combine it with `squish`, which already answers the press. */
+@utility press {
+  transition: transform 180ms var(--ease-spring);
+
+  &:active {
+    transform: scale(0.94);
+    transition-duration: 80ms;
   }
 }

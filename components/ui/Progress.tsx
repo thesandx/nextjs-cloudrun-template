@@ -41,9 +41,10 @@ export function Progress({ label, value, max = 100, valueText, className }: Prog
         aria-valuetext={text}
         className="bg-sunken border-line rounded-pill h-4 overflow-hidden border-2"
       >
+        {/* scaleX, not width: a transform animates on the compositor, a width re-lays out the page. */}
         <div
-          className="bg-brand ease-settle h-full transition-[width] duration-300"
-          style={{ width: `${percent}%` }}
+          className="bg-brand ease-spring h-full w-full origin-left transition-transform duration-500"
+          style={{ transform: `scaleX(${percent / 100})` }}
         />
       </div>
     </div>

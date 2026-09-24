@@ -89,4 +89,16 @@ describe('SignInPanel', () => {
     }
     expect(screen.getByRole('button', { name: 'Resend OTP' })).toBeInTheDocument();
   });
+
+  it('paints the first step in place, then slides forward and back', async () => {
+    const { container } = render(<SignInPanel />);
+    const step = () => container.querySelector('main > div') as HTMLElement;
+    expect(step().className).not.toMatch(/animate-slide/);
+
+    await reachOtpStep();
+    expect(step()).toHaveClass('animate-slide-in-next');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change number' }));
+    expect(step()).toHaveClass('animate-slide-in-back');
+  });
 });

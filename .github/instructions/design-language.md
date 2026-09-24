@@ -30,7 +30,7 @@ Three words to test every decision against: **squishy, honest, playful.**
 8. **Two typefaces, fixed roles.** Headings and big numbers use `font-display` (Mochiy Pop One, weight 400 only). Everything else uses `font-sans` (Zen Maru Gothic, 400/500/700). No third font. No fake bold on the display face.
 9. **Colour has a job.** `brand` means "do this". Candy tones (`butter`, `soda`, `grape`, `peach`) mean identity — this game, this player, this category. Never pick a candy tone "because it looks nice here".
 10. **Faces are the signature — use them on purpose.** A face appears on avatars, the mascot, empty states, errors and wins. Never on buttons, form fields, navigation, or body text.
-11. **Motion answers the user.** Press, join, win, error. The only ambient motion is the mascot's blink. No scroll-triggered fade-ins, no looping decoration.
+11. **Motion answers the user.** Press, navigate, open, select, join, win, error. The only ambient motion is the mascot's blink and a loading skeleton. No scroll-triggered fade-ins, no looping decoration. See [Motion](#motion).
 12. **Mobile first, 320px up.** Tap targets ≥ 44px (buttons are 48px or 56px). No horizontal scroll. Left-aligned text.
 
 ---
@@ -88,9 +88,12 @@ Text on a coloured fill is always `text-ink`. Never white text on `brand` or a c
 | `squish` (utility) | hover lifts, press sinks | Anything pressable. Buttons have it.     |
 | `ease-squish`      | overshoot curve          | Things that pop in or get pressed        |
 | `ease-settle`      | no overshoot             | Things that move from A to B             |
+| `ease-spring`      | soft overshoot           | A selection that slides into place       |
 | `animate-pop`      | 420ms scale-in           | A win, a new player joining              |
 | `animate-wobble`   | 520ms                    | A wrong answer, an invalid key           |
 | `animate-blink`    | every 6s                 | The mascot's eyes. Only the mascot.      |
+
+The full motion set is in [Motion](#motion).
 
 Not every card needs a shadow. A shadow says "this is an object you can press or pick up". Static information inside a card sits flat.
 
@@ -117,6 +120,7 @@ Each primitive lives in `components/ui/`, has a colocated test, and renders on `
 | `Progress`   | How far through something the user is. It shows the value in words. |
 | `Spinner`    | Work that the user asked for and that is not complete yet.          |
 | `EmptyState` | A space with no content yet. A sleepy face, one line, one action.   |
+| `Skeleton`   | The shape of content that is loading. Use it as a loading fallback. |
 | `Tabs`       | Two to five views of the same thing. A client component.            |
 | `Dialog`     | A decision that must interrupt. A bottom sheet on a phone.          |
 | `Avatar`     | A player. The name sets the colour and the mood.                    |
@@ -138,6 +142,43 @@ Each primitive lives in `components/ui/`, has a colocated test, and renders on `
 **Behave like an app.** A user must never need the browser's back button. A screen below a tab has an `AppBar` with a back arrow. A focused task, such as sign-in, hides the `TabBar` (see `TABLESS_PATHS` in `lib/navigation.ts`). A step inside one screen, such as the OTP step, uses the back arrow to return to the step before it.
 
 Status is never colour alone. `Alert` draws a glyph, `Checkbox` draws a tick, `RadioGroup` draws a dot, `Switch` moves its knob, and `Tabs` lifts the selected tab onto a base.
+
+---
+
+## Motion
+
+Motion makes the app feel physical: a screen settles into place, a selection slides to where you tapped, a sheet rises from the bottom. Each movement answers something the user did. None of it costs load time.
+
+### The rules
+
+1. **CSS only.** No animation library, and no JavaScript that runs per frame. Motion adds no script to a page.
+2. **Animate `transform` and `opacity` only.** The browser moves them on the GPU, without layout or paint. To animate a size, use `scaleX` or `scaleY`, as `Progress` does. Never animate `width`, `height`, `top` or `margin`.
+3. **Never hide the first paint.** An animation that plays on page load starts from a visible state (`opacity` above 0). An element at `opacity: 0` does not count for Largest Contentful Paint, so it delays the metric until it appears.
+4. **Use `backwards` fill on anything that wraps content.** A `transform` that stays after the animation turns the element into a containing block, and every `position: fixed` child inside it breaks.
+5. **Short.** 200ms to 320ms for most motion. Up to 520ms for a win or an error.
+6. **Reduced motion stops everything.** The base layer in `styles/globals.css` cuts every animation and transition to near zero. Do not override it.
+7. **Answer at the press, not at the response.** A control moves when the user taps it, even when the result needs the network. `TabBar` slides its pill on the tap, before the next page arrives.
+8. **Keep motion free, and keep the page light.** Motion adds no JavaScript. A large library still costs load time, so load it with `import()` when an action needs it. See `coding-standards.md` > React for the rules and the examples.
+
+### The motion set
+
+| Utility                                           | Where it plays                                                        |
+| ------------------------------------------------- | --------------------------------------------------------------------- |
+| `animate-page-enter`                              | Every navigation. `app/template.tsx` wraps each page in it.           |
+| `animate-slide-in-next` / `animate-slide-in-back` | A step change inside one screen, such as the sign-in steps.           |
+| `animate-rise-in`                                 | Something that appears because of an action: `Alert`, a field error.  |
+| `animate-fade-in`                                 | A panel that replaces another: the `Tabs` panel.                      |
+| `animate-check`                                   | A tick, a radio dot or a tab icon that turns on.                      |
+| `animate-wobble`                                  | A field that has an error. It plays once, when the error appears.     |
+| `animate-pop`                                     | A win, a new player joining.                                          |
+| `animate-breathe`                                 | A `Skeleton` while content loads.                                     |
+| `sheet-motion`                                    | `Dialog`: rises in, sinks out, and the backdrop fades.                |
+| `press`                                           | A pressable thing with no base: a tab. Never together with `squish`.  |
+| A sliding pill                                    | The selection in `Tabs` and `TabBar`. `transform` with `ease-spring`. |
+
+### Loading
+
+A dynamic page that reads data shows a loading state at once on navigation, so a tap never waits on the server with no answer. Use `Skeleton` in the shape of the page. `coding-standards.md` says when to use `loading.tsx` and when to use an inner `<Suspense>`. The fallback in `app/profile/page.tsx` is the example.
 
 ---
 
