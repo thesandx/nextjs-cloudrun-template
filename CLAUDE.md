@@ -183,6 +183,7 @@ The lint cannot see everything. Pass the timeout at the `fetch` call site, or th
 | A Firestore collection + its schema   | `services/<name>.service.ts` |
 | Client-side SDK interaction           | `hooks/use<Thing>.ts`        |
 | A composite index or field exemption  | `firestore.indexes.json`     |
+| A Firebase Hosting rewrite or header  | `firebase.json`              |
 | A Firestore security rule             | `firestore.rules`            |
 | A type used in 2+ places              | `types/`                     |
 | A type used once                      | Next to its consumer         |

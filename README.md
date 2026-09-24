@@ -127,7 +127,7 @@ git push origin main
 gcloud run services describe my-app --region asia-south1 --format='value(status.url)'
 
 # 6. Put your own domain in front — free, and it brings a CDN
-npx firebase-tools deploy --only hosting    # needs a firebase.json; see the walkthrough
+npx firebase-tools deploy --only hosting --project my-gcp-project
 gh variable set APP_URL --body "https://app.example.com"
 gh workflow run deploy.yml                  # rebuild, so the real URL is inlined
 ```
@@ -261,22 +261,13 @@ Check `status` is `ok` and `version` matches the commit you pushed. Open `$URL/e
 
 Cloud Run domain mapping works in only a few regions, and `asia-south1` is not one of them. Firebase Hosting is free, covers every region this template targets, and adds a CDN.
 
-Create `firebase.json`:
-
-```json
-{
-  "hosting": {
-    "public": "public",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "**", "run": { "serviceId": "my-app", "region": "asia-south1" } }]
-  }
-}
-```
+`firebase.json` ships with the template, and `scripts/rename-project.sh` sets
+its `serviceId` along with everything else. **Check `region` matches where the
+service runs** — a rewrite to the wrong region returns a bare 404.
 
 ```bash
 npx firebase-tools login
-npx firebase-tools use my-gcp-project
-npx firebase-tools deploy --only hosting
+npx firebase-tools deploy --only hosting --project my-gcp-project
 ```
 
 Then **Firebase console → Hosting → Add custom domain**. It prints a `TXT` record to prove ownership and `A` records to point at Firebase. Add both wherever your DNS lives — Hostinger, Namecheap, Cloudflare. The domain registration stays where it is; you change records, not ownership.

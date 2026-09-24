@@ -397,21 +397,37 @@ Three options, in the order most projects should consider them.
 
 The cheapest path to a custom domain with a managed certificate, and it includes a CDN. Firebase Hosting rewrites to Cloud Run cover most regions, `asia-south1` and `asia-southeast1` among them — but the list is not every region, so check yours against [Serve dynamic content with Cloud Run](https://firebase.google.com/docs/hosting/cloud-run) before planning around it.
 
+`firebase.json` is tracked in the repository:
+
 ```json
 {
   "hosting": {
     "public": "public",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [{ "source": "**", "run": { "serviceId": "my-app", "region": "asia-south1" } }]
   }
 }
 ```
 
-`serviceId` is the Cloud Run service name. `region` must be the region it runs in — a rewrite to the wrong region returns 404, not an error you can read.
+`scripts/rename-project.sh` rewrites `serviceId` with every other occurrence of
+the template's name, so a renamed project needs no edit here. **Two cases still
+need one, and neither fails loudly:**
+
+- **The Cloud Run service name differs from the repository name.** The rename
+  script matches the repository's name, so a service deployed under another
+  slug is not covered.
+- **The service does not run in `asia-south1`.**
+
+A rewrite naming a service or region that does not exist returns a bare **404**,
+not a readable error. Check both values before the first deploy.
+
+`.firebaserc` and `.firebase/` are deliberately NOT tracked: the first names
+your GCP project, the second is the CLI's local cache. Pass `--project`
+instead of committing either.
 
 ```bash
 npx firebase-tools login
-npx firebase-tools use my-gcp-project
-npx firebase-tools deploy --only hosting
+npx firebase-tools deploy --only hosting --project my-gcp-project
 ```
 
 That publishes to `my-gcp-project.web.app`. Check it works there first:
