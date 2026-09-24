@@ -94,6 +94,20 @@ page.nextCursor; // string | null — null means this was the last page
 
 `limit` is required and there is no offset. Firestore charges for every skipped document, so offset pagination gets more expensive the deeper you go. The cursor is opaque: treat it as a token, not as an id.
 
+### Changing a schema on a live collection
+
+The repository validates on **read**, so a schema is a contract with data that
+already exists. Adding a **required** field breaks that contract: every
+document written before it fails to parse, and `list` throws for the whole
+page rather than skipping the row.
+
+Go through optional first — add it optional, backfill, then tighten. The full
+sequence, with the backfill loop, is in
+[CLAUDE.md > Add a field to an existing collection](../CLAUDE.md#add-a-field-to-an-existing-collection).
+
+Removing a field needs none of that. zod strips undeclared keys, so a read
+still succeeds; the data simply stays in Firestore until something deletes it.
+
 ### Supplying your own id
 
 `create` takes no id, and that is the rule: auto ids are random, so writes spread across the key range from the first document. A monotonic id (`user-1`, `2026-09-22-abc`) sends every write to one end of that range, and Firestore scales a collection by **splitting** that range. A range whose writes all land at one end cannot usefully split.
@@ -281,15 +295,15 @@ Opening rules up for a client SDK moves authorisation out of your route handlers
 
 ## What to do when something fails
 
-| Symptom                                            | Cause                                                            |
-| -------------------------------------------------- | ---------------------------------------------------------------- |
-| `FAILED_PRECONDITION: The query requires an index` | Add it to `firestore.indexes.json` and deploy                    |
-| `Permission 'iam.serviceAccounts.signBlob' denied` | Missing `roles/iam.serviceAccountTokenCreator` on itself         |
-| `5 NOT_FOUND` on the first query                   | `FIRESTORE_DATABASE_ID` names a database that does not exist     |
-| `403` from a signed URL PUT                        | The client did not send the returned headers exactly             |
-| `UnboundedQueryError`                              | A `limit` over 200, or a cursor that no longer resolves          |
-| `InvalidDocumentIdError`                           | `createWithId` was given a hotspot-prone id                      |
-| `DocumentAlreadyExistsError`                       | `createWithId` raced another write for the same id               |
-| `DocumentValidationError` on read                  | Stored data no longer matches the schema — a real bug, not noise |
+| Symptom                                            | Cause                                                                                        |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `FAILED_PRECONDITION: The query requires an index` | Add it to `firestore.indexes.json` and deploy                                                |
+| `Permission 'iam.serviceAccounts.signBlob' denied` | Missing `roles/iam.serviceAccountTokenCreator` on itself                                     |
+| `5 NOT_FOUND` on the first query                   | `FIRESTORE_DATABASE_ID` names a database that does not exist                                 |
+| `403` from a signed URL PUT                        | The client did not send the returned headers exactly                                         |
+| `UnboundedQueryError`                              | A `limit` over 200, or a cursor that no longer resolves                                      |
+| `InvalidDocumentIdError`                           | `createWithId` was given a hotspot-prone id                                                  |
+| `DocumentAlreadyExistsError`                       | `createWithId` raced another write for the same id                                           |
+| `DocumentValidationError` on read                  | Stored data no longer matches the schema — usually a required field added without a backfill |
 
 The full table, with fixes, is in [troubleshooting.md](./troubleshooting.md).

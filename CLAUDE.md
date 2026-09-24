@@ -708,6 +708,52 @@ Read [Firestore data modeling](#firestore-data-modeling) first. Then, in one pul
 5. In the UI, render a sign-in prompt instead of the form — for honesty, not safety
 6. Add the route to the table in [`docs/auth.md`](./docs/auth.md) if it behaves unusually
 
+### Add a field to an existing collection
+
+**A required field is a migration, not an edit.** The repository validates on
+read, so the moment a schema requires a field, every document written before it
+becomes unreadable — and `list` throws on the whole page, not just that row.
+A page that rendered yesterday shows an error boundary today.
+
+This shipped once: `ownerId` was added to `examples` as required, and the one
+pre-existing row took the whole `/example` page down.
+
+Three deploys, in this order:
+
+1. **Add it optional.** `ownerId: z.string().min(1).optional()`. Reads keep
+   working, and new writes carry the field.
+2. **Backfill.** A script in `scripts/`, paging with a cursor. This step is
+   only possible while the field is optional — a required field makes the very
+   `list` the backfill depends on throw.
+3. **Tighten.** Remove `.optional()`. The type is now honest, and every
+   document satisfies it.
+
+```ts
+// Step 2. `includeDeleted` matters: a soft-deleted row still needs the field,
+// or restoring it later throws.
+let cursor: string | undefined;
+do {
+  const page = await examples.list({ limit: 200, cursor, includeDeleted: true });
+  await examples.batchWrite((repo) => {
+    for (const row of page.items) {
+      if (row.ownerId === undefined) repo.update(row.id, { ownerId: LEGACY_OWNER });
+    }
+  });
+  cursor = page.nextCursor ?? undefined;
+} while (cursor !== undefined);
+```
+
+**Removing a field is not symmetrical, and needs none of this.** zod strips
+keys the schema does not declare, so dropping one from the schema is safe on
+read. The data stays in Firestore until something deletes it.
+
+**Shortcut, and say so in the PR:** a collection with no data worth keeping —
+a fresh `examples`, a dev database — can skip all three. Delete the documents
+and ship the required field directly.
+
+A field you cannot backfill stays `.optional()` permanently. That is not
+untidiness; it is the schema telling the truth about the data.
+
 ### Add a file upload
 
 1. Decide the allow-list of content types and the size ceiling. Never accept `image/svg+xml` — it executes script when served inline

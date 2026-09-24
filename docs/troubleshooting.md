@@ -493,6 +493,18 @@ Stored data no longer matches the collection's zod schema. This is a real bug su
 
 The message names the document and the failing field. Decide deliberately: migrate the data, or widen the schema (a new field should usually be `.optional()` until every document has it).
 
+**The common cause is a required field added to a collection that already had rows.** The symptom is a whole page failing rather than one row, because `list` parses every document in the page and throws on the first failure. A page that rendered yesterday shows an error boundary today, and nothing in the deploy looks wrong.
+
+Fix it in one of two ways:
+
+- **The data matters** — follow [CLAUDE.md > Add a field to an existing collection](../CLAUDE.md#add-a-field-to-an-existing-collection): optional, backfill, tighten. Note that the backfill is only possible while the field is optional, because a required field makes the `list` it depends on throw.
+- **The data does not matter** — a demo row, a dev database — delete it and keep the required field:
+
+```bash
+gcloud firestore bulk-delete --collection-ids=COLLECTION \
+  --database=DATABASE --project=PROJECT
+```
+
 ### `UnboundedQueryError`
 
 `limit` is missing, not a positive integer, over `MAX_PAGE_SIZE` (200), or a cursor no longer resolves to a document. Paginate with `nextCursor` rather than asking for a bigger page. A cursor pointing at a hard-deleted document is gone — restart from the first page.
