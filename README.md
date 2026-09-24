@@ -85,6 +85,95 @@ Deeper detail — request path, scaling behaviour, security boundaries, evolutio
 
 ---
 
+## Launch checklist
+
+Clone to a live custom domain, in order. **Tick as you go** — each phase depends on the one before it, and the notes mark the steps that cost money or are hard to undo.
+
+Copy this into an issue if you want to track it.
+
+### 1 · Local — about 15 minutes
+
+- [ ] Use this template, or clone it
+- [ ] Node 22 (`nvm use`) and pnpm (`corepack enable`)
+- [ ] `pnpm install`
+- [ ] `pnpm build` — **run this before `pnpm typecheck`.** It generates types that `tsc` needs, and on a fresh clone they do not exist yet ([trap 1](./CLAUDE.md#1-ci-runs-build-before-typecheck))
+- [ ] `pnpm validate` green
+- [ ] `pnpm dev` and open `localhost:3000`
+- [ ] `./scripts/rename-project.sh my-app` — renames everything, including `firebase.json`
+
+### 2 · Google Cloud — about 20 minutes
+
+- [ ] `gcloud auth login`, and pick or create a project with **billing enabled**
+- [ ] **Choose your region now.** Firestore and the bucket cannot be moved later. Pick the one closest to your users
+- [ ] Run `./scripts/gcp-bootstrap.sh` with `--project`, `--region`, `--repo`, `--service`
+- [ ] **Do this before your first merge to `main`.** The deploy publishes Firestore indexes before it builds, so a missing database fails the whole pipeline
+- [ ] Set a **billing budget alert**. It is the cheapest insurance you will ever buy
+
+### 3 · GitHub — about 5 minutes
+
+Bootstrap prints all of these. Copy them from its output.
+
+- [ ] `gh secret set WIF_PROVIDER`
+- [ ] `gh secret set WIF_SERVICE_ACCOUNT`
+- [ ] `gh variable set GCP_PROJECT_ID`
+- [ ] `gh variable set GCP_REGION`
+- [ ] `gh variable set APP_SLUG`
+- [ ] `gh variable set CLOUD_RUN_SERVICE`
+- [ ] `gh variable set RUNTIME_SERVICE_ACCOUNT` — **do not skip.** Without it the revision runs as the default compute account, which is Editor on the whole project ([trap 19](./CLAUDE.md#19-the-runtime-service-account-goes-in-flags-not-a-service_account-input))
+
+### 4 · First deploy
+
+- [ ] Merge to `main`, or `gh workflow run deploy.yml`
+- [ ] Watch the run finish green
+- [ ] Read the URL: `gcloud run services describe <service> --region <region> --format='value(status.url)'`
+- [ ] `curl <url>/api/health` returns 200 with your commit SHA
+- [ ] Confirm the identity — the output must **not** end `-compute@developer.gserviceaccount.com`:
+
+```bash
+gcloud run services describe SERVICE --region REGION \
+  --format='value(spec.template.spec.serviceAccountName)'
+```
+
+### 5 · Sign-in
+
+Four console steps have no `gcloud` equivalent. Full detail in [Firebase setup, end to end](#firebase-setup-end-to-end).
+
+- [ ] Add Firebase to your **existing** GCP project — pick it from the dropdown, do not create a new one
+- [ ] Register a **web** app; copy `apiKey`, `authDomain`, `appId`
+- [ ] Enable **Google** and **Phone** under Authentication → Sign-in method
+- [ ] **Restrict the SMS region policy** to the countries you serve. ⚠️ The default allows every country on earth, and you pay per message
+- [ ] Add a **test phone number** — it returns a fixed code and sends no SMS
+- [ ] **Authorized domains:** `localhost`, `<project>.web.app`, your `*.run.app` URL, and your domain. Google sign-in is refused from anything missing
+- [ ] Set `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID` as **variables**, not secrets
+- [ ] **Rebuild.** These are `NEXT_PUBLIC_*` and are inlined at build time — setting them on the service does nothing ([trap 8](./CLAUDE.md#8-next_public_-is-inlined-at-build-time-and-is-public))
+- [ ] Sign in at `/sign-in`, then check `/example` and confirm a `users/{uid}` document appears in Firestore
+
+### 6 · Custom domain
+
+Cloud Run domain mapping is unavailable in several regions, so this uses Firebase Hosting — free, and a CDN.
+
+- [ ] **Lower the DNS record's TTL to 300 first, and wait for the old TTL to expire.** Skip this and verification keeps reading a stale value
+- [ ] Check `serviceId` and `region` in `firebase.json`. A wrong value returns a bare **404**, not a readable error
+- [ ] `npx firebase-tools deploy --only hosting --project <project>`
+- [ ] Verify on `<project>.web.app` — **and sign in there.** That proves the session cookie survives the extra hop
+- [ ] Firebase console → Hosting → **Add custom domain**; add the `TXT` record if asked (it coexists with your live record, so this is safe)
+- [ ] Cut over DNS to the records Firebase gives you
+- [ ] Wait for the certificate. ⚠️ On `.app` and `.dev` this gap is a **hard outage** — those TLDs are HSTS-preloaded, so there is no HTTP fallback
+- [ ] Delete any old Cloud Run domain mapping — **last**. Removing it early only removes your way back
+- [ ] `gh variable set FIREBASE_HOSTING_ENABLED --body true` — without it, a deploy leaves your domain serving the previous build ([trap 26](./CLAUDE.md#26-a-cloud-run-deploy-does-not-refresh-firebase-hosting))
+- [ ] `gh variable set APP_URL --body "https://your-domain"`, then redeploy so canonical URLs are right
+
+### 7 · Before real users
+
+- [ ] **Delete the example** — `app/example/`, `app/api/example/`, `components/example/`, `services/example.service.ts`, and the `examples` entries in `firestore.indexes.json`. A demo write path on a public URL is still a write path
+- [ ] Restrict the Firebase API key by HTTP referrer (Google Cloud console → APIs & Services → Credentials)
+- [ ] **Add rate limiting.** There is none. `--max-instances` caps your Cloud Run bill, not your Firestore bill
+- [ ] Add a Content-Security-Policy once you know your origins
+- [ ] Turn on branch protection for `main`
+- [ ] Work through the [pre-production checklist](./SECURITY.md#hardening-checklist-for-a-real-deployment)
+
+---
+
 ## New app in 6 commands
 
 From nothing to your own domain serving traffic.
