@@ -41,6 +41,7 @@
 #   --database / --bucket     override the derived names
 #   --no-dev-bucket           skip the dev bucket
 #   --skip-data               no Firestore, no Cloud Storage
+#   --skip-auth               no Firebase Auth (sign-in stays disabled)
 #
 # --cors-origin is the origin your APP is served from — the address in the
 # user's browser bar — not the bucket's. A signed upload is a cross-origin PUT
@@ -137,6 +138,7 @@ BUCKET_NAME=""
 CREATE_DEV_BUCKET="true"
 BACKUP_RETENTION_DAYS="7"
 SKIP_DATA="false"
+SKIP_AUTH="false"
 CORS_ORIGINS=()
 FORCE_PROVIDER_UPDATE="false"
 
@@ -152,6 +154,7 @@ while [[ $# -gt 0 ]]; do
     --cors-origin)   CORS_ORIGINS+=("${2:-}"); shift 2 ;;
     --no-dev-bucket) CREATE_DEV_BUCKET="false"; shift ;;
     --skip-data)     SKIP_DATA="true"; shift ;;
+    --skip-auth)     SKIP_AUTH="true"; shift ;;
     --main-only)     RESTRICT_TO_MAIN="true"; shift ;;
     --pool)          POOL_ID="${2:-}"; shift 2 ;;
     --provider)      PROVIDER_ID="${2:-}"; shift 2 ;;
@@ -254,6 +257,17 @@ if [[ "$SKIP_DATA" != "true" ]]; then
     # Deploys the security rules in firestore.rules. Optional: the deploy
     # degrades to a warning without it — see scripts/firestore-deploy.sh.
     firebaserules.googleapis.com
+  )
+fi
+
+if [[ "$SKIP_AUTH" != "true" ]]; then
+  API_LIST+=(
+    # Identity Platform. Firebase Auth is a thin layer over this, and it is
+    # what verifies ID tokens and mints session cookies.
+    identitytoolkit.googleapis.com
+    # Needed to register the project with Firebase and to create the web app
+    # whose config the browser uses.
+    firebase.googleapis.com
   )
 fi
 
@@ -578,6 +592,26 @@ gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
   --quiet >/dev/null
 ok "iam.serviceAccountTokenCreator on itself (signs URLs without a key)"
 
+# Minting a session cookie calls the Identity Toolkit API, which needs a role
+# on the project. VERIFYING a session needs nothing at all — it checks a
+# signature against Google's public keys — so without this grant existing
+# sessions keep working and only new sign-ins fail, with PERMISSION_DENIED
+# from identitytoolkit.
+#
+# This is the broadest role the runtime identity holds, and it is deliberate
+# rather than overlooked: roles/firebaseauth.admin can also create, disable
+# and delete users. There is no narrower predefined role that can mint a
+# session cookie. Narrow it with a custom role if your threat model needs it,
+# and read docs/auth.md before you do — the app breaks in a way that looks
+# like a client bug.
+if [[ "$SKIP_AUTH" != "true" ]]; then
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:${RUNTIME_SA}" \
+    --role="roles/firebaseauth.admin" \
+    --quiet >/dev/null
+  ok "firebaseauth.admin (mints session cookies; see docs/auth.md)"
+fi
+
 # ---------------------------------------------------------------------------
 step "IAM for the deployer (data layer)"
 # ---------------------------------------------------------------------------
@@ -783,6 +817,46 @@ ${BOLD}1. Set the GitHub secrets and variables${RESET}
 
    (Or paste them in Settings > Secrets and variables > Actions.)
 
+${BOLD}1b. Finish Firebase Auth in the console${RESET}
+
+   These four steps CANNOT be scripted. There is no gcloud surface for
+   enabling a sign-in provider or registering a web app, so they are done
+   once, by hand, in the Firebase console.
+
+   a. Add Firebase to this project (free, and it stays the same GCP project):
+        https://console.firebase.google.com/  ->  Add project  ->  ${PROJECT_ID}
+
+   b. Register a WEB app, then copy its config values:
+        Project settings > General > Your apps > Web
+        You need: apiKey, authDomain, appId.
+
+   c. Enable the two sign-in providers:
+        Authentication > Sign-in method
+          - Google  ->  Enable, set a support email
+          - Phone   ->  Enable
+
+   d. ${BOLD}Restrict SMS to the countries you serve.${RESET}
+        Authentication > Settings > SMS region policy  ->  Allow only, e.g. IN
+
+        Do not skip this. An open phone-auth endpoint is the target of SMS
+        pumping fraud: an attacker sends codes to premium numbers they earn
+        revenue from, and you are billed per message. The default allows
+        every country on earth.
+
+   Then set the web config as repository VARIABLES — they are public values,
+   not secrets, and they are inlined into the browser bundle at build time:
+
+     gh variable set FIREBASE_API_KEY     --body "AIza..."
+     gh variable set FIREBASE_AUTH_DOMAIN --body "${PROJECT_ID}.firebaseapp.com"
+     gh variable set FIREBASE_PROJECT_ID  --body "${PROJECT_ID}"
+     gh variable set FIREBASE_APP_ID      --body "1:...:web:..."
+
+   Also add the app's own origins to Authentication > Settings > Authorized
+   domains, or Google sign-in is refused from them.
+
+   Skip all of this and the app still deploys and still serves public reads.
+   Sign-in is simply unavailable, and every write route answers 401.
+
 ${BOLD}2. Deploy${RESET}
 
    Merge to main, or:  gh workflow run deploy.yml
@@ -831,6 +905,9 @@ ${BOLD}Local development${RESET}
 ${BOLD}Notes${RESET}
 
   - No service account key was created. There is no key to leak or rotate.
+  - ${RUNTIME_SA} also holds roles/firebaseauth.admin,
+    which is what lets it mint session cookies. It is the broadest role the
+    runtime identity has; docs/auth.md explains why and how to narrow it.
   - The runtime service account ${RUNTIME_SA}
     can use ${DATABASE_ID} and gs://${BUCKET_NAME}, and nothing else.
     Grant anything further one resource at a time.

@@ -20,6 +20,10 @@ import { Input } from '@/components/ui/Input';
  *   3. PUT  <signed url>            → send the bytes straight to Cloud Storage
  *   4. POST /api/example/finalize   → server verifies and attaches the object
  *
+ * Every one of those routes requires a session. The form is only rendered for
+ * a signed-in user, but that is a courtesy, not the control: the gate is
+ * `requireUser()` on the server. A form hidden in the UI stops nobody.
+ *
  * The UI uses the `Button` and `Input` primitives rather than styling inputs by
  * hand — see design-language.md rule 1. `pnpm lint` enforces it.
  */
@@ -53,7 +57,6 @@ export function ExampleForm({ className }: ExampleFormProps): React.JSX.Element 
   const router = useRouter();
 
   const [title, setTitle] = useState('');
-  const [ownerName, setOwnerName] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<'idle' | 'working'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +71,8 @@ export function ExampleForm({ className }: ExampleFormProps): React.JSX.Element 
       const created = await fetch('/api/example', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, ownerName }),
+        // No owner name: the server takes it from the session's profile.
+        body: JSON.stringify({ title }),
         signal: AbortSignal.timeout(10_000),
       });
       if (!created.ok) throw new Error(await readError(created));
@@ -106,7 +110,6 @@ export function ExampleForm({ className }: ExampleFormProps): React.JSX.Element 
       }
 
       setTitle('');
-      setOwnerName('');
       setFile(null);
       form.reset();
       router.refresh();
@@ -131,15 +134,6 @@ export function ExampleForm({ className }: ExampleFormProps): React.JSX.Element 
         onChange={(event) => setTitle(event.target.value)}
         required
         maxLength={200}
-      />
-
-      <Input
-        label="Owner name"
-        name="ownerName"
-        value={ownerName}
-        onChange={(event) => setOwnerName(event.target.value)}
-        required
-        maxLength={120}
       />
 
       <Input

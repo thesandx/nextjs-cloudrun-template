@@ -419,6 +419,74 @@ The script is idempotent, so re-run it with the flags added. The signed URL in t
 
 `finalizeUpload` ran but the object is not there. Either the PUT did not actually succeed — check its status, not just that it returned — or finalize already ran and moved it, or more than a day passed and the lifecycle rule swept it.
 
+### Sign-in works, then the user is signed out on the next page
+
+The session cookie is not named `__session`, and Firebase Hosting stripped it.
+
+Hosting and the CDN in front of it drop every cookie except that one. The app therefore works perfectly on the direct `*.run.app` URL and fails behind a custom domain. The name is a constant in `lib/session-cookie.ts`; do not change it.
+
+### New sign-ins fail, but existing sessions keep working
+
+The runtime service account is missing `roles/firebaseauth.admin`.
+
+Verifying a session checks a signature against Google's public keys and needs no IAM at all. Minting one calls the Identity Toolkit API and does. That asymmetry is why only new sign-ins break, and why it looks like a client bug.
+
+```bash
+gcloud projects add-iam-policy-binding PROJECT \
+  --member="serviceAccount:APP_SLUG-runtime@PROJECT.iam.gserviceaccount.com" \
+  --role="roles/firebaseauth.admin"
+```
+
+Or re-run `gcp-bootstrap.sh`, which is idempotent.
+
+### The sign-in panel says sign-in is not configured
+
+The Firebase web config was missing when the image was **built**.
+
+`NEXT_PUBLIC_*` values are inlined into the bundle at build time, so setting them on the Cloud Run service changes nothing. Set the repository variables and rebuild:
+
+```bash
+gh variable set FIREBASE_API_KEY     --body "AIza..."
+gh variable set FIREBASE_AUTH_DOMAIN --body "PROJECT.firebaseapp.com"
+gh variable set FIREBASE_PROJECT_ID  --body "PROJECT"
+gh variable set FIREBASE_APP_ID      --body "1:...:web:..."
+gh workflow run deploy.yml
+```
+
+This is the intended fail-closed state, not a fault: the app serves public reads and answers 401 to every write.
+
+### `auth/unauthorized-domain`
+
+The origin is not listed under Authentication > Settings > Authorized domains.
+
+Add every origin the app is served from, **including the `*.run.app` URL**. It is the one people forget, exactly as with bucket CORS.
+
+### `auth/operation-not-allowed`
+
+That sign-in provider is not enabled. Firebase console > Authentication > Sign-in method, then enable Google or Phone.
+
+### `auth/invalid-app-credential` on phone sign-in
+
+reCAPTCHA could not run. Either the domain is not authorised (above), or the verifier was reused after a failed attempt. `useFirebaseAuth` clears and recreates it on failure for that reason.
+
+### An unexpected SMS bill
+
+The SMS region policy is still the default, which allows every country on earth.
+
+Restrict it now — Firebase console > Authentication > Settings > SMS region policy — to the countries you serve. SMS pumping fraud sends codes to premium-rate numbers the attacker earns revenue from, and it is automated. Set a budget alert too; it is how you find out in hours rather than at month end.
+
+### A write returns 401 for a user who is clearly signed in
+
+The cookie did not reach the server. Usually the `Secure` attribute against a plain-HTTP origin: a browser refuses to store a `Secure` cookie on `http://`, and refuses to send a non-`Secure` one that was set as `Secure`.
+
+The carve-out is derived from `NEXT_PUBLIC_APP_URL`, so check that it matches the scheme actually in use.
+
+### `InvalidDocumentIdError` from `createWithId`
+
+The id would create a write hotspot, or Firestore would reject it outright. The message says which.
+
+Sequential ids, date prefixes and bare numbers are refused at any length — they pin every write to one end of the key range. A short-but-random id is refused by the length floor only, and `{ minLength }` lowers that deliberately for a collection far below one write per second.
+
 ### `DocumentValidationError` when reading
 
 Stored data no longer matches the collection's zod schema. This is a real bug surfacing, not noise: a field written by an older build, a console edit, or a half-finished migration.

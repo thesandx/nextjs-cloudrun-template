@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { mapHttpError } from '@/lib/http-errors';
 import { logger } from '@/lib/logger';
+import { requireUser } from '@/services/auth.service';
 import { finalizeExampleImage } from '@/services/example.service';
 
 /**
@@ -13,6 +14,11 @@ import { finalizeExampleImage } from '@/services/example.service';
  *
  * A signed URL constrains a well-behaved client. This step is what makes the
  * constraint true for every other kind.
+ *
+ * Both `exampleId` and `tmpPath` come from the caller, so the service checks
+ * that the path belongs to that document as well as that the session owns it.
+ * Checking only ownership would let a caller adopt another user's pending
+ * upload into their own row.
  */
 
 export const runtime = 'nodejs';
@@ -39,7 +45,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
-    const document = await finalizeExampleImage(parsed);
+    const user = await requireUser();
+    const document = await finalizeExampleImage({ ...parsed, ownerId: user.uid });
     return NextResponse.json({ id: document.id, imagePath: document.imagePath });
   } catch (error) {
     const mapped = mapHttpError(error);

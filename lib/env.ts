@@ -51,6 +51,20 @@ const DATABASE_ID_PATTERN = /^(\(default\)|[a-z][a-z0-9-]{2,61}[a-z0-9])$/;
  */
 const BUCKET_PATTERN = /^[a-z0-9][a-z0-9_-]{1,61}[a-z0-9]$/;
 
+/**
+ * Firebase web API keys. Long-lived, and NOT a secret: the browser needs it to
+ * reach Identity Platform, so it ships in every bundle. It identifies the
+ * project; it authorises nothing on its own. Restrict it by HTTP referrer in
+ * the Google Cloud console instead of trying to hide it. See docs/auth.md.
+ */
+const FIREBASE_API_KEY_PATTERN = /^AIza[0-9A-Za-z_-]{35}$/;
+
+/** A bare hostname, e.g. `my-project.firebaseapp.com`. No scheme, no path. */
+const FIREBASE_AUTH_DOMAIN_PATTERN = /^[a-z0-9][a-z0-9.-]{1,251}[a-z0-9]$/;
+
+/** Firebase web app ids look like `1:1234567890:web:0a1b2c3d4e5f`. */
+const FIREBASE_APP_ID_PATTERN = /^\d+:\d+:web:[0-9a-z]+$/;
+
 class EnvValidationError extends Error {
   constructor(issues: readonly string[]) {
     super(
@@ -79,6 +93,23 @@ function oneOf<T extends string>(
     return fallback;
   }
   return value as T;
+}
+
+/** A bounded integer. Out-of-range values are an error, not silently clamped. */
+function integer(
+  name: string,
+  value: string | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  if (value === undefined || value.trim() === '') return fallback;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    issues.push(`${name} must be an integer between ${min} and ${max} but was "${value}"`);
+    return fallback;
+  }
+  return parsed;
 }
 
 function port(name: string, value: string | undefined, fallback: number): number {
@@ -156,6 +187,64 @@ const gcsBucket = pattern(
   appSlug === '' || gcpProjectId === '' ? '' : `${gcpProjectId}-${appSlug}-media`,
 );
 
+/**
+ * Firebase web configuration.
+ *
+ * Every value here is NEXT_PUBLIC_, which means two things. It is inlined into
+ * the JavaScript bundle at build time, so changing it on the Cloud Run service
+ * does nothing until the image is rebuilt. And it is public, so it must never
+ * carry anything that grants access on its own — see trap 8.
+ *
+ * The project id defaults to GCP_PROJECT_ID. A Firebase project IS a GCP
+ * project, so they are the same string unless auth lives in a separate project.
+ */
+const firebaseApiKey = pattern(
+  'NEXT_PUBLIC_FIREBASE_API_KEY',
+  process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  FIREBASE_API_KEY_PATTERN,
+  'must be a Firebase web API key (starts with "AIza", 39 characters)',
+);
+
+const firebaseProjectId = pattern(
+  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  PROJECT_ID_PATTERN,
+  'must be a valid GCP project id (6-30 lowercase letters, digits and hyphens)',
+  gcpProjectId,
+);
+
+const firebaseAuthDomain = pattern(
+  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+  process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  FIREBASE_AUTH_DOMAIN_PATTERN,
+  'must be a bare hostname with no scheme or path, e.g. my-project.firebaseapp.com',
+  firebaseProjectId === '' ? '' : `${firebaseProjectId}.firebaseapp.com`,
+);
+
+const firebaseAppId = pattern(
+  'NEXT_PUBLIC_FIREBASE_APP_ID',
+  process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  FIREBASE_APP_ID_PATTERN,
+  'must be a Firebase web app id, e.g. 1:1234567890:web:0a1b2c3d4e5f',
+);
+
+/**
+ * Sign-in is available only when the whole web config resolved.
+ *
+ * This is derived rather than a separate flag on purpose, and it FAILS SECURE:
+ * an app built without Firebase configuration cannot mint a session, so every
+ * write route answers 401 and nothing can be created or uploaded. A template
+ * user who never sets these up gets a read-only public app, not an open one.
+ *
+ * It is fixed at BUILD time, because these are NEXT_PUBLIC_ values. Adding
+ * them to a running Cloud Run service enables nothing until you rebuild.
+ */
+const authEnabled =
+  firebaseApiKey !== '' &&
+  firebaseAuthDomain !== '' &&
+  firebaseProjectId !== '' &&
+  firebaseAppId !== '';
+
 export const env = {
   /** Node runtime mode. Set by the tooling; never override it by hand. */
   nodeEnv,
@@ -232,6 +321,49 @@ export const env = {
   ),
 
   /**
+   * Firebase web configuration, safe to read from a Client Component.
+   *
+   * Assembled into a `FirebaseOptions` object by `lib/firebase-config.ts`.
+   * Empty strings when sign-in is not configured; check `authEnabled` first.
+   */
+  firebase: {
+    apiKey: firebaseApiKey,
+    authDomain: firebaseAuthDomain,
+    projectId: firebaseProjectId,
+    appId: firebaseAppId,
+  },
+
+  /**
+   * True when the Firebase web config is complete. False closes every write
+   * route, because nothing can sign in. Fixed at build time — see above.
+   */
+  authEnabled,
+
+  /**
+   * Session cookie lifetime. Firebase caps a session cookie at 14 days, so
+   * that is the ceiling here too; asking for more is a configuration error
+   * rather than something to clamp silently.
+   */
+  authSessionMaxAgeDays: integer(
+    'AUTH_SESSION_MAX_AGE_DAYS',
+    process.env.AUTH_SESSION_MAX_AGE_DAYS,
+    14,
+    1,
+    14,
+  ),
+
+  /**
+   * Check every session against revoked refresh tokens.
+   *
+   * Off by default: it costs a call to Identity Platform on EVERY verified
+   * request, which is a per-request dependency on an external service in the
+   * hot path. On, a "sign out everywhere" takes effect immediately instead of
+   * at the next session refresh. Turn it on for an app handling money or
+   * health data; leave it off for most.
+   */
+  authCheckRevoked: boolean('AUTH_CHECK_REVOKED', process.env.AUTH_CHECK_REVOKED, false),
+
+  /**
    * UTC time of the last deploy (ISO-8601), injected by the deploy workflow.
    * Empty locally. Surfaced by /api/health, rendered in IST, so a deploy is
    * visible without opening GitHub.
@@ -287,6 +419,12 @@ if (nodeEnv === 'production' && typeof window === 'undefined' && !isBuildPhase) 
  * at build time — so making it mandatory would fail the first deploy's health
  * check before the URL can exist. `appUrl` above falls back to a safe default,
  * and the deploy workflow inlines the real value on the next build.
+ *
+ * The `NEXT_PUBLIC_FIREBASE_*` values are intentionally NOT required either,
+ * and that omission is the safe one. A missing web config makes `authEnabled`
+ * false, which closes every write route — the app still boots and still serves
+ * public reads. Requiring them would instead refuse to start, which turns a
+ * half-finished Firebase setup into an outage. Fail closed, not down.
  *
  * Add further production-required variables to the list above as the project
  * grows, and document each one in `.env.example`.

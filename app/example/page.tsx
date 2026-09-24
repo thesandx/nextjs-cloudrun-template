@@ -1,9 +1,13 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
+import { SignOutButton } from '@/components/auth/SignOutButton';
 import { ExampleForm } from '@/components/example/ExampleForm';
+import { buttonStyles } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Face } from '@/components/ui/Face';
 import { formatUtc } from '@/lib/utils';
+import { getCurrentUser } from '@/services/auth.service';
 import { type ExampleView, listExamples } from '@/services/example.service';
 
 /**
@@ -16,6 +20,11 @@ import { type ExampleView, listExamples } from '@/services/example.service';
  * Note what it does NOT do: there is no `useEffect` fetching `/api/example`.
  * The route handler exists for the form and for other clients; the page reads
  * the service directly, which is one less round trip.
+ *
+ * Reading is public; writing is not. The list renders for anyone, and the
+ * create form is replaced by a sign-in prompt when there is no session. The
+ * real gate is `requireUser()` in the route handlers — this is only the UI
+ * telling the truth about it.
  *
  * Delete this folder with the rest of the example.
  */
@@ -61,7 +70,13 @@ function ExampleCard({ item }: { item: ExampleView }): React.JSX.Element {
 }
 
 export default async function ExamplePage(): Promise<React.JSX.Element> {
-  const { items, nextCursor } = await listExamples({ limit: PAGE_SIZE });
+  // One round trip each, and independent of one another, so they overlap
+  // rather than queue. `Promise.all` here is worth roughly one signed-URL
+  // round trip on every render of this page.
+  const [user, { items, nextCursor }] = await Promise.all([
+    getCurrentUser(),
+    listExamples({ limit: PAGE_SIZE }),
+  ]);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:px-6 sm:py-16">
@@ -78,7 +93,31 @@ export default async function ExamplePage(): Promise<React.JSX.Element> {
         <h2 id="create-heading" className="text-title">
           Create
         </h2>
-        <ExampleForm />
+
+        {user === null ? (
+          <Card className="flex flex-col items-center gap-4 text-center">
+            <Face mood="wink" size={56} label="Sign in to continue" />
+            <p className="text-body text-ink-soft max-w-prose">
+              Anyone can read this list. Creating a row and uploading an image needs an account.
+            </p>
+            <Link href="/sign-in?next=/example" className={buttonStyles({ variant: 'primary' })}>
+              Sign in
+            </Link>
+          </Card>
+        ) : (
+          <>
+            <div className="border-line bg-sunken rounded-input flex flex-wrap items-center justify-between gap-3 border-2 px-4 py-3">
+              <p className="text-small text-ink-soft">
+                Signed in as{' '}
+                <span className="text-ink font-medium">
+                  {user.displayName ?? user.email ?? user.phoneNumber ?? 'your account'}
+                </span>
+              </p>
+              <SignOutButton />
+            </div>
+            <ExampleForm />
+          </>
+        )}
       </section>
 
       <section aria-labelledby="list-heading" className="flex flex-col gap-4">

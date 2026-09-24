@@ -99,6 +99,18 @@ PITR covers a mistake noticed within the hour. A backup schedule covers one noti
 | CodeQL on PRs and weekly (needs code scanning — see below)  | `codeql.yml`                    |
 | Dependabot on npm, Actions and Docker                       | `dependabot.yml`                |
 
+### Authentication and authorisation
+
+- Sign-in is **Firebase Auth** — Google and phone OTP. The browser's ID token is exchanged once for a server-side session cookie: `httpOnly`, `Secure`, `SameSite=Lax`, up to 14 days. Page script cannot read a session, so an XSS cannot steal one.
+- The cookie is named `__session` because Firebase Hosting strips every other cookie. See trap 20 in `CLAUDE.md`.
+- **Reads are public; every write requires a session.** `requireUser()` is the gate, and it is server-side. A form hidden in the UI is not a control.
+- **A session is authentication, not authorisation.** Ownership is a separate, explicit check. Identity fields (`ownerId`, a display name) are always read from the session, never from a request body.
+- Sign-in availability is **derived** from the Firebase web config being complete, not set by a flag. An app built without that config serves public reads and answers 401 to every write, so a half-finished setup fails closed rather than open.
+- The runtime service account holds `roles/firebaseauth.admin`. This is the broadest privilege it has, and it is a deliberate trade-off: minting a session cookie needs a role on the project, and no narrower predefined role exists. Verifying a session needs no IAM at all. See [ADR-0005](./docs/adr/0005-use-firebase-auth-for-sign-in.md).
+- **No Firebase data SDK reaches the browser.** Only `firebase/auth` is shipped. All data access stays server-side, and `firestore.rules` stays deny-all.
+- Phone OTP is protected by an invisible reCAPTCHA, which Firebase requires. The SMS **region policy** is the control that matters against SMS pumping fraud, and it is not automatic — see the checklist below.
+- A `uid` is pseudonymous and is logged. An email address and a phone number are not logged anywhere.
+
 ### Application
 
 - Security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`) set in `next.config.ts`; `X-Powered-By` removed.
@@ -132,6 +144,13 @@ The template is a safe default, not a finished security posture. Before producti
 - [ ] Decide whether 7-day backup retention and PITR meet your recovery objective
 - [ ] Confirm `FIRESTORE_EMULATOR_HOST` is not set on any deployed service
 - [ ] Set `RUNTIME_SERVICE_ACCOUNT` — without it Cloud Run runs as the default compute account, which is project Editor
+- [ ] **Restrict the SMS region policy** to the countries you serve — Firebase console > Authentication > Settings. The default allows every country, and you pay per message. This is the main control against SMS pumping fraud
+- [ ] Restrict the Firebase web API key by HTTP referrer — Google Cloud console > APIs & Services > Credentials. It is public by design, but it should only work from your origins
+- [ ] List every origin the app is served from under Authentication > Settings > Authorized domains, including the `*.run.app` URL
+- [ ] Confirm every route that writes calls `requireUser()`, and that each one checks ownership as well
+- [ ] Decide whether `AUTH_CHECK_REVOKED` should be on — it makes "sign out everywhere" immediate, at one Identity Platform call per request
+- [ ] Consider narrowing `roles/firebaseauth.admin` to a custom role with only the session-minting permission
+- [ ] Delete the `/example` route, `services/example.service.ts` and `components/example/` once the pattern is copied — a demo write path on a public URL is still a write path
 
 ## What is out of scope
 

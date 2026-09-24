@@ -28,6 +28,7 @@ The app itself is one page. That is the point — everything else is the reusabl
 | ⚡ **Next.js 16 + React 19** | App Router, Server Components by default, TypeScript in strict mode                 |
 | 🐳 **Optimised container**   | Multi-stage build, ~65 MB, non-root user, health checks, correct signal handling    |
 | 🔐 **Keyless deployment**    | Workload Identity Federation — no JSON service account keys, anywhere               |
+| 👤 **Sign-in, ready to use** | Firebase Auth: Google and phone OTP, server-side sessions, writes gated by default  |
 | 🚀 **CI/CD that verifies**   | PR validation builds and smoke-tests the real container; deploys probe the live URL |
 | ☁️ **Cloud Run native**      | Honours `$PORT`, binds `0.0.0.0`, autoscales, scales to zero                        |
 | 🧭 **AI-assistant ready**    | `.github/instructions/` — rules that keep generated code consistent across projects |
@@ -112,6 +113,15 @@ gh variable set APP_SLUG                --body "my-app"
 gh variable set CLOUD_RUN_SERVICE       --body "my-app"
 gh variable set RUNTIME_SERVICE_ACCOUNT --body "my-app-runtime@my-gcp-project.iam.gserviceaccount.com"
 
+# 4b. Sign-in: finish the four console steps bootstrap printed, then set the
+#     web config. These are VARIABLES, not secrets — they are public values
+#     inlined into the browser bundle. Skip this and the app deploys fine with
+#     sign-in unavailable and every write route answering 401.
+gh variable set FIREBASE_API_KEY     --body "AIza..."
+gh variable set FIREBASE_AUTH_DOMAIN --body "my-gcp-project.firebaseapp.com"
+gh variable set FIREBASE_PROJECT_ID  --body "my-gcp-project"
+gh variable set FIREBASE_APP_ID      --body "1:...:web:..."
+
 # 5. Deploy, then read the URL Cloud Run generated
 git push origin main
 gcloud run services describe my-app --region asia-south1 --format='value(status.url)'
@@ -121,6 +131,8 @@ npx firebase-tools deploy --only hosting    # needs a firebase.json; see the wal
 gh variable set APP_URL --body "https://app.example.com"
 gh workflow run deploy.yml                  # rebuild, so the real URL is inlined
 ```
+
+Step 4b needs the Firebase console: add Firebase to the project, register a web app, enable the Google and Phone providers, and **restrict the SMS region policy to the countries you serve**. None of those has a gcloud surface, so `gcp-bootstrap.sh` prints them rather than pretending to do them. [`docs/auth.md`](./docs/auth.md) has the detail, including why an unrestricted SMS policy is an expensive mistake.
 
 Step 6 needs two manual pieces: **Firebase console → Hosting → Add custom domain**, then copy the DNS records it prints into your registrar. [`cloud/deployment.md` > First deploy, end to end](./cloud/deployment.md#first-deploy-end-to-end) walks all of it, with the checks to run between each step.
 
@@ -429,19 +441,25 @@ This takes seconds. Then you can fix forward without time pressure.
 
 **Tunable via repository variables** — no workflow edits needed:
 
-| Variable                     | Default                    |                                                        |
-| ---------------------------- | -------------------------- | ------------------------------------------------------ |
-| `GCP_REGION`                 | `asia-south1`              | Cloud Run, Artifact Registry, Firestore and the bucket |
-| `CLOUD_RUN_SERVICE`          | repository name            | Service name                                           |
-| `APP_SLUG`                   | service name               | Names the database, bucket and runtime identity        |
-| `RUNTIME_SERVICE_ACCOUNT`    | `<slug>-runtime@<project>` | Identity the revision runs as — **set this**           |
-| `APP_URL`                    | —                          | Public URL, inlined at build time                      |
-| `MIN_INSTANCES`              | `0`                        | `1` removes cold starts (~$10–15/month)                |
-| `MAX_INSTANCES`              | `10`                       | Bounds both a traffic spike and your bill              |
-| `LOG_LEVEL`                  | `info`                     | Runtime log verbosity                                  |
-| `FIRESTORE_DATABASE_ID`      | `<slug>-db`                | Override only for an existing database                 |
-| `GCS_BUCKET`                 | `<project>-<slug>-media`   | Override only for an existing bucket                   |
-| `HEALTH_DEEP_CHECKS_ENABLED` | `false`                    | Enables `/api/health?deep=1`. Dashboards only          |
+| Variable                     | Default                     |                                                        |
+| ---------------------------- | --------------------------- | ------------------------------------------------------ |
+| `GCP_REGION`                 | `asia-south1`               | Cloud Run, Artifact Registry, Firestore and the bucket |
+| `CLOUD_RUN_SERVICE`          | repository name             | Service name                                           |
+| `APP_SLUG`                   | service name                | Names the database, bucket and runtime identity        |
+| `RUNTIME_SERVICE_ACCOUNT`    | `<slug>-runtime@<project>`  | Identity the revision runs as — **set this**           |
+| `APP_URL`                    | —                           | Public URL, inlined at build time                      |
+| `MIN_INSTANCES`              | `0`                         | `1` removes cold starts (~$10–15/month)                |
+| `MAX_INSTANCES`              | `10`                        | Bounds both a traffic spike and your bill              |
+| `LOG_LEVEL`                  | `info`                      | Runtime log verbosity                                  |
+| `FIRESTORE_DATABASE_ID`      | `<slug>-db`                 | Override only for an existing database                 |
+| `GCS_BUCKET`                 | `<project>-<slug>-media`    | Override only for an existing bucket                   |
+| `HEALTH_DEEP_CHECKS_ENABLED` | `false`                     | Enables `/api/health?deep=1`. Dashboards only          |
+| `FIREBASE_API_KEY`           | —                           | Sign-in. Public, and inlined at build time             |
+| `FIREBASE_AUTH_DOMAIN`       | `<project>.firebaseapp.com` | Sign-in                                                |
+| `FIREBASE_PROJECT_ID`        | `GCP_PROJECT_ID`            | Only if auth lives in another project                  |
+| `FIREBASE_APP_ID`            | —                           | Sign-in                                                |
+| `AUTH_SESSION_MAX_AGE_DAYS`  | `14`                        | Session lifetime. Firebase caps it at 14               |
+| `AUTH_CHECK_REVOKED`         | `false`                     | Immediate "sign out everywhere", at one call/request   |
 
 Full runbook — first deploy, custom domains, gradual rollout, making the service private, cleanup: [`cloud/deployment.md`](./cloud/deployment.md).
 
@@ -520,6 +538,8 @@ Why this matters at template scale: when a dozen projects share one rulebook, ge
 README.md                      you are here
 ├── docs/
 │   ├── local-development.md    setup, scripts, editor, daily loop
+│   ├── auth.md                 sign-in, sessions, profiles, SMS cost
+│   ├── data-layer.md           Firestore and Cloud Storage in practice
 │   ├── testing.md              Vitest, RTL, the Server Component constraint
 │   ├── troubleshooting.md      symptoms → causes → fixes
 │   └── adr/                    architecture decision records
