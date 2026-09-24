@@ -50,8 +50,8 @@ export default function HomePage() {
         <h1 className="text-hero">Hello World</h1>
         <p className="text-ink-soft max-w-prose">
           This project is running successfully on Google Cloud Run. Everything you see below comes
-          from the seven primitives in <Code>components/ui/</Code> — so a new screen starts from
-          parts that already match.
+          from the primitives in <Code>components/ui/</Code> — so a new screen starts from parts
+          that already match.
         </p>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <Link href="/design" className={buttonStyles()}>
