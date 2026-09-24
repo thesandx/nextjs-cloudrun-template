@@ -65,6 +65,7 @@
   --text-key--line-height: 1;
 
   /* Radius — a hierarchy, not one value for everything */
+  --radius-box: 8px; /* checkboxes: 14px on a 28px box would read as a radio */
   --radius-input: 14px;
   --radius-card: 22px;
   --radius-sheet: 32px;

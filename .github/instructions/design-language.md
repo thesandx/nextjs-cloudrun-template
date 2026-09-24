@@ -20,7 +20,7 @@ Three words to test every decision against: **squishy, honest, playful.**
 
 ## The twelve rules
 
-1. **Use the primitives.** `Button`, `Card`, `Input`, `Avatar`, `Face`, `Speech`, `Sticker` exist in `components/ui/`. Do not re-create them inline. If one is missing a variant, add the variant to the primitive and show it on `/design`.
+1. **Use the primitives.** `components/ui/` holds them — see [The primitives](#the-primitives). Do not re-create them inline. If one is missing a variant, add the variant to the primitive and show it on `/design`.
 2. **Use tokens only.** No raw hex, no arbitrary `shadow-[...]`, no arbitrary radius. If you need a value that does not exist, stop and ask. `pnpm lint` fails on each of these — see [Enforcement](#enforcement).
 3. **Ink is not black.** Text and outlines use `ink` / `line`. Never `black`, `#000`, `#111` or `neutral-900`.
 4. **Outlines are 2px.** `border-2 border-line`. Never 1px hairlines, never 3px+.
@@ -77,6 +77,7 @@ Text on a coloured fill is always `text-ink`. Never white text on `brand` or a c
 
 | Token              | Value                    | Use                                      |
 | ------------------ | ------------------------ | ---------------------------------------- |
+| `rounded-box`      | 8px                      | Checkboxes only                          |
 | `rounded-input`    | 14px                     | Inputs, small wells                      |
 | `rounded-card`     | 22px                     | Cards, bubbles                           |
 | `rounded-sheet`    | 32px                     | Modals, bottom sheets, hero panels       |
@@ -92,6 +93,40 @@ Text on a coloured fill is always `text-ink`. Never white text on `brand` or a c
 | `animate-blink`    | every 6s                 | The mascot's eyes. Only the mascot.      |
 
 Not every card needs a shadow. A shadow says "this is an object you can press or pick up". Static information inside a card sits flat.
+
+---
+
+## The primitives
+
+Each primitive lives in `components/ui/`, has a colocated test, and renders on `/design`. Pick the primitive by its job.
+
+| Primitive    | Use it for                                                          |
+| ------------ | ------------------------------------------------------------------- |
+| `Button`     | An action. `buttonStyles()` styles a `Link` the same way.           |
+| `Card`       | One object the user can act on. `peek` puts a face over the edge.   |
+| `Input`      | One line of text, with a label, a hint and an error.                |
+| `Textarea`   | Several lines of text. Same label, hint and error as `Input`.       |
+| `Select`     | One choice from a long list. It is a native select.                 |
+| `RadioGroup` | One choice from five options or fewer.                              |
+| `Checkbox`   | A yes/no value that a form submits later.                           |
+| `Switch`     | A setting that applies at once.                                     |
+| `Field`      | The label, hint and error. Use it to wrap a new form control.       |
+| `Badge`      | A short state in words: "Host", "Ready". Not pressable.             |
+| `Chip`       | A pill that names one thing, often with an `Avatar`. Not pressable. |
+| `Alert`      | A message in the interface voice: a result, a problem, a status.    |
+| `Progress`   | How far through something the user is. It shows the value in words. |
+| `Spinner`    | Work that the user asked for and that is not complete yet.          |
+| `EmptyState` | A space with no content yet. A sleepy face, one line, one action.   |
+| `Tabs`       | Two to five views of the same thing. A client component.            |
+| `Dialog`     | A decision that must interrupt. A bottom sheet on a phone.          |
+| `Avatar`     | A player. The name sets the colour and the mood.                    |
+| `Face`       | The mascot face. See [Signature patterns](#signature-patterns).     |
+| `Speech`     | The mascot speaks. Moments only.                                    |
+| `Sticker`    | Decoration. Two per viewport at most.                               |
+
+`components/layout/` holds the page chrome: `PageShell` (the `<main>` with width, gutter and rhythm), `Header` (the mascot logo and the main links) and `Footer`.
+
+Status is never colour alone. `Alert` draws a glyph, `Checkbox` draws a tick, `RadioGroup` draws a dot, `Switch` moves its knob, and `Tabs` lifts the selected tab onto a base.
 
 ---
 

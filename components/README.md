@@ -6,11 +6,11 @@ The visual rules are in [`.github/instructions/design-language.md`](../.github/i
 
 ## Layout
 
-| Folder                  | Contents                                                                            |
-| ----------------------- | ----------------------------------------------------------------------------------- |
-| `components/ui/`        | Mochi primitives: `Button`, `Card`, `Input`, `Avatar`, `Face`, `Speech`, `Sticker`. |
-| `components/layout/`    | Structural chrome: `Header`, `Footer`, `Sidebar`, `PageShell`.                      |
-| `components/<feature>/` | Components belonging to one feature. Create the folder when the feature exists.     |
+| Folder                  | Contents                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| `components/ui/`        | Mochi primitives. The list and when to use each one is in `design-language.md`. |
+| `components/layout/`    | Page chrome: `PageShell`, `Header`, `Footer`.                                   |
+| `components/<feature>/` | Components belonging to one feature. Create the folder when the feature exists. |
 
 ## Rules
 
