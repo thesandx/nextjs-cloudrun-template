@@ -7,7 +7,7 @@ import { AppBar } from '@/components/layout/AppBar';
 import { ProfileForm } from '@/components/profile/ProfileForm';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
-import { Spinner } from '@/components/ui/Spinner';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { formatPhoneForDisplay } from '@/lib/phone';
 import { getCurrentUser, type SessionUser } from '@/services/auth.service';
 import { requireUserProfile } from '@/services/user.service';
@@ -21,8 +21,8 @@ import { requireUserProfile } from '@/services/user.service';
  *
  * The session check comes first, outside any Suspense boundary. It reads only
  * the cookie, so it is fast, and a signed-out visitor gets a real 307. The
- * Firestore read is slower, so it streams in behind a spinner while the app
- * bar is already on screen.
+ * Firestore read is slower, so it streams in behind a skeleton in the page's
+ * shape while the app bar is already on screen. Nothing jumps when it lands.
  *
  * Do not add a `loading.tsx` here. It wraps the whole page in Suspense, so
  * the response starts before `redirect()` runs. The redirect then becomes a
@@ -47,16 +47,34 @@ export default async function ProfilePage(): Promise<React.JSX.Element> {
       <AppBar title="Profile" back={{ fallbackHref: '/', label: 'Back to home' }} />
 
       <main className="mx-auto flex w-full max-w-md flex-col gap-8 px-5 py-8 sm:py-12">
-        <Suspense
-          fallback={
-            <div className="flex justify-center py-4">
-              <Spinner label="Loading your profile" />
-            </div>
-          }
-        >
+        <Suspense fallback={<ProfileSkeleton />}>
           <ProfileDetails user={user} />
         </Suspense>
       </main>
+    </>
+  );
+}
+
+/** The page's shape while the profile loads. Decoration, plus one status line. */
+function ProfileSkeleton(): React.JSX.Element {
+  return (
+    <>
+      <p role="status" className="sr-only">
+        Loading your profile
+      </p>
+      <Card peek={<Skeleton shape="circle" className="size-16" />} className="flex flex-col gap-2">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="w-52" />
+      </Card>
+      <div className="flex flex-col gap-5">
+        <Skeleton className="h-8 w-44" />
+        {[0, 1, 2].map((row) => (
+          <div key={row} className="flex flex-col gap-1.5">
+            <Skeleton className="w-24" />
+            <Skeleton shape="block" className="w-full" />
+          </div>
+        ))}
+      </div>
     </>
   );
 }

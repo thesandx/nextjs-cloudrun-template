@@ -32,4 +32,9 @@ describe('controlStyles', () => {
     expect(controlStyles(true)).toContain('border-danger');
     expect(controlStyles(false)).toContain('border-line');
   });
+
+  it('wobbles an invalid control once, so the eye finds it', () => {
+    expect(controlStyles(true)).toContain('animate-wobble');
+    expect(controlStyles(false)).not.toContain('animate-wobble');
+  });
 });

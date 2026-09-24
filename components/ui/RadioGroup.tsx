@@ -79,7 +79,7 @@ export function RadioGroup({
               />
               <span
                 aria-hidden="true"
-                className="bg-ink pointer-events-none absolute hidden size-3 rounded-full peer-checked:block"
+                className="bg-ink pointer-events-none absolute hidden size-3 rounded-full peer-checked:block peer-checked:animate-check"
               />
             </span>
             <span className="flex flex-col pt-2.5">

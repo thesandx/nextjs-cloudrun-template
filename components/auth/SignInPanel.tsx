@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { useFirebaseAuth } from '@/hooks/useFirebaseAuth';
 import { DEFAULT_DIAL_COUNTRY, formatPhoneForDisplay, toE164 } from '@/lib/phone';
+import { cn } from '@/lib/utils';
 
 import { PhoneNumberInput } from './PhoneNumberInput';
 
@@ -33,6 +34,12 @@ export const RESEND_AFTER_SECONDS = 30;
 
 const OTP_LENGTH = 6;
 
+const STEP_MOTION = {
+  none: '',
+  next: 'animate-slide-in-next',
+  back: 'animate-slide-in-back',
+} as const;
+
 export interface SignInPanelProps {
   /** Where to send the user after a successful sign-in. */
   redirectTo?: string;
@@ -49,6 +56,9 @@ export function SignInPanel({ redirectTo = '/' }: SignInPanelProps): React.JSX.E
   const [e164, setE164] = useState('');
   const [otp, setOtp] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
+  // Which way the last step change went. `none` on first render, so the first
+  // screen paints in place and Largest Contentful Paint is not delayed.
+  const [direction, setDirection] = useState<'none' | 'next' | 'back'>('none');
 
   const busy = auth.step === 'working';
 
@@ -70,6 +80,7 @@ export function SignInPanel({ redirectTo = '/' }: SignInPanelProps): React.JSX.E
   async function sendOtp(number: string): Promise<void> {
     const sent = await auth.sendVerificationCode(number, RECAPTCHA_CONTAINER_ID);
     if (!sent) return;
+    setDirection('next');
     setView('otp');
     setOtp('');
     setSecondsLeft(RESEND_AFTER_SECONDS);
@@ -83,6 +94,7 @@ export function SignInPanel({ redirectTo = '/' }: SignInPanelProps): React.JSX.E
   function backToPhone(): void {
     auth.reset();
     setOtp('');
+    setDirection('back');
     setView('phone');
   }
 
@@ -107,8 +119,13 @@ export function SignInPanel({ redirectTo = '/' }: SignInPanelProps): React.JSX.E
       />
 
       <main className="mx-auto flex w-full max-w-md flex-col gap-8 px-5 py-8 sm:py-12">
+        {/*
+          Each step is keyed, so a step change mounts a fresh subtree and the
+          slide plays: forward from the right, back from the left, as a native
+          navigation stack does.
+        */}
         {view === 'phone' ? (
-          <>
+          <div key="phone" className={cn('flex flex-col gap-8', STEP_MOTION[direction])}>
             <header className="flex flex-col gap-2">
               <h2 className="text-title">Enter your phone number</h2>
               <p className="text-ink-soft">We send a one-time password (OTP) to it by SMS.</p>
@@ -162,9 +179,9 @@ export function SignInPanel({ redirectTo = '/' }: SignInPanelProps): React.JSX.E
             >
               Continue with Google
             </Button>
-          </>
+          </div>
         ) : (
-          <>
+          <div key="otp" className={cn('flex flex-col gap-8', STEP_MOTION[direction])}>
             <header className="flex flex-col gap-2">
               <h2 className="text-title">Enter the OTP</h2>
               <p className="text-ink-soft">
@@ -185,6 +202,7 @@ export function SignInPanel({ redirectTo = '/' }: SignInPanelProps): React.JSX.E
             >
               <Input
                 label="OTP"
+                {...(auth.error !== null && { error: auth.error })}
                 name="otp"
                 value={otp}
                 onChange={(event) => {
@@ -220,10 +238,11 @@ export function SignInPanel({ redirectTo = '/' }: SignInPanelProps): React.JSX.E
                 Change number
               </Button>
             </div>
-          </>
+          </div>
         )}
 
-        {auth.error !== null && <Alert tone="danger" title={auth.error} />}
+        {/* On the OTP step the error belongs to the field, which shakes; see below. */}
+        {auth.error !== null && view === 'phone' && <Alert tone="danger" title={auth.error} />}
 
         {/*
           Firebase mounts the invisible reCAPTCHA widget here. It must be in the

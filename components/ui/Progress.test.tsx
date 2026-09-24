@@ -23,4 +23,11 @@ describe('Progress', () => {
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
     expect(screen.getByText('100%')).toBeInTheDocument();
   });
+
+  it('fills with a transform, not a width, so it animates without layout', () => {
+    const { container } = render(<Progress label="Upload" value={25} />);
+    const fill = container.querySelector('[role="progressbar"] > div') as HTMLElement;
+    expect(fill.style.transform).toBe('scaleX(0.25)');
+    expect(fill.style.width).toBe('');
+  });
 });
