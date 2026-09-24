@@ -153,7 +153,9 @@ export function Badge({ label, tone = 'neutral', className }: BadgeProps) {
   - `hooks/useFirebaseAuth.ts` loads the Firebase SDK (about 36 KB gzip) on first use. The sign-in screen passes `warm: true` to start the download after the page is interactive.
   - `components/profile/ProfileForm.tsx` loads zod (about 90 KB gzip) on first focus, and waits for it on submit.
 - Keep the shared constants of such a library's module in a separate file with no dependencies, so that the page can render without the library. See `lib/profile-fields.ts` and `lib/profile-schema.ts`.
-- Give a dynamic route a `loading.tsx`. A `<Link>` cannot prefetch a dynamic page, but it prefetches the loading state, so a tap changes the screen at once.
+- Give a slow dynamic route a loading state. A `<Link>` cannot prefetch a dynamic page, but it prefetches the loading state, so a tap changes the screen at once.
+  - Use `loading.tsx` only when the page never calls `redirect()` or `notFound()`. See `app/example/loading.tsx`.
+  - When the page does, run that check first and wrap only the slow part in `<Suspense>`. A `loading.tsx` starts the response before the check, so a redirect becomes a 200 with a client-side redirect. See `app/profile/page.tsx`.
 
 ### Accessibility
 
