@@ -40,7 +40,7 @@ export interface SignInPanelProps {
 
 export function SignInPanel({ redirectTo = '/' }: SignInPanelProps): React.JSX.Element {
   const router = useRouter();
-  const auth = useFirebaseAuth();
+  const auth = useFirebaseAuth({ warm: true });
 
   const [view, setView] = useState<'phone' | 'otp'>('phone');
   const [country, setCountry] = useState(DEFAULT_DIAL_COUNTRY);

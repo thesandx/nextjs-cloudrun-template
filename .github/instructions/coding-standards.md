@@ -149,6 +149,11 @@ export function Badge({ label, tone = 'neutral', className }: BadgeProps) {
 - Keep them leaf-shaped and prop-driven.
 - Every effect cleans up. Every dependency array is honest — do not silence the lint rule.
 - Prefer `useSyncExternalStore` over `useEffect` + `useState` for reading browser state; it avoids hydration mismatches.
+- Load a large library with `import()` when only an action needs it. A static import puts it in the first load of every page that renders the component. Two examples:
+  - `hooks/useFirebaseAuth.ts` loads the Firebase SDK (about 36 KB gzip) on first use. The sign-in screen passes `warm: true` to start the download after the page is interactive.
+  - `components/profile/ProfileForm.tsx` loads zod (about 90 KB gzip) on first focus, and waits for it on submit.
+- Keep the shared constants of such a library's module in a separate file with no dependencies, so that the page can render without the library. See `lib/profile-fields.ts` and `lib/profile-schema.ts`.
+- Give a dynamic route a `loading.tsx`. A `<Link>` cannot prefetch a dynamic page, but it prefetches the loading state, so a tap changes the screen at once.
 
 ### Accessibility
 

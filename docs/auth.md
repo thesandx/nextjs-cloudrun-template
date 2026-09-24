@@ -109,7 +109,7 @@ It is created at sign-in, inside a transaction, because two requests from the sa
 `/profile` lets a signed-in user edit `displayName`, `dateOfBirth` and `gender`. The form sends `PATCH /api/profile`.
 
 - The route takes the uid from the session. The body has no uid, so a user can only edit their own profile.
-- `lib/profile-fields.ts` holds the rules. The form and the route use the same schema.
+- `lib/profile-schema.ts` holds the rules. The form and the route use the same schema. The form loads it with `import()`, so zod is not in the first load of `/profile`. `lib/profile-fields.ts` holds the choices and limits, with no dependencies.
 - `dateOfBirth` is a `YYYY-MM-DD` string, not a `Date`. A birthday is a calendar day, not an instant, and a `Date` moves it by a day in some time zones.
 - `dateOfBirth` and `gender` are optional in the schema permanently. Profiles from before these fields have no value, and only the user can supply one. There is nothing to backfill.
 - `null` clears a field.

@@ -1,18 +1,8 @@
 'use client';
 
-import { type FirebaseApp, getApps, initializeApp } from 'firebase/app';
-import {
-  type Auth,
-  type ConfirmationResult,
-  getAuth,
-  GoogleAuthProvider,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  signInWithPopup,
-  signOut as firebaseSignOut,
-  type User,
-} from 'firebase/auth';
-import { useCallback, useRef, useState } from 'react';
+import type * as FirebaseAuthSdk from 'firebase/auth';
+import type { Auth, ConfirmationResult, RecaptchaVerifier, User } from 'firebase/auth';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getFirebaseWebConfig } from '@/lib/firebase-config';
 
@@ -33,6 +23,14 @@ import { getFirebaseWebConfig } from '@/lib/firebase-config';
  * the config object — is in `lib/firebase-config.ts`; the effect lives on the
  * client-interaction layer, which is what `hooks/` is for.
  *
+ * ## Why the SDK is loaded with `import()`
+ *
+ * The Firebase SDK is about 36 KB (gzip). A static import put it in the first
+ * load of every page that renders a sign-in or sign-out control, and most
+ * visitors to those pages never press one. `loadClientAuth` fetches it on
+ * first use instead. The sign-in screen passes `warm: true`, which starts the
+ * download after the page is interactive, so the first tap does not wait.
+ *
  * ## reCAPTCHA
  *
  * Phone sign-in REQUIRES a reCAPTCHA verifier. Firebase renders an invisible
@@ -44,6 +42,15 @@ import { getFirebaseWebConfig } from '@/lib/firebase-config';
  */
 
 export type AuthStep = 'idle' | 'working' | 'awaiting-code';
+
+export interface UseFirebaseAuthOptions {
+  /**
+   * Start loading the SDK as soon as the component mounts. Set it on a screen
+   * whose purpose is to sign in. Leave it off for a control that is only
+   * sometimes used, such as a sign-out button.
+   */
+  warm?: boolean;
+}
 
 export interface UseFirebaseAuth {
   step: AuthStep;
@@ -102,19 +109,50 @@ async function readServerMessage(response: Response): Promise<string | null> {
   return null;
 }
 
-function getClientAuth(): Auth | null {
-  const config = getFirebaseWebConfig();
-  if (config === null) return null;
-
-  // Next.js preserves module state across hot reloads, so re-initialising the
-  // same app would throw. Reuse whatever is already there.
-  const app: FirebaseApp = getApps()[0] ?? initializeApp(config);
-  return getAuth(app);
+interface ClientAuth {
+  auth: Auth;
+  sdk: typeof FirebaseAuthSdk;
 }
 
-export function useFirebaseAuth(): UseFirebaseAuth {
+/** One download per page, shared by every caller. Cleared if it fails. */
+let clientAuthPromise: Promise<ClientAuth> | null = null;
+
+/**
+ * The Firebase Auth instance and the SDK functions, loaded on first use.
+ * Throws when the deployment ships no Firebase config; callers check
+ * `available` first, so that is a programming error, not a user one.
+ */
+async function loadClientAuth(): Promise<ClientAuth> {
+  const config = getFirebaseWebConfig();
+  if (config === null) throw new Error('Firebase web config is missing.');
+
+  clientAuthPromise ??= Promise.all([import('firebase/app'), import('firebase/auth')]).then(
+    ([appSdk, sdk]) => {
+      // Next.js preserves module state across hot reloads, so re-initialising
+      // the same app would throw. Reuse whatever is already there.
+      const app = appSdk.getApps()[0] ?? appSdk.initializeApp(config);
+      return { auth: sdk.getAuth(app), sdk };
+    },
+  );
+
+  try {
+    return await clientAuthPromise;
+  } catch (caught) {
+    // A failed chunk download must not stick: let the next tap try again.
+    clientAuthPromise = null;
+    throw caught;
+  }
+}
+
+export function useFirebaseAuth({ warm = false }: UseFirebaseAuthOptions = {}): UseFirebaseAuth {
   const [step, setStep] = useState<AuthStep>('idle');
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // A failure here is not shown: the action the user takes loads again and
+    // reports its own error.
+    if (warm && getFirebaseWebConfig() !== null) loadClientAuth().catch(() => undefined);
+  }, [warm]);
 
   const verifierRef = useRef<RecaptchaVerifier | null>(null);
   const confirmationRef = useRef<ConfirmationResult | null>(null);
@@ -151,8 +189,7 @@ export function useFirebaseAuth(): UseFirebaseAuth {
   }, []);
 
   const signInWithGoogle = useCallback(async (): Promise<boolean> => {
-    const auth = getClientAuth();
-    if (auth === null) {
+    if (!available) {
       setError('Sign-in is not configured for this deployment.');
       return false;
     }
@@ -160,7 +197,8 @@ export function useFirebaseAuth(): UseFirebaseAuth {
     setStep('working');
     setError(null);
     try {
-      const credential = await signInWithPopup(auth, new GoogleAuthProvider());
+      const { auth, sdk } = await loadClientAuth();
+      const credential = await sdk.signInWithPopup(auth, new sdk.GoogleAuthProvider());
       return await establishSession(credential.user);
     } catch (caught) {
       setError(toMessage(caught));
@@ -168,12 +206,11 @@ export function useFirebaseAuth(): UseFirebaseAuth {
     } finally {
       setStep('idle');
     }
-  }, [establishSession]);
+  }, [available, establishSession]);
 
   const sendVerificationCode = useCallback(
     async (phoneNumber: string, recaptchaContainerId: string): Promise<boolean> => {
-      const auth = getClientAuth();
-      if (auth === null) {
+      if (!available) {
         setError('Sign-in is not configured for this deployment.');
         return false;
       }
@@ -181,11 +218,13 @@ export function useFirebaseAuth(): UseFirebaseAuth {
       setStep('working');
       setError(null);
       try {
-        verifierRef.current ??= new RecaptchaVerifier(auth, recaptchaContainerId, {
+        const { auth, sdk } = await loadClientAuth();
+
+        verifierRef.current ??= new sdk.RecaptchaVerifier(auth, recaptchaContainerId, {
           size: 'invisible',
         });
 
-        confirmationRef.current = await signInWithPhoneNumber(
+        confirmationRef.current = await sdk.signInWithPhoneNumber(
           auth,
           phoneNumber,
           verifierRef.current,
@@ -202,7 +241,7 @@ export function useFirebaseAuth(): UseFirebaseAuth {
         return false;
       }
     },
-    [],
+    [available],
   );
 
   const confirmVerificationCode = useCallback(
@@ -238,9 +277,10 @@ export function useFirebaseAuth(): UseFirebaseAuth {
       signal: AbortSignal.timeout(10_000),
     });
 
-    const auth = getClientAuth();
-    if (auth !== null) await firebaseSignOut(auth);
-  }, []);
+    if (!available) return;
+    const { auth, sdk } = await loadClientAuth();
+    await sdk.signOut(auth);
+  }, [available]);
 
   const reset = useCallback((): void => {
     verifierRef.current?.clear();
