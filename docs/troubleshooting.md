@@ -419,6 +419,17 @@ The script is idempotent, so re-run it with the flags added. The signed URL in t
 
 `finalizeUpload` ran but the object is not there. Either the PUT did not actually succeed — check its status, not just that it returned — or finalize already ran and moved it, or more than a day passed and the lifecycle rule swept it.
 
+### `ALREADY_EXISTS: Revision named '...' already exists`
+
+The deploy tried to create a Cloud Run revision whose name is already taken.
+
+A revision name is `<service>-<suffix>`, and it must be unique. When the suffix
+is the commit SHA alone, every re-deploy of that commit collides — so a manual
+`workflow_dispatch` run fails while a push of a new commit succeeds.
+
+`deploy.yml` includes the run number in the suffix, which makes every run
+unique. Seeing this means an older workflow: pull the current `deploy.yml`.
+
 ### Sign-in reports an error, but refreshing shows the user signed in
 
 The session cookie is set before the profile is created, so a failure in the
