@@ -425,6 +425,25 @@ The session cookie is not named `__session`, and Firebase Hosting stripped it.
 
 Hosting and the CDN in front of it drop every cookie except that one. The app therefore works perfectly on the direct `*.run.app` URL and fails behind a custom domain. The name is a constant in `lib/session-cookie.ts`; do not change it.
 
+### `Adding a binding without specifying a condition to a policy containing conditions`
+
+`gcp-bootstrap.sh` stopped on a `gcloud projects add-iam-policy-binding` call. The message ends with `Run the command again with --condition=None`.
+
+The project's IAM policy already holds a conditional binding — this template always creates one, because `roles/datastore.user` is pinned to the named database. gcloud will not guess which binding you meant, so it refuses.
+
+It appears only on a project bootstrapped before, which is why a first run looks fine.
+
+Grant the one binding by hand, then re-run bootstrap to finish:
+
+```bash
+gcloud projects add-iam-policy-binding PROJECT \
+  --member="serviceAccount:APP_SLUG-runtime@PROJECT.iam.gserviceaccount.com" \
+  --role="roles/firebaseauth.admin" \
+  --condition=None
+```
+
+Re-running bootstrap without updating the script hits the same error again: the check is on the policy, not on whether the binding already exists. Pull the fix first.
+
 ### New sign-ins fail, but existing sessions keep working
 
 The runtime service account is missing `roles/firebaseauth.admin`.
@@ -492,6 +511,18 @@ Sequential ids, date prefixes and bare numbers are refused at any length — the
 Stored data no longer matches the collection's zod schema. This is a real bug surfacing, not noise: a field written by an older build, a console edit, or a half-finished migration.
 
 The message names the document and the failing field. Decide deliberately: migrate the data, or widen the schema (a new field should usually be `.optional()` until every document has it).
+
+**The common cause is a required field added to a collection that already had rows.** The symptom is a whole page failing rather than one row, because `list` parses every document in the page and throws on the first failure. A page that rendered yesterday shows an error boundary today, and nothing in the deploy looks wrong.
+
+Fix it in one of two ways:
+
+- **The data matters** — follow [CLAUDE.md > Add a field to an existing collection](../CLAUDE.md#add-a-field-to-an-existing-collection): optional, backfill, tighten. Note that the backfill is only possible while the field is optional, because a required field makes the `list` it depends on throw.
+- **The data does not matter** — a demo row, a dev database — delete it and keep the required field:
+
+```bash
+gcloud firestore bulk-delete --collection-ids=COLLECTION \
+  --database=DATABASE --project=PROJECT
+```
 
 ### `UnboundedQueryError`
 

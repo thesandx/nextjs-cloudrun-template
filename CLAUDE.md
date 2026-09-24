@@ -618,7 +618,33 @@ The single most effective control is the **SMS region policy** — Authenticatio
 
 `gcp-bootstrap.sh` prints all three. None of them is automatic.
 
-### 24. `dumb-init` is PID 1
+### 24. One conditional IAM binding makes every later one need `--condition`
+
+Once a project's IAM policy contains **any** conditional binding, gcloud
+refuses an unconditioned `add-iam-policy-binding` in non-interactive mode:
+
+```
+ERROR: (gcloud.projects.add-iam-policy-binding) Adding a binding without
+specifying a condition to a policy containing conditions is prohibited in
+non-interactive mode. Run the command again with `--condition=None`
+```
+
+It is not asking for a condition. It is asking you to **say** there is none, so
+it cannot guess wrong about which binding you meant.
+
+This template guarantees the trigger: `roles/datastore.user` is bound with an
+IAM condition naming the database (trap 13), so by the time bootstrap reaches
+any later project-level grant, the policy already has conditions in it. The
+failure appears only on a project that has been bootstrapped once — a fresh
+project works, which is what makes it easy to ship.
+
+**Every `gcloud projects add-iam-policy-binding` in `gcp-bootstrap.sh` passes
+`--condition`,** either a real one or `--condition=None`. Adding one without it
+is a defect. Bindings on a bucket, a repository or a service account have their
+own policies and are unaffected today — but the same rule applies the moment
+one of those gains a condition.
+
+### 25. `dumb-init` is PID 1
 
 Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy. Verified: the container currently stops in ~1s.
 
@@ -707,6 +733,52 @@ Read [Firestore data modeling](#firestore-data-modeling) first. Then, in one pul
 4. Leave `GET` public unless the data itself is private
 5. In the UI, render a sign-in prompt instead of the form — for honesty, not safety
 6. Add the route to the table in [`docs/auth.md`](./docs/auth.md) if it behaves unusually
+
+### Add a field to an existing collection
+
+**A required field is a migration, not an edit.** The repository validates on
+read, so the moment a schema requires a field, every document written before it
+becomes unreadable — and `list` throws on the whole page, not just that row.
+A page that rendered yesterday shows an error boundary today.
+
+This shipped once: `ownerId` was added to `examples` as required, and the one
+pre-existing row took the whole `/example` page down.
+
+Three deploys, in this order:
+
+1. **Add it optional.** `ownerId: z.string().min(1).optional()`. Reads keep
+   working, and new writes carry the field.
+2. **Backfill.** A script in `scripts/`, paging with a cursor. This step is
+   only possible while the field is optional — a required field makes the very
+   `list` the backfill depends on throw.
+3. **Tighten.** Remove `.optional()`. The type is now honest, and every
+   document satisfies it.
+
+```ts
+// Step 2. `includeDeleted` matters: a soft-deleted row still needs the field,
+// or restoring it later throws.
+let cursor: string | undefined;
+do {
+  const page = await examples.list({ limit: 200, cursor, includeDeleted: true });
+  await examples.batchWrite((repo) => {
+    for (const row of page.items) {
+      if (row.ownerId === undefined) repo.update(row.id, { ownerId: LEGACY_OWNER });
+    }
+  });
+  cursor = page.nextCursor ?? undefined;
+} while (cursor !== undefined);
+```
+
+**Removing a field is not symmetrical, and needs none of this.** zod strips
+keys the schema does not declare, so dropping one from the schema is safe on
+read. The data stays in Firestore until something deletes it.
+
+**Shortcut, and say so in the PR:** a collection with no data worth keeping —
+a fresh `examples`, a dev database — can skip all three. Delete the documents
+and ship the required field directly.
+
+A field you cannot backfill stays `.optional()` permanently. That is not
+untidiness; it is the schema telling the truth about the data.
 
 ### Add a file upload
 

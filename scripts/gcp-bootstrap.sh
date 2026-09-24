@@ -605,9 +605,16 @@ ok "iam.serviceAccountTokenCreator on itself (signs URLs without a key)"
 # and read docs/auth.md before you do — the app breaks in a way that looks
 # like a client bug.
 if [[ "$SKIP_AUTH" != "true" ]]; then
+  # --condition=None is REQUIRED, not optional tidiness. The datastore.user
+  # binding above put a CONDITIONAL binding in this project's policy, and
+  # gcloud then refuses any unconditioned add-iam-policy-binding in
+  # non-interactive mode — it wants to know which binding you meant. Every
+  # other project-level grant in this script passes --condition for the same
+  # reason. See trap 24.
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:${RUNTIME_SA}" \
     --role="roles/firebaseauth.admin" \
+    --condition=None \
     --quiet >/dev/null
   ok "firebaseauth.admin (mints session cookies; see docs/auth.md)"
 fi
