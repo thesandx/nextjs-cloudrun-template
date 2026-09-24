@@ -333,6 +333,36 @@ Then `pnpm db:deploy --project P --database D`, or merge to `main` — the deplo
 
 Indexes build in the background. A large collection takes minutes, and the query keeps failing until the build finishes.
 
+### An app that was working fails at "Deploy Firestore rules and indexes", and nobody touched it
+
+Symptom: a deploy that has worked for months fails at the index step with a
+permission error on `roles/datastore.indexAdmin`. No change to that app explains
+it.
+
+Cause: somebody tore down a **different** app in the same project, with a version
+of `gcp-teardown.sh` that removed the deployer's binding using `--all`. The
+deployer account is shared by every app in the project, and `--all` ignores the
+IAM condition that scopes each binding to one database. So one teardown took them
+all. See [trap 29](../CLAUDE.md#29-remove-iam-policy-binding---all-ignores-conditions-and-the-deployer-is-shared).
+
+Confirm it — the surviving apps' bindings are gone from the policy:
+
+```bash
+gcloud projects get-iam-policy PROJECT_ID \
+  --flatten='bindings[].members' \
+  --filter='bindings.role:roles/datastore.indexAdmin' \
+  --format='table(bindings.role, bindings.condition.title)'
+```
+
+Fix: re-run bootstrap for each affected app. It is idempotent, and it re-grants
+the binding with the right condition:
+
+```bash
+./scripts/gcp-bootstrap.sh --project PROJECT_ID --service AFFECTED_APP_SLUG
+```
+
+The current script removes the binding by condition, so it takes only its own.
+
 ### Firestore or Cloud Storage returns `PERMISSION_DENIED` on a green deploy
 
 The deploy succeeded, `/api/health` is fine, and every data call fails. Two causes, in order of likelihood.
