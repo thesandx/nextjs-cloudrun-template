@@ -425,6 +425,25 @@ The session cookie is not named `__session`, and Firebase Hosting stripped it.
 
 Hosting and the CDN in front of it drop every cookie except that one. The app therefore works perfectly on the direct `*.run.app` URL and fails behind a custom domain. The name is a constant in `lib/session-cookie.ts`; do not change it.
 
+### `Adding a binding without specifying a condition to a policy containing conditions`
+
+`gcp-bootstrap.sh` stopped on a `gcloud projects add-iam-policy-binding` call. The message ends with `Run the command again with --condition=None`.
+
+The project's IAM policy already holds a conditional binding — this template always creates one, because `roles/datastore.user` is pinned to the named database. gcloud will not guess which binding you meant, so it refuses.
+
+It appears only on a project bootstrapped before, which is why a first run looks fine.
+
+Grant the one binding by hand, then re-run bootstrap to finish:
+
+```bash
+gcloud projects add-iam-policy-binding PROJECT \
+  --member="serviceAccount:APP_SLUG-runtime@PROJECT.iam.gserviceaccount.com" \
+  --role="roles/firebaseauth.admin" \
+  --condition=None
+```
+
+Re-running bootstrap without updating the script hits the same error again: the check is on the policy, not on whether the binding already exists. Pull the fix first.
+
 ### New sign-ins fail, but existing sessions keep working
 
 The runtime service account is missing `roles/firebaseauth.admin`.

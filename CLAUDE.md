@@ -618,7 +618,33 @@ The single most effective control is the **SMS region policy** — Authenticatio
 
 `gcp-bootstrap.sh` prints all three. None of them is automatic.
 
-### 24. `dumb-init` is PID 1
+### 24. One conditional IAM binding makes every later one need `--condition`
+
+Once a project's IAM policy contains **any** conditional binding, gcloud
+refuses an unconditioned `add-iam-policy-binding` in non-interactive mode:
+
+```
+ERROR: (gcloud.projects.add-iam-policy-binding) Adding a binding without
+specifying a condition to a policy containing conditions is prohibited in
+non-interactive mode. Run the command again with `--condition=None`
+```
+
+It is not asking for a condition. It is asking you to **say** there is none, so
+it cannot guess wrong about which binding you meant.
+
+This template guarantees the trigger: `roles/datastore.user` is bound with an
+IAM condition naming the database (trap 13), so by the time bootstrap reaches
+any later project-level grant, the policy already has conditions in it. The
+failure appears only on a project that has been bootstrapped once — a fresh
+project works, which is what makes it easy to ship.
+
+**Every `gcloud projects add-iam-policy-binding` in `gcp-bootstrap.sh` passes
+`--condition`,** either a real one or `--condition=None`. Adding one without it
+is a defect. Bindings on a bucket, a repository or a service account have their
+own policies and are unaffected today — but the same rule applies the moment
+one of those gains a condition.
+
+### 25. `dumb-init` is PID 1
 
 Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy. Verified: the container currently stops in ~1s.
 
