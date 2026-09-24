@@ -693,7 +693,33 @@ dynamic route renders per-user content and sends no `Cache-Control` at all,
 which is exactly what keeps it out of the CDN. A blanket header would start
 caching one user's signed-in page and serving it to the next visitor.
 
-### 27. `dumb-init` is PID 1
+### 27. A Cloud Run revision name must be unique, and fits in 63 characters
+
+The revision is named `<service>-<suffix>`. Two constraints, and a suffix of
+the commit SHA alone breaks both.
+
+**Unique.** Re-deploying the same commit collides:
+
+```
+ERROR: (gcloud.run.deploy) ALREADY_EXISTS: Revision named
+'my-app-646c48b...' with different configuration already exists.
+```
+
+"Different configuration" is `DEPLOYED_AT`, which moves every run. So a
+`workflow_dispatch` re-run could never succeed — and re-running a deploy to
+pick up a changed repository variable is an ordinary thing to want.
+
+**63 characters.** A 40-character SHA plus a hyphen leaves 22 for the service
+name. `APP_SLUG` allows 49, so a longer name overflowed a limit nothing warned
+about.
+
+`deploy.yml` builds the suffix as `r<run-number>-<short-sha>`, truncated to
+whatever the service name leaves. **The run number comes first on purpose:** it
+is the uniquifier and must never be trimmed, so truncation eats the SHA, which
+is decorative. Traceability does not depend on it — the image tag and the
+`commit-sha` label both carry the full SHA.
+
+### 28. `dumb-init` is PID 1
 
 Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy. Verified: the container currently stops in ~1s.
 

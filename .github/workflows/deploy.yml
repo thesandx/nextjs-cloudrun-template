@@ -112,9 +112,43 @@ jobs:
 
       - name: Resolve deploy metadata
         id: meta
-        # UTC time of this deploy. /api/health renders it in IST so a deploy is
-        # visible without opening GitHub.
-        run: echo "deployed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+
+          # UTC time of this deploy. /api/health renders it in IST so a deploy
+          # is visible without opening GitHub.
+          echo "deployed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+          # Cloud Run revision names must be UNIQUE, and the full name is
+          # "<service>-<suffix>" capped at 63 characters. A suffix of the
+          # commit SHA alone failed both tests:
+          #
+          #   - Re-deploying the same commit collided. `gcloud run deploy`
+          #     answers ALREADY_EXISTS, so a workflow_dispatch re-run could
+          #     never succeed — and re-running a deploy to pick up a changed
+          #     repository variable is an ordinary thing to want.
+          #   - A 40-character SHA plus a hyphen leaves 22 characters for the
+          #     service name. APP_SLUG allows 49, so a longer name overflowed
+          #     and the deploy failed on a limit nothing warned about.
+          #
+          # The RUN NUMBER comes first because it is the uniquifier and must
+          # never be truncated. The short SHA follows for readability, and is
+          # what gets trimmed when a long service name leaves no room.
+          # Traceability does not depend on it: the image tag and the
+          # `commit-sha` label both carry the full SHA.
+          SUFFIX="r${GITHUB_RUN_NUMBER}-${GITHUB_SHA:0:7}"
+          BUDGET=$((63 - ${#SERVICE_NAME} - 1))
+
+          if [[ "$BUDGET" -lt 4 ]]; then
+            echo "::error::Service name '${SERVICE_NAME}' (${#SERVICE_NAME} chars) leaves no room for a revision suffix."
+            exit 1
+          fi
+          if [[ "${#SUFFIX}" -gt "$BUDGET" ]]; then
+            SUFFIX="${SUFFIX:0:BUDGET}"
+          fi
+
+          echo "Revision will be: ${SERVICE_NAME}-${SUFFIX} (${#SERVICE_NAME}+1+${#SUFFIX} chars)"
+          echo "revision_suffix=${SUFFIX}" >> "$GITHUB_OUTPUT"
 
       - name: Resolve data layer names
         id: data
@@ -240,7 +274,7 @@ jobs:
             --timeout=300
             --execution-environment=gen2
             --cpu-boost
-            --revision-suffix=${{ github.sha }}
+            --revision-suffix=${{ steps.meta.outputs.revision_suffix }}
 
       - name: Verify the deployment serves traffic
         # The deploy step succeeding only means Cloud Run accepted the revision.
