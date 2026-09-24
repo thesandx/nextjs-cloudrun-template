@@ -6,7 +6,7 @@
       {
         "source": "**",
         "run": {
-          "serviceId": "nextjs-cloudrun-template",
+          "serviceId": "nextjs-template",
           "region": "asia-south1"
         }
       }
