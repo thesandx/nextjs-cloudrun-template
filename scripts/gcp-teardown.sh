@@ -196,6 +196,12 @@ gcloud projects remove-iam-policy-binding "$PROJECT_ID" \
   && ok "Removed datastore.indexAdmin from the deployer" \
   || skip "No datastore.indexAdmin binding to remove"
 
+# roles/firebasehosting.admin is deliberately NOT removed. Firebase Hosting is
+# a PROJECT-level resource that no single app owns, and the deployer service
+# account is shared by every app in the project. Revoking it here would stop
+# the other apps purging their CDN after a deploy.
+skip "Left firebasehosting.admin on the deployer (shared, project-scoped)"
+
 cat <<EOF
 
 ${GREEN}${BOLD}Teardown complete.${RESET}

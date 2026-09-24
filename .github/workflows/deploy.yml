@@ -267,6 +267,43 @@ jobs:
             --format='value(status.conditions)'
           exit 1
 
+      # -----------------------------------------------------------------------
+      # Firebase Hosting sits in front of Cloud Run when a custom domain is in
+      # use, and it is a CDN. Next.js marks a statically prerendered page
+      # `Cache-Control: s-maxage=31536000` — one year to a shared cache — so
+      # Hosting keeps serving the OLD page after a Cloud Run deploy. Nothing
+      # connects the two systems; the deploy does not purge anything.
+      #
+      # `firebase deploy --only hosting` is that purge. It re-publishes the
+      # Hosting release and invalidates the edge, in seconds, without touching
+      # the Cloud Run service.
+      #
+      # ORDER MATTERS. This runs AFTER the health probe, never before: purging
+      # while the old revision is still serving simply re-caches the old page.
+      #
+      # Opt-in, because an app with no Hosting site would fail here. Set the
+      # variable once Hosting is live:
+      #   gh variable set FIREBASE_HOSTING_ENABLED --body true
+      # -----------------------------------------------------------------------
+      - name: Purge the Firebase Hosting CDN
+        if: vars.FIREBASE_HOSTING_ENABLED == 'true'
+        env:
+          # firebase-tools reads Application Default Credentials, which
+          # google-github-actions/auth already exported for this job. No token,
+          # no key file — the same keyless path as every other step here.
+          FIREBASE_PROJECT: ${{ vars.FIREBASE_PROJECT_ID || env.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          if [[ ! -f firebase.json ]]; then
+            echo "::error::FIREBASE_HOSTING_ENABLED is true but firebase.json is missing."
+            exit 1
+          fi
+          npx --yes firebase-tools@15.31.0 deploy \
+            --only hosting \
+            --project "$FIREBASE_PROJECT" \
+            --non-interactive \
+            --message "Cloud Run ${GITHUB_SHA}"
+
       - name: Summary
         if: always()
         run: |
@@ -283,4 +320,5 @@ jobs:
             echo "| Bucket | \`gs://${{ steps.data.outputs.bucket }}\` |"
             echo "| URL | ${{ steps.deploy.outputs.url }} |"
             echo "| Commit | \`${GITHUB_SHA}\` |"
+            echo "| Hosting purge | ${{ vars.FIREBASE_HOSTING_ENABLED == 'true' && 'yes' || 'skipped (FIREBASE_HOSTING_ENABLED unset)' }} |"
           } >> "$GITHUB_STEP_SUMMARY"
