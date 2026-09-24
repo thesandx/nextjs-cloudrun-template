@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { profileUpdateSchema, todayIso } from './profile-fields';
+import { todayIso } from './profile-fields';
+import { profileUpdateSchema } from './profile-schema';
 
 const VALID = { displayName: 'momo', dateOfBirth: '1996-04-12', gender: 'female' };
 

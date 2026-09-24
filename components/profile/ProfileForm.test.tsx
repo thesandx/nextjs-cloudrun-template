@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProfileForm } from './ProfileForm';
@@ -31,10 +31,10 @@ describe('ProfileForm', () => {
     fetchMock.mockResolvedValue(new Response('{}', { status: 200 }));
     render(<ProfileForm initial={INITIAL} />);
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: ' momo ' } });
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
-    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
 
+    // The schema is loaded with import(), so saving is never synchronous.
+    expect(await screen.findByRole('status')).toHaveTextContent('Profile saved.');
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('/api/profile');
     expect(init.method).toBe('PATCH');
@@ -43,17 +43,16 @@ describe('ProfileForm', () => {
       dateOfBirth: null,
       gender: null,
     });
-    expect(screen.getByRole('status')).toHaveTextContent('Profile saved.');
     expect(router.refresh).toHaveBeenCalled();
   });
 
   it('shows a mistake under its field and sends nothing', async () => {
     render(<ProfileForm initial={INITIAL} />);
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: '   ' } });
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
-    });
-    expect(screen.getByLabelText('Name')).toHaveAccessibleDescription('Enter a name.');
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Name')).toHaveAccessibleDescription('Enter a name.'),
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -62,9 +61,7 @@ describe('ProfileForm', () => {
       new Response(JSON.stringify({ message: 'Sign in to continue.' }), { status: 401 }),
     );
     render(<ProfileForm initial={INITIAL} />);
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
-    });
-    expect(screen.getByRole('alert')).toHaveTextContent('Sign in to continue.');
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Sign in to continue.');
   });
 });

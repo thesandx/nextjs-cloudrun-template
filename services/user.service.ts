@@ -3,7 +3,7 @@ import 'server-only';
 import { z } from 'zod';
 
 import { logger } from '@/lib/logger';
-import { dateOfBirthSchema, genderSchema, type ProfileUpdate } from '@/lib/profile-fields';
+import { dateOfBirthSchema, genderSchema, type ProfileUpdate } from '@/lib/profile-schema';
 import { type AuthProvider, type SessionUser } from '@/services/auth.service';
 import {
   createRepository,
@@ -86,7 +86,7 @@ export const userProfileSchema = z.object({
 
   /**
    * `YYYY-MM-DD`, set by the user on /profile. A string, not a `Date` — see
-   * `lib/profile-fields.ts`. Optional because profiles created before this
+   * `lib/profile-schema.ts`. Optional because profiles created before this
    * field have no value, and nobody but the user can supply one. That makes it
    * permanently optional: there is nothing to backfill.
    */

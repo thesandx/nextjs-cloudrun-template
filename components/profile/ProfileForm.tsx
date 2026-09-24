@@ -7,13 +7,15 @@ import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import {
-  type Gender,
-  GENDERS,
-  MIN_DATE_OF_BIRTH,
-  profileUpdateSchema,
-  todayIso,
-} from '@/lib/profile-fields';
+import { type Gender, GENDERS, MIN_DATE_OF_BIRTH, todayIso } from '@/lib/profile-fields';
+
+/**
+ * The schema, loaded on demand. zod is about 90 KB (gzip), more than the rest
+ * of the page's own code, and a visitor who only reads the profile never needs
+ * it. The form starts the download on first focus, so it is normally ready by
+ * the time the person presses Save. Repeated calls share one request.
+ */
+const loadSchema = () => import('@/lib/profile-schema');
 
 export interface ProfileFormValues {
   displayName: string;
@@ -36,7 +38,8 @@ type Status = { kind: 'idle' } | { kind: 'saved' } | { kind: 'failed'; message: 
  *
  * Validates with the same schema the server uses, so a mistake shows under
  * its field at once instead of as a 400 after a round trip. The server still
- * validates: this check is for the user, that one is for safety.
+ * validates: this check is for the user, that one is for safety. The schema
+ * is loaded lazily; see `loadSchema` above.
  */
 export function ProfileForm({ initial }: ProfileFormProps) {
   const router = useRouter();
@@ -48,7 +51,16 @@ export function ProfileForm({ initial }: ProfileFormProps) {
   const [saving, setSaving] = useState(false);
 
   async function save(): Promise<void> {
-    const parsed = profileUpdateSchema.safeParse({
+    let schema: Awaited<ReturnType<typeof loadSchema>>;
+    try {
+      schema = await loadSchema();
+    } catch {
+      // The chunk failed to download: a dropped network, or a deploy replaced it.
+      setStatus({ kind: 'failed', message: 'The network dropped. Check your connection.' });
+      return;
+    }
+
+    const parsed = schema.profileUpdateSchema.safeParse({
       displayName,
       dateOfBirth: dateOfBirth === '' ? null : dateOfBirth,
       gender: gender === '' ? null : gender,
@@ -102,6 +114,11 @@ export function ProfileForm({ initial }: ProfileFormProps) {
       onSubmit={(event) => {
         event.preventDefault();
         void save();
+      }}
+      onFocus={() => {
+        // Warm the schema while the person types. save() awaits the same
+        // import and reports it if it fails, so a failure here is ignored.
+        loadSchema().catch(() => undefined);
       }}
       onChange={() => {
         if (status.kind !== 'idle') setStatus({ kind: 'idle' });

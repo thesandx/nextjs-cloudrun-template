@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { mapHttpError } from '@/lib/http-errors';
 import { logger } from '@/lib/logger';
-import { profileUpdateSchema } from '@/lib/profile-fields';
+import { profileUpdateSchema } from '@/lib/profile-schema';
 import { requireUser } from '@/services/auth.service';
 import { updateUserProfile } from '@/services/user.service';
 
