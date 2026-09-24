@@ -29,6 +29,14 @@ service-account*.json
 application_default_credentials.json
 .gcloudignore
 
+# Firebase Hosting. `firebase.json` IS tracked — it is the rewrite that puts a
+# custom domain in front of Cloud Run, and `scripts/rename-project.sh` keeps
+# its serviceId correct. These two are not:
+#   .firebaserc   names your GCP project; `firebase use` writes it per checkout
+#   .firebase/    the CLI's local deploy cache
+.firebaserc
+.firebase/
+
 # Terraform (for when cloud/terraform/ lands — see cloud/terraform.md)
 **/.terraform/*
 *.tfstate
