@@ -94,6 +94,25 @@ page.nextCursor; // string | null — null means this was the last page
 
 `limit` is required and there is no offset. Firestore charges for every skipped document, so offset pagination gets more expensive the deeper you go. The cursor is opaque: treat it as a token, not as an id.
 
+### Dates
+
+Declare `z.date()` and pass a `Date`. The repository converts Firestore's
+`Timestamp` back to a `Date` on read, throughout the payload — including inside
+plain objects and arrays.
+
+```ts
+const eventSchema = z.object({
+  name: z.string().min(1),
+  occurredAt: z.date(),
+});
+```
+
+Do not declare a `Timestamp` in a schema. The point of the conversion is that
+the Firestore type never reaches your application code.
+
+`createdAt`, `updatedAt` and `deletedAt` are not yours to declare — the
+repository maintains them and always returns them as `Date`.
+
 ### Changing a schema on a live collection
 
 The repository validates on **read**, so a schema is a contract with data that

@@ -644,7 +644,30 @@ is a defect. Bindings on a bucket, a repository or a service account have their
 own policies and are unaffected today — but the same rule applies the moment
 one of those gains a condition.
 
-### 25. `dumb-init` is PID 1
+### 25. Firestore returns a `Timestamp`, never a `Date`
+
+A `Date` written to Firestore reads back as a `Timestamp`. So a schema
+declaring `z.date()` for its own field used to fail on read:
+
+```
+Document users/abc failed validation: lastSignInAt: Invalid input:
+expected date, received object
+```
+
+The document is correct. Only its type at the boundary was wrong.
+
+`createdAt`, `updatedAt` and `deletedAt` were always converted, because the
+repository owns those three. Nothing else was — so the bug stayed invisible
+until `users` declared `lastSignInAt`, the template's first payload date, and
+sign-in broke in production.
+
+`timestampsToDates` in `services/repository.ts` now converts the whole payload
+before validation, including inside plain objects and arrays. **It deliberately
+does not recurse into class instances:** `GeoPoint`, `DocumentReference` and
+`Buffer` must survive untouched, and rebuilding one from its entries would
+return a plain object that every later read then rejects.
+
+### 26. `dumb-init` is PID 1
 
 Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy. Verified: the container currently stops in ~1s.
 

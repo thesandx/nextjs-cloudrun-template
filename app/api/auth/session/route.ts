@@ -70,8 +70,18 @@ export async function POST(request: Request): Promise<NextResponse> {
     // The profile is created here, not on first write, so a brand-new user has
     // a record from the moment they sign in. It reads its own cookie, so it
     // must run after the cookie is set.
-    const user = await getCurrentUser();
-    if (user !== null) await ensureUserProfile(user);
+    //
+    // A failure here is NOT a failed sign-in. The cookie is already set, so the
+    // session exists and the browser is signed in — reporting an error would
+    // tell the user the opposite of the truth, and they would find themselves
+    // signed in on the next page load. `requireUserProfile` creates the
+    // profile on demand later, so nothing is permanently missing either.
+    try {
+      const user = await getCurrentUser();
+      if (user !== null) await ensureUserProfile(user);
+    } catch (error) {
+      logger.error('Creating the profile at sign-in failed', error);
+    }
 
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error) {
