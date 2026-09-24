@@ -402,6 +402,14 @@ npx firebase-tools deploy --only hosting --project my-gcp-project
 
 That publishes `my-gcp-project.web.app`. **Verify there, and sign in there, before touching DNS** — that proves the session cookie survives the extra hop.
 
+Then turn on the CDN purge, once:
+
+```bash
+gh variable set FIREBASE_HOSTING_ENABLED --body true
+```
+
+**This is not optional if you use Hosting.** Next.js marks a static page cacheable for a year by a shared cache, and Hosting is a CDN — so without this, a Cloud Run deploy leaves your custom domain serving the previous build while the `run.app` URL shows the new one. The deploy workflow runs `firebase deploy --only hosting` after the health probe, which purges the edge in seconds.
+
 Then **Hosting → Add custom domain**. For a subdomain, Firebase gives you a `CNAME` to `my-gcp-project.web.app`; for an apex, `A` records. Add them at your registrar.
 
 Three things that bite:
@@ -576,6 +584,7 @@ This takes seconds. Then you can fix forward without time pressure.
 | `FIREBASE_APP_ID`            | —                           | Sign-in                                                |
 | `AUTH_SESSION_MAX_AGE_DAYS`  | `14`                        | Session lifetime. Firebase caps it at 14               |
 | `AUTH_CHECK_REVOKED`         | `false`                     | Immediate "sign out everywhere", at one call/request   |
+| `FIREBASE_HOSTING_ENABLED`   | unset                       | `true` purges the Hosting CDN after every deploy       |
 
 Full runbook — first deploy, custom domains, gradual rollout, making the service private, cleanup: [`cloud/deployment.md`](./cloud/deployment.md).
 

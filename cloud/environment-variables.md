@@ -262,6 +262,12 @@ They are also public, which is correct. The Firebase API key identifies the proj
 
 They go in `build-args` in `deploy.yml`, sourced from repository **variables**. That does not contradict "never put a secret in a build arg" — these are not secrets.
 
+### `FIREBASE_HOSTING_ENABLED`
+
+A repository **variable**, read by `deploy.yml` only — the application never sees it. `true` makes the deploy run `firebase deploy --only hosting` after the health probe, which purges the Hosting CDN.
+
+Off by default, because an app with no Hosting site would fail that step. Turn it on the first time you publish Hosting, and leave it on: without it, a Cloud Run deploy leaves a custom domain serving the previous build.
+
 ### `AUTH_CHECK_REVOKED`
 
 On, every authenticated request asks Identity Platform whether the underlying refresh token was revoked, so "sign out everywhere" takes effect immediately. That is one call to an external service in the hot path of every request. Off is right for most apps; on is right for money and health data.

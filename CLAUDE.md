@@ -668,7 +668,32 @@ does not recurse into class instances:** `GeoPoint`, `DocumentReference` and
 `Buffer` must survive untouched, and rebuilding one from its entries would
 return a plain object that every later read then rejects.
 
-### 26. `dumb-init` is PID 1
+### 26. A Cloud Run deploy does not refresh Firebase Hosting
+
+Next.js marks a statically prerendered page `Cache-Control: s-maxage=31536000`
+— one year to a **shared** cache. Firebase Hosting is a CDN, and it obeys that.
+
+So after a Cloud Run deploy, the `run.app` URL is fresh and the custom domain
+still serves the previous build. Nothing links the two systems: the deploy
+changes the origin and purges nothing.
+
+`firebase deploy --only hosting` is the purge. `deploy.yml` runs it after the
+health probe — **after**, never before, because purging while the old revision
+still answers simply re-caches the old page. It is opt-in behind
+`FIREBASE_HOSTING_ENABLED`, since an app with no Hosting site would fail there.
+
+Measure it rather than guess:
+
+```bash
+curl -sI https://your-domain/ | grep -i cache-control
+```
+
+**Do not "fix" this with a catch-all `Cache-Control` in `firebase.json`.** A
+dynamic route renders per-user content and sends no `Cache-Control` at all,
+which is exactly what keeps it out of the CDN. A blanket header would start
+caching one user's signed-in page and serving it to the next visitor.
+
+### 27. `dumb-init` is PID 1
 
 Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy. Verified: the container currently stops in ~1s.
 

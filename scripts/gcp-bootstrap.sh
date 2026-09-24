@@ -268,6 +268,10 @@ if [[ "$SKIP_AUTH" != "true" ]]; then
     # Needed to register the project with Firebase and to create the web app
     # whose config the browser uses.
     firebase.googleapis.com
+    # Lets the deploy workflow purge the Hosting CDN after a Cloud Run deploy.
+    # Without that purge, a custom domain serves the previous build until its
+    # cache expires — which Next.js sets to a year on a static page.
+    firebasehosting.googleapis.com
   )
 fi
 
@@ -644,6 +648,21 @@ else
 fi
 
 fi  # end SKIP_DATA
+
+# The deploy workflow runs `firebase deploy --only hosting` after Cloud Run is
+# live, to purge the CDN. That needs Hosting admin on the project.
+#
+# Scoped to the DEPLOYER, never the runtime account: purging a cache is a
+# deploy-time action, and the runtime identity must not be able to publish.
+# --condition=None is required, not decoration — see trap 24.
+if [[ "$SKIP_AUTH" != "true" ]]; then
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:${DEPLOYER_SA}" \
+    --role="roles/firebasehosting.admin" \
+    --condition=None \
+    --quiet >/dev/null
+  ok "firebasehosting.admin on the deployer (purges the CDN after a deploy)"
+fi
 
 # ---------------------------------------------------------------------------
 step "Workload Identity Pool"
