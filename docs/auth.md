@@ -73,6 +73,17 @@ import { SignOutButton } from '@/components/auth/SignOutButton';
 
 `hooks/useFirebaseAuth.ts` holds the SDK calls. Nothing else should import `firebase/auth` directly.
 
+### The sign-in screen
+
+`/sign-in` behaves like a native app screen. It has an on-screen back arrow, so the user does not need the browser's back button. The phone flow has two steps on one route:
+
+1. **Phone number.** The country code is a separate, prefilled choice. The user types only the national number. `lib/phone.ts` joins the two into E.164 and checks the digit count before any SMS is sent.
+2. **OTP.** The screen shows the number the OTP went to. Six digits verify at once. "Resend OTP" unlocks after 30 seconds, because each SMS costs money.
+
+The back arrow on the OTP step returns to the phone step and keeps the number, so the user can correct it.
+
+To change the prefilled country, edit `DEFAULT_DIAL_COUNTRY` in `lib/phone.ts`. Keep `DIAL_COUNTRIES` the same as the SMS region policy in the console. A country that the policy blocks fails only after the user types the number.
+
 Hiding a form from a signed-out user is a courtesy, not a control. The control is `requireUser()` on the server.
 
 ---
@@ -93,6 +104,17 @@ It is created at sign-in, inside a transaction, because two requests from the sa
 
 `repository.createWithId()` is the exception, and `lib/document-ids.ts` keeps it narrow: it rejects sequential ids, date prefixes, bare numbers and anything too short to be random.
 
+### What the user edits
+
+`/profile` lets a signed-in user edit `displayName`, `dateOfBirth` and `gender`. The form sends `PATCH /api/profile`.
+
+- The route takes the uid from the session. The body has no uid, so a user can only edit their own profile.
+- `lib/profile-fields.ts` holds the rules. The form and the route use the same schema.
+- `dateOfBirth` is a `YYYY-MM-DD` string, not a `Date`. A birthday is a calendar day, not an instant, and a `Date` moves it by a day in some time zones.
+- `dateOfBirth` and `gender` are optional in the schema permanently. Profiles from before these fields have no value, and only the user can supply one. There is nothing to backfill.
+- `null` clears a field.
+- Phone and email come from sign-in. The user cannot edit them here.
+
 ### Erasure
 
 Deleting one half leaves the account able to sign in and recreate an empty profile. Both are required:
@@ -104,7 +126,7 @@ await getFirebaseAuth().deleteUser(uid); // the Firebase Auth account
 
 ### PII
 
-`email` and `phoneNumber` identify a person. A `uid` does not. Application logs go to Cloud Logging, where they are retained and widely readable, so **only the uid is ever logged**. Nothing in `services/auth.service.ts` or `services/user.service.ts` logs an address or a number. Keep it that way.
+`email`, `phoneNumber` and `dateOfBirth` identify a person. `gender` is sensitive. A `uid` does not identify a person. Application logs go to Cloud Logging, where they are retained and widely readable, so **only the uid is ever logged**. Nothing in `services/auth.service.ts` or `services/user.service.ts` logs an address, a number, a birth date or a gender. A profile update logs the names of the changed fields, never their values. Keep it that way.
 
 ---
 

@@ -1,42 +1,63 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
+import { AppBar } from '@/components/layout/AppBar';
+import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { Face } from '@/components/ui/Face';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { useFirebaseAuth } from '@/hooks/useFirebaseAuth';
+import { DEFAULT_DIAL_COUNTRY, formatPhoneForDisplay, toE164 } from '@/lib/phone';
+
+import { PhoneNumberInput } from './PhoneNumberInput';
 
 /**
- * Sign in with Google, or with a one-time code sent by SMS.
+ * The sign-in screen, built to behave like an app's: an on-screen back arrow,
+ * one task per step, and the country code already filled in.
+ *
+ * Two steps — the phone number, then the OTP — on one route. The back arrow
+ * walks the steps before it leaves the screen, as a native flow does, and the
+ * number the person typed survives a trip back to correct it.
  *
  * `'use client'` is justified: state, submit handlers, and the Firebase SDK,
- * which only runs in a browser. Everything around it stays a Server Component.
- *
- * The phone flow is two steps on one screen rather than two screens, because a
- * person waiting for an SMS should be able to see the number they typed and
- * correct it without losing the code field.
+ * which only runs in a browser. The page around it stays a Server Component.
  */
 
 /** Where Firebase mounts the invisible reCAPTCHA. Must exist before it runs. */
 const RECAPTCHA_CONTAINER_ID = 'firebase-recaptcha';
 
+/** How long before "Resend OTP" unlocks. Each SMS costs money; see docs/auth.md. */
+export const RESEND_AFTER_SECONDS = 30;
+
+const OTP_LENGTH = 6;
+
 export interface SignInPanelProps {
   /** Where to send the user after a successful sign-in. */
   redirectTo?: string;
-  className?: string;
 }
 
-export function SignInPanel({ redirectTo = '/', className }: SignInPanelProps): React.JSX.Element {
+export function SignInPanel({ redirectTo = '/' }: SignInPanelProps): React.JSX.Element {
   const router = useRouter();
   const auth = useFirebaseAuth();
 
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [code, setCode] = useState('');
+  const [view, setView] = useState<'phone' | 'otp'>('phone');
+  const [country, setCountry] = useState(DEFAULT_DIAL_COUNTRY);
+  const [nationalNumber, setNationalNumber] = useState('');
+  const [phoneError, setPhoneError] = useState<string>();
+  const [e164, setE164] = useState('');
+  const [otp, setOtp] = useState('');
+  const [secondsLeft, setSecondsLeft] = useState(0);
 
   const busy = auth.step === 'working';
+
+  // Counts down to the resend unlock. One interval per OTP step, cleared on leave.
+  useEffect(() => {
+    if (view !== 'otp' || secondsLeft <= 0) return;
+    const timer = setTimeout(() => setSecondsLeft((left) => left - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [view, secondsLeft]);
 
   function finish(succeeded: boolean): void {
     if (!succeeded) return;
@@ -46,117 +67,175 @@ export function SignInPanel({ redirectTo = '/', className }: SignInPanelProps): 
     router.refresh();
   }
 
+  async function sendOtp(number: string): Promise<void> {
+    const sent = await auth.sendVerificationCode(number, RECAPTCHA_CONTAINER_ID);
+    if (!sent) return;
+    setView('otp');
+    setOtp('');
+    setSecondsLeft(RESEND_AFTER_SECONDS);
+  }
+
+  function verify(code: string): void {
+    if (busy) return;
+    void auth.confirmVerificationCode(code).then(finish);
+  }
+
+  function backToPhone(): void {
+    auth.reset();
+    setOtp('');
+    setView('phone');
+  }
+
   if (!auth.available) {
     return (
-      <Card className={`flex flex-col items-center gap-3 text-center ${className ?? ''}`}>
-        <Face mood="sleepy" size={56} label="Sign-in unavailable" />
-        <p className="text-body text-ink-soft">
-          Sign-in is not configured for this deployment. Set the Firebase values in
-          <code> .env.example</code> and rebuild.
-        </p>
-      </Card>
+      <>
+        <AppBar title="Sign in" back />
+        <main className="mx-auto w-full max-w-md px-5 py-10">
+          <EmptyState title="Sign-in is not set up.">
+            Set the Firebase values in <code>.env.example</code> and rebuild the app.
+          </EmptyState>
+        </main>
+      </>
     );
   }
 
   return (
-    <div className={`flex w-full flex-col gap-6 ${className ?? ''}`}>
-      <Button
-        variant="secondary"
-        block
-        disabled={busy}
-        onClick={() => {
-          void auth.signInWithGoogle().then(finish);
-        }}
-      >
-        Continue with Google
-      </Button>
+    <>
+      <AppBar
+        title={view === 'otp' ? 'Verify OTP' : 'Sign in'}
+        back={view === 'otp' ? { onBack: backToPhone, label: 'Change phone number' } : true}
+      />
 
-      <div className="flex items-center gap-3" aria-hidden="true">
-        <span className="bg-line h-0.5 flex-1" />
-        <span className="text-small text-ink-soft">or</span>
-        <span className="bg-line h-0.5 flex-1" />
-      </div>
+      <main className="mx-auto flex w-full max-w-md flex-col gap-8 px-5 py-8 sm:py-12">
+        {view === 'phone' ? (
+          <>
+            <header className="flex flex-col gap-2">
+              <h2 className="text-title">Enter your phone number</h2>
+              <p className="text-ink-soft">We send a one-time password (OTP) to it by SMS.</p>
+            </header>
 
-      {auth.step === 'awaiting-code' ? (
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void auth.confirmVerificationCode(code).then(finish);
-          }}
-        >
-          <Input
-            label="Code"
-            hint={`Sent to ${phoneNumber}. It expires in a few minutes.`}
-            name="code"
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            required
-            code
-          />
+            <form
+              className="flex flex-col gap-5"
+              noValidate
+              onSubmit={(event) => {
+                event.preventDefault();
+                const result = toE164(country, nationalNumber);
+                if (!result.ok) {
+                  setPhoneError(result.message);
+                  return;
+                }
+                setPhoneError(undefined);
+                setE164(result.e164);
+                void sendOtp(result.e164);
+              }}
+            >
+              <PhoneNumberInput
+                country={country}
+                onCountryChange={setCountry}
+                value={nationalNumber}
+                onChange={(value) => {
+                  setNationalNumber(value);
+                  setPhoneError(undefined);
+                }}
+                error={phoneError}
+                disabled={busy}
+                autoFocus
+              />
+              <Button type="submit" size="lg" block disabled={busy}>
+                {busy ? 'Sending OTP…' : 'Send OTP'}
+              </Button>
+            </form>
 
-          <Button type="submit" variant="primary" block disabled={busy}>
-            {busy ? 'Checking…' : 'Verify and continue'}
-          </Button>
+            <div className="flex items-center gap-3" aria-hidden="true">
+              <span className="bg-line h-0.5 flex-1" />
+              <span className="text-small text-ink-soft">or</span>
+              <span className="bg-line h-0.5 flex-1" />
+            </div>
 
-          <Button
-            variant="quiet"
-            block
-            disabled={busy}
-            onClick={() => {
-              setCode('');
-              auth.reset();
-            }}
-          >
-            Use a different number
-          </Button>
-        </form>
-      ) : (
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void auth.sendVerificationCode(phoneNumber, RECAPTCHA_CONTAINER_ID);
-          }}
-        >
-          <Input
-            label="Phone number"
-            hint="With the country code, for example +91 98765 43210."
-            name="phone"
-            type="tel"
-            value={phoneNumber}
-            onChange={(event) => setPhoneNumber(event.target.value)}
-            autoComplete="tel"
-            placeholder="+91"
-            required
-          />
+            <Button
+              variant="secondary"
+              block
+              disabled={busy}
+              onClick={() => {
+                void auth.signInWithGoogle().then(finish);
+              }}
+            >
+              Continue with Google
+            </Button>
+          </>
+        ) : (
+          <>
+            <header className="flex flex-col gap-2">
+              <h2 className="text-title">Enter the OTP</h2>
+              <p className="text-ink-soft">
+                We sent a {OTP_LENGTH}-digit code to{' '}
+                <span className="text-ink font-medium whitespace-nowrap">
+                  {formatPhoneForDisplay(e164)}
+                </span>
+                .
+              </p>
+            </header>
 
-          <Button type="submit" variant="primary" block disabled={busy}>
-            {busy ? 'Sending…' : 'Send code'}
-          </Button>
-        </form>
-      )}
+            <form
+              className="flex flex-col gap-5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                verify(otp);
+              }}
+            >
+              <Input
+                label="OTP"
+                name="otp"
+                value={otp}
+                onChange={(event) => {
+                  const digits = event.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH);
+                  setOtp(digits);
+                  // Verify as soon as the last digit lands, as an SMS autofill expects.
+                  if (digits.length === OTP_LENGTH) verify(digits);
+                }}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={OTP_LENGTH}
+                pattern="\d{6}"
+                autoFocus
+                required
+                code
+              />
+              <Button type="submit" size="lg" block disabled={busy || otp.length !== OTP_LENGTH}>
+                {busy ? 'Verifying…' : 'Verify OTP'}
+              </Button>
+            </form>
 
-      {auth.error !== null ? (
-        <p role="alert" className="text-small text-ink flex items-center gap-1.5 font-medium">
-          <span aria-hidden="true" className="bg-danger inline-block size-2.5 rounded-full" />
-          {auth.error}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {secondsLeft > 0 ? (
+                <p className="text-small text-ink-soft" aria-live="polite">
+                  Resend OTP in {secondsLeft}s
+                </p>
+              ) : (
+                <Button variant="quiet" disabled={busy} onClick={() => void sendOtp(e164)}>
+                  Resend OTP
+                </Button>
+              )}
+              <Button variant="quiet" disabled={busy} onClick={backToPhone}>
+                Change number
+              </Button>
+            </div>
+          </>
+        )}
+
+        {auth.error !== null && <Alert tone="danger" title={auth.error} />}
+
+        {/*
+          Firebase mounts the invisible reCAPTCHA widget here. It must be in the
+          DOM before `sendVerificationCode` runs, which is why it is rendered
+          unconditionally rather than alongside the phone form.
+        */}
+        <div id={RECAPTCHA_CONTAINER_ID} />
+
+        <p className="text-small text-ink-soft">
+          Signing in creates an account if you do not have one.
         </p>
-      ) : null}
-
-      {/*
-        Firebase mounts the invisible reCAPTCHA widget here. It must be in the
-        DOM before `sendVerificationCode` runs, which is why it is rendered
-        unconditionally rather than alongside the phone form.
-      */}
-      <div id={RECAPTCHA_CONTAINER_ID} />
-
-      <p className="text-small text-ink-soft">
-        Signing in creates an account if you do not have one.
-      </p>
-    </div>
+      </main>
+    </>
   );
 }

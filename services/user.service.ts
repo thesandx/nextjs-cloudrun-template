@@ -3,6 +3,7 @@ import 'server-only';
 import { z } from 'zod';
 
 import { logger } from '@/lib/logger';
+import { dateOfBirthSchema, genderSchema, type ProfileUpdate } from '@/lib/profile-fields';
 import { type AuthProvider, type SessionUser } from '@/services/auth.service';
 import {
   createRepository,
@@ -82,6 +83,17 @@ export const userProfileSchema = z.object({
    * that exemption and add a composite index.
    */
   lastSignInAt: z.date(),
+
+  /**
+   * `YYYY-MM-DD`, set by the user on /profile. A string, not a `Date` — see
+   * `lib/profile-fields.ts`. Optional because profiles created before this
+   * field have no value, and nobody but the user can supply one. That makes it
+   * permanently optional: there is nothing to backfill.
+   */
+  dateOfBirth: dateOfBirthSchema.nullable().optional(),
+
+  /** Set by the user on /profile. Optional for the same reason as `dateOfBirth`. */
+  gender: genderSchema.nullable().optional(),
 });
 
 export type UserProfile = z.infer<typeof userProfileSchema>;
@@ -179,6 +191,26 @@ export async function getUserProfile(uid: string): Promise<UserProfileDocument |
  */
 export async function requireUserProfile(user: SessionUser): Promise<UserProfileDocument> {
   return (await getUserProfile(user.uid)) ?? ensureUserProfile(user);
+}
+
+/**
+ * Applies the caller's own edits from /profile.
+ *
+ * Takes the uid from the session, never from the body — the route passes
+ * `user.uid`. `ProfileUpdate` holds only the fields a person owns; contact
+ * details and providers come from Firebase and are not editable here.
+ *
+ * Ensures the profile first, so an account that predates the collection can
+ * still save, and `update` never fails on a missing document.
+ */
+export async function updateUserProfile(
+  user: SessionUser,
+  changes: ProfileUpdate,
+): Promise<UserProfileDocument> {
+  await requireUserProfile(user);
+  await users.update(user.uid, changes);
+  logger.info('Profile updated', { uid: user.uid, fields: Object.keys(changes) });
+  return users.getOrThrow(user.uid);
 }
 
 /**
