@@ -723,6 +723,36 @@ is decorative. Traceability does not depend on it — the image tag and the
 
 Without it, Node ignores `SIGTERM`. Cloud Run waits 10s, then sends `SIGKILL`, and drops in-flight requests on every deploy. Verified: the container currently stops in ~1s.
 
+### 29. `remove-iam-policy-binding --all` ignores conditions, and the deployer is shared
+
+`--all` removes **every** binding for a member and role, whatever its condition.
+
+That is correct for the runtime service account, which is named per app
+(`<slug>-runtime@`). Every binding it holds belongs to this app, so there is
+nothing else to catch.
+
+It is wrong for the deployer. `github-deployer@` has no app slug in it — one
+account serves every app in the project — and `roles/datastore.indexAdmin` is
+granted once per app, each binding conditioned on that app's own database. So
+`--all` on the deployer tears down the neighbours' access too.
+
+The damage is silent. Nothing fails at teardown. The other apps keep serving
+traffic, and break at their **next deploy**, at "Deploy Firestore rules and
+indexes", on a role nobody edited.
+
+`gcp-teardown.sh` names the condition instead, and it must match the one
+`gcp-bootstrap.sh` granted **character for character** — gcloud matches a
+binding by its whole condition, including the description text. A condition that
+does not match is worse than an error: it removes nothing, reports nothing, and
+leaves a stale binding on a shared account forever.
+
+`scripts/gcp-iam-conditions.test.ts` compares the two strings, because reading
+them side by side is the check a human eye fails.
+
+`roles/firebasehosting.admin` and `roles/firebaserules.admin` are granted to the
+same shared account **unconditioned**, because neither is a per-app resource.
+Teardown leaves both. There is no binding there that belongs to one app.
+
 ---
 
 ## Never do this

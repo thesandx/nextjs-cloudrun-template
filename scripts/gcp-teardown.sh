@@ -76,6 +76,18 @@ BUCKET_NAME="${BUCKET_NAME:-${PROJECT_ID}-${SERVICE_NAME}-media}"
 DEV_BUCKET_NAME="${BUCKET_NAME}-dev"
 RUNTIME_SA="${SERVICE_NAME}-runtime@${PROJECT_ID}.iam.gserviceaccount.com"
 
+# The deployer is one account per PROJECT, shared by every app in it — there is
+# no app slug in the name. The runtime account above has one. That difference
+# decides how their bindings come off; see "Deployer bindings for this app".
+DEPLOYER_SA="github-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
+DATABASE_RESOURCE="projects/${PROJECT_ID}/databases/${DATABASE_ID}"
+
+# Must match the --condition that gcp-bootstrap.sh passes when it grants
+# roles/datastore.indexAdmin, character for character. gcloud matches a binding
+# by its whole condition, so a difference here removes nothing and says nothing.
+# scripts/gcp-iam-conditions.test.ts fails if the two drift apart.
+INDEX_ADMIN_CONDITION="title=only-${DATABASE_ID}-indexes,description=Index administration on ${DATABASE_ID},expression=resource.name.startsWith('${DATABASE_RESOURCE}')"
+
 gcloud config set project "$PROJECT_ID" --quiet >/dev/null
 gcloud projects describe "$PROJECT_ID" >/dev/null 2>&1 \
   || die "Cannot read project ${PROJECT_ID}. Does it exist and do you have access?"
@@ -169,6 +181,10 @@ if gcloud iam service-accounts describe "$RUNTIME_SA" >/dev/null 2>&1; then
   # Project-level conditional bindings do not disappear with the account; they
   # linger as deleted-principal entries in the policy. Remove them by name
   # first, so the policy stays readable.
+  #
+  # --all is correct here and wrong for the deployer below. This account is
+  # per-app (${SERVICE_NAME}-runtime@), so every binding it holds belongs to
+  # this app and there is nothing else to catch. The deployer is shared.
   for role in roles/datastore.user roles/firebaseauth.admin; do
     gcloud projects remove-iam-policy-binding "$PROJECT_ID" \
       --member="serviceAccount:${RUNTIME_SA}" \
@@ -188,19 +204,28 @@ fi
 # ---------------------------------------------------------------------------
 step "Deployer bindings for this app"
 # ---------------------------------------------------------------------------
+# --condition, NOT --all. The deployer is shared by every app in the project,
+# and bootstrap grants this role once per app, each binding conditioned on that
+# app's own database. --all ignores conditions and removes every one of them, so
+# tearing down this app would revoke the OTHER apps' index permission too. Their
+# next deploy then fails at "Deploy Firestore rules and indexes", on a role
+# nobody edited, with nothing to connect it to this teardown.
 gcloud projects remove-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:github-deployer@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --member="serviceAccount:${DEPLOYER_SA}" \
   --role="roles/datastore.indexAdmin" \
-  --all \
+  --condition="$INDEX_ADMIN_CONDITION" \
   --quiet >/dev/null 2>&1 \
-  && ok "Removed datastore.indexAdmin from the deployer" \
-  || skip "No datastore.indexAdmin binding to remove"
+  && ok "Removed datastore.indexAdmin for ${DATABASE_ID}" \
+  || skip "No datastore.indexAdmin binding for ${DATABASE_ID} to remove"
 
-# roles/firebasehosting.admin is deliberately NOT removed. Firebase Hosting is
-# a PROJECT-level resource that no single app owns, and the deployer service
-# account is shared by every app in the project. Revoking it here would stop
-# the other apps purging their CDN after a deploy.
+# roles/firebasehosting.admin and roles/firebaserules.admin are deliberately NOT
+# removed. Bootstrap grants both unconditioned, because neither Hosting nor a
+# rules ruleset is a per-app resource — and the deployer is shared by every app
+# in the project. There is no binding here that belongs to this app alone, so
+# removing either would stop the other apps purging their CDN and deploying
+# their rules. Delete the deployer account by hand if this was the last app.
 skip "Left firebasehosting.admin on the deployer (shared, project-scoped)"
+skip "Left firebaserules.admin on the deployer (shared, project-scoped)"
 
 cat <<EOF
 
