@@ -198,6 +198,39 @@ function toDate(value: unknown): Date | null {
 }
 
 /**
+ * Converts every Firestore `Timestamp` in a payload to a `Date`.
+ *
+ * Firestore returns a `Timestamp` for a date field, never a `Date`. A schema
+ * declaring `z.date()` therefore failed on read with "expected date, received
+ * object" — for data that had been written perfectly correctly. The document
+ * was fine; only its type at the boundary was wrong.
+ *
+ * `createdAt`, `updatedAt` and `deletedAt` were always converted, because the
+ * repository owns those three. Everything else was left raw, so the bug
+ * appeared the first time a collection declared a date of its own.
+ *
+ * Recursion stops at plain objects and arrays deliberately. `GeoPoint`,
+ * `DocumentReference` and `Buffer` are class instances that must survive
+ * untouched, and rebuilding one from its entries would destroy it.
+ */
+export function timestampsToDates(value: unknown): unknown {
+  if (value instanceof Timestamp) return value.toDate();
+  if (Array.isArray(value)) return value.map(timestampsToDates);
+
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nested]) => [key, timestampsToDates(nested)]),
+    );
+  }
+
+  return value;
+}
+
+/**
  * Builds the `FirestoreDataConverter` for one collection.
  *
  * Exported so a caller that needs a raw `CollectionReference` (an aggregation
@@ -243,7 +276,9 @@ export function createConverter<TPayload extends Record<string, unknown>>(
       const raw = snapshot.data();
       const { createdAt, updatedAt, deletedAt, ...payload } = raw;
 
-      const parsed = schema.safeParse(payload);
+      // Timestamps become Dates BEFORE validation, so a collection can declare
+      // `z.date()` for its own fields and have it mean what it says.
+      const parsed = schema.safeParse(timestampsToDates(payload));
       if (!parsed.success) {
         throw new DocumentValidationError(collection, snapshot.id, formatZodIssues(parsed.error));
       }

@@ -44,6 +44,82 @@ const noteSchema = z.object({
 
 type Note = z.infer<typeof noteSchema>;
 
+/**
+ * A payload that declares a date of its own.
+ *
+ * Firestore stores a `Date` as a `Timestamp` and reads it back as one, so a
+ * schema saying `z.date()` used to fail on read for data written correctly.
+ * `examples` had no date field, so nothing caught it until `users` added
+ * `lastSignInAt` — and then sign-in broke in production.
+ *
+ * A round trip through the real emulator is the only honest test of this. A
+ * unit test on the converter proves the conversion; only this proves that
+ * Firestore returns what the converter is written to expect.
+ */
+const eventSchema = z.object({
+  name: z.string().min(1),
+  occurredAt: z.date(),
+  window: z.object({ from: z.date(), to: z.date() }),
+  milestones: z.array(z.object({ at: z.date() })),
+});
+
+type Event = z.infer<typeof eventSchema>;
+
+describeEmulator('date fields survive a round trip (emulator)', () => {
+  let firestore: Firestore;
+  let events: Repository<Event>;
+
+  beforeAll(() => {
+    firestore = new Firestore({ projectId: 'demo-template', databaseId: '(default)' });
+    events = createRepository({
+      collection: `events_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
+      schema: eventSchema,
+      firestore,
+    });
+  });
+
+  afterAll(async () => {
+    await firestore.terminate();
+  });
+
+  it('reads a payload date back as a Date, not a Timestamp', async () => {
+    const occurredAt = new Date('2026-09-24T10:00:00.000Z');
+    const from = new Date('2026-09-24T09:00:00.000Z');
+    const to = new Date('2026-09-24T11:00:00.000Z');
+    const milestone = new Date('2026-09-24T10:30:00.000Z');
+
+    const id = await events.create({
+      name: 'Launch',
+      occurredAt,
+      window: { from, to },
+      milestones: [{ at: milestone }],
+    });
+
+    // This is the assertion that failed before the fix: the read threw
+    // DocumentValidationError rather than returning anything at all.
+    const stored = await events.getOrThrow(id);
+
+    expect(stored.occurredAt).toBeInstanceOf(Date);
+    expect(stored.occurredAt).toEqual(occurredAt);
+
+    // Nested in a plain object, and nested inside an array — both paths the
+    // converter has to walk.
+    expect(stored.window.from).toEqual(from);
+    expect(stored.window.to).toEqual(to);
+    expect(stored.milestones[0]?.at).toEqual(milestone);
+  });
+
+  it('survives a list as well as a get', async () => {
+    // `list` parses every document in the page, so one unconverted date takes
+    // down the whole page rather than one row.
+    const page = await events.list({ limit: 10 });
+    expect(page.items.length).toBeGreaterThan(0);
+    for (const item of page.items) {
+      expect(item.occurredAt).toBeInstanceOf(Date);
+    }
+  });
+});
+
 describeEmulator('createRepository (emulator)', () => {
   let firestore: Firestore;
   let notes: Repository<Note>;

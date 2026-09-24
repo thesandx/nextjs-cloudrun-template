@@ -419,6 +419,18 @@ The script is idempotent, so re-run it with the flags added. The signed URL in t
 
 `finalizeUpload` ran but the object is not there. Either the PUT did not actually succeed — check its status, not just that it returned — or finalize already ran and moved it, or more than a day passed and the lifecycle rule swept it.
 
+### Sign-in reports an error, but refreshing shows the user signed in
+
+The session cookie is set before the profile is created, so a failure in the
+profile step used to fail the whole request — after the cookie had already
+landed. The browser really was signed in; the response said otherwise.
+
+Profile creation is now non-fatal at sign-in: it is logged, and
+`requireUserProfile` creates the profile on demand at the first write.
+
+On an older build, the message names the real cause. Read the server log for
+`Creating a session failed`.
+
 ### Sign-in works, then the user is signed out on the next page
 
 The session cookie is not named `__session`, and Firebase Hosting stripped it.
@@ -505,6 +517,17 @@ The carve-out is derived from `NEXT_PUBLIC_APP_URL`, so check that it matches th
 The id would create a write hotspot, or Firestore would reject it outright. The message says which.
 
 Sequential ids, date prefixes and bare numbers are refused at any length — they pin every write to one end of the key range. A short-but-random id is refused by the length floor only, and `{ minLength }` lowers that deliberately for a collection far below one write per second.
+
+### `expected date, received object` on a field your code writes as a Date
+
+Firestore returns a `Timestamp`, never a `Date`. `services/repository.ts`
+converts the whole payload before validation, so `z.date()` works — if you are
+on a build that carries `timestampsToDates`.
+
+Seeing it anyway means an older image. The data is fine; redeploy.
+
+The symptom is easy to misread, because it points at the read and not at the
+write. Nothing wrote a bad value.
 
 ### `DocumentValidationError` when reading
 

@@ -79,6 +79,28 @@ function toMessage(error: unknown): string {
   return (typeof code === 'string' ? MESSAGES[code] : undefined) ?? 'Sign-in failed. Try again.';
 }
 
+/**
+ * Reads the server's own message out of a failed response.
+ *
+ * Without this the panel showed one generic line for every server-side cause,
+ * which made a real, precisely-described failure look like a mystery. The
+ * route already decides what is safe to expose — see `lib/http-errors.ts`, and
+ * note that a configuration or infrastructure error deliberately returns a
+ * generic message and logs the detail instead.
+ */
+async function readServerMessage(response: Response): Promise<string | null> {
+  try {
+    const body: unknown = await response.json();
+    if (typeof body === 'object' && body !== null && 'message' in body) {
+      const message = (body as { message: unknown }).message;
+      if (typeof message === 'string' && message !== '') return message;
+    }
+  } catch {
+    // A non-JSON error body is not worth a second failure mode.
+  }
+  return null;
+}
+
 function getClientAuth(): Auth | null {
   const config = getFirebaseWebConfig();
   if (config === null) return null;
@@ -116,7 +138,12 @@ export function useFirebaseAuth(): UseFirebaseAuth {
     });
 
     if (!response.ok) {
-      setError('Signed in, but the session could not be saved. Try again.');
+      const detail = await readServerMessage(response);
+      setError(
+        detail === null
+          ? 'Signed in, but the session could not be saved. Try again.'
+          : `Signed in, but the session could not be saved: ${detail}`,
+      );
       return false;
     }
     return true;
