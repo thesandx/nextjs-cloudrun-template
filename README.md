@@ -296,6 +296,131 @@ Full walkthrough, with the other two domain options: [`cloud/deployment.md`](./c
 
 ---
 
+## Firebase setup, end to end
+
+Sign-in is the one part of this template that **cannot be fully scripted**. Registering a web app and enabling a provider have no `gcloud` surface, so four steps happen by hand, once, in the console. This section is the whole path.
+
+**Skip it and nothing breaks.** The app deploys, serves public reads, and answers `401` to every write, because sign-in availability is derived from the config being present. A half-finished setup fails closed, never open.
+
+### What you are building
+
+```
+Browser  ──1── Firebase Auth ──────────▶ an ID token, valid 1 hour
+   │
+   └──────2── POST /api/auth/session ──▶ your Cloud Run container
+                                          verifies the token,
+                                          returns a session cookie (14 days)
+   ┌──────3── every later request ─────▶ the cookie goes with it
+   ▼
+ Server Components read Firestore and Cloud Storage. The browser never does.
+```
+
+The browser holds **one** credential: a short-lived ID token, spent once. Everything after that is an `httpOnly` cookie that page script cannot read.
+
+### 1. Add Firebase to your existing GCP project
+
+[console.firebase.google.com](https://console.firebase.google.com/) → **Add project** → **pick your existing project from the dropdown**.
+
+Do not create a new one. A Firebase project _is_ a GCP project. Creating a second one puts your auth in a different project from your Cloud Run service, database and bucket, and nothing lines up. Google Analytics is optional; skip it.
+
+### 2. Register a web app
+
+**Project settings** (gear) → **General** → **Your apps** → the **`</>`** icon.
+
+Leave _"Also set up Firebase Hosting"_ unchecked — Hosting is a separate step below, and bundling them muddles both.
+
+Copy three values from the config block it shows: `apiKey`, `authDomain`, `appId`.
+
+### 3. Enable the sign-in providers
+
+**Authentication** → **Get started** → **Sign-in method**
+
+- **Google** → Enable → set a support email → Save
+- **Phone** → Enable → Save
+
+### 4. Restrict the SMS region policy
+
+**Authentication** → **Settings** → **SMS region policy** → _Allow only these regions_ → pick the countries you serve.
+
+**Do not skip this.** Phone auth sends messages **you pay for**, and the default allows every country on earth. SMS pumping fraud is automated: an attacker sends codes to premium-rate numbers they earn revenue from, and the bill is yours. Set a billing budget alert at the same time — that is how you find out in hours rather than at month end.
+
+While you are here: **Sign-in method → Phone → Phone numbers for testing.** Add one with a fixed code. It sends no SMS and costs nothing, which is how you test the flow.
+
+### 5. Authorize your origins
+
+**Authentication** → **Settings** → **Authorized domains**. Add **every** origin the app is served from:
+
+```
+localhost                                  (already there)
+your-project.web.app                       (Firebase Hosting)
+your-service-123456.asia-south1.run.app    (the platform URL — people forget this one)
+app.example.com                            (your domain)
+```
+
+Google sign-in is refused from any origin not listed. This is the same trap as the bucket's CORS origins, and the `run.app` URL is the one that gets missed.
+
+### 6. Grant the runtime account its role
+
+Sign-in needs one IAM role that bootstrap grants:
+
+```bash
+./scripts/gcp-bootstrap.sh --project my-gcp-project --region asia-south1 \
+  --repo my-org/my-app --service my-app
+```
+
+**The symptom if this is missing is deeply misleading**, so learn it now: existing sessions keep working and **only new sign-ins fail**, with `PERMISSION_DENIED` from `identitytoolkit`. Verifying a session needs no IAM at all — it checks a signature against Google's public keys. Minting one calls the Identity Toolkit API, and that needs `roles/firebaseauth.admin`. It looks like a client bug. It is not.
+
+### 7. Set the variables and rebuild
+
+```bash
+gh variable set FIREBASE_API_KEY     --body "AIza..."
+gh variable set FIREBASE_AUTH_DOMAIN --body "my-gcp-project.firebaseapp.com"
+gh variable set FIREBASE_PROJECT_ID  --body "my-gcp-project"
+gh variable set FIREBASE_APP_ID      --body "1:...:web:..."
+
+gh workflow run deploy.yml -f reason="Inline the Firebase web config"
+```
+
+**Variables, not secrets** — these are public values that ship in every browser bundle. See [What a stranger can see](#what-a-stranger-can-see).
+
+**The rebuild is mandatory.** `NEXT_PUBLIC_*` values are inlined into the JavaScript at build time. Setting them on the Cloud Run service changes nothing, because the value is already inside the code users downloaded.
+
+### 8. Verify
+
+Open `/sign-in`. You should get a Google button and a phone field. Sign in with your test number, then open `/example`: you want the create form, your name in the "Signed in as" strip, and a `users/{uid}` document appearing in Firestore.
+
+### Putting a domain in front
+
+Cloud Run domain mapping is unavailable in several regions, `asia-south1` among them. Firebase Hosting covers it, is free, and adds a CDN. `firebase.json` ships with the template.
+
+```bash
+npx firebase-tools login
+npx firebase-tools deploy --only hosting --project my-gcp-project
+```
+
+**Check `serviceId` in `firebase.json` first.** `scripts/rename-project.sh` sets it, but if your Cloud Run service name differs from your repository name, fix it by hand. A rewrite naming a service that does not exist returns a bare **404** — not a readable error.
+
+That publishes `my-gcp-project.web.app`. **Verify there, and sign in there, before touching DNS** — that proves the session cookie survives the extra hop.
+
+Then **Hosting → Add custom domain**. For a subdomain, Firebase gives you a `CNAME` to `my-gcp-project.web.app`; for an apex, `A` records. Add them at your registrar.
+
+Three things that bite:
+
+- **Lower the record's TTL to 300 first, and wait for the old one to expire.** Otherwise Firebase keeps reading a cached value and verification fails with an ACME challenge `404` that looks like a real error.
+- **On `.app` and `.dev`, the gap between DNS moving and the certificate issuing is a hard outage.** Those TLDs are HSTS-preloaded, so browsers refuse plain HTTP — there is no degraded fallback.
+- **Delete any old Cloud Run domain mapping last**, not first. Removing it early only removes your way back.
+
+Finally, point the app at its real address:
+
+```bash
+gh variable set APP_URL --body "https://app.example.com"
+gh workflow run deploy.yml -f reason="Inline the custom domain"
+```
+
+Full runbook, including moving a domain that is already serving traffic: [`cloud/deployment.md`](./cloud/deployment.md#custom-domain). Practical guide to sessions and profiles: [`docs/auth.md`](./docs/auth.md).
+
+---
+
 ## Project structure
 
 ```
@@ -500,6 +625,84 @@ printf '%s' "$VALUE" | gcloud secrets versions add DATABASE_URL --data-file=-
 Never in a build arg (visible in `docker history`), never in a `NEXT_PUBLIC_*` variable (shipped to every browser), never in the repository.
 
 Full model: [`cloud/environment-variables.md`](./cloud/environment-variables.md).
+
+---
+
+## What a stranger can see
+
+This template is built to be **public**. Someone can read every line of the repository, open DevTools, read the whole bundle and watch every network call, and still not reach your data. Here is exactly why — and where the real gaps are.
+
+### There IS a backend
+
+The most common wrong model is "it's Firebase, so it's all client-side". It is not.
+
+The Cloud Run container is a real backend. **Every** Firestore query, every Cloud Storage call and every authorisation decision happens there, in Server Components and route handlers. The browser gets `firebase/auth` and nothing else — no Firestore SDK, no Storage SDK, no credentials.
+
+That is why `firestore.rules` denies all client access and stays that way. There is no client to allow.
+
+### What is in the bundle, and why it is safe
+
+Four values are inlined into the JavaScript by design:
+
+| Value                              | Why it is public                                                                                      |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `apiKey`                           | The browser must send it to reach Identity Platform. It **names** the project; it authorises nothing. |
+| `authDomain`, `projectId`, `appId` | Identifiers. Also in the URL bar and in this README.                                                  |
+
+Hiding the API key is not possible and not the control. Restrict it by HTTP referrer in **Google Cloud console → APIs & Services → Credentials** so it only works from your origins.
+
+**Verified, not assumed.** Build the bundle with canary values and grep it:
+
+```bash
+APP_SLUG=canaryslug GCP_PROJECT_ID=canaryproject \
+FIRESTORE_DATABASE_ID=canarydbvalue GCS_BUCKET=canarybucketvalue pnpm build
+grep -r canarydbvalue .next/static/ ; grep -r canarybucketvalue .next/static/
+```
+
+Both return nothing. `import 'server-only'` at the top of every `services/` module makes a client importing the data layer a **build error**, not a runtime leak.
+
+### What a signed-out stranger can do
+
+Read. That is the whole list. Every route that changes data calls `requireUser()` first, which answers `401` without a valid session cookie.
+
+Hiding the form in the UI is **not** the control — the server is. Curl the endpoint yourself and watch it refuse.
+
+### What a signed-in user can do
+
+Only things they own. A session answers _who is asking_; it does not answer _may they touch this_. Those are separate, explicit checks:
+
+- `ownerId` is written **from the session**, never from the request body. A body field named `ownerId` is a field the caller chooses.
+- The display name is copied from the user's profile, not typed into the form — otherwise anyone could post under someone else's name.
+- `finalize` checks that the upload path belongs to the named document. Owning the document is not enough: without that check a caller could adopt another user's pending upload into their own row.
+
+### Why the network tab does not help an attacker
+
+| What they see       | Why it is not a way in                                                                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The session cookie  | `httpOnly`, so script cannot read it — an XSS cannot steal it. It is signed by Firebase and verified server-side. Forging one requires Google's private key. |
+| A signed upload URL | Expires in ~10 minutes, and is bound to one content type, one size range and one path under `tmp/`. Cloud Storage enforces all three.                        |
+| A signed read URL   | Expires in ~15 minutes. Never stored — signed fresh per render.                                                                                              |
+| A cross-site `POST` | `SameSite=Lax` means the cookie is not sent, and a JSON content type forces a CORS preflight that has no allow headers to satisfy it.                        |
+| Error messages      | A caller sees why _its own_ request was wrong. Configuration and infrastructure failures return a generic `500`; the detail goes to Cloud Logging.           |
+
+Uploads land under `tmp/` and are verified against the **real object's** metadata before promotion. A signed URL constrains a well-behaved client; `finalizeUpload` is what makes the constraint true for every other kind.
+
+The bucket enforces public access prevention and uniform bucket-level access, so it **cannot** be made public — not by a console misclick, not by a stray IAM binding.
+
+### Gaps — read these before you go live
+
+The template is a safe default, not a finished posture. These are real, and none is fixed for you:
+
+| Gap                              | What it means                                                                                                                                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **No rate limiting, anywhere**   | A signed-in user can call a write route as fast as they like. `--max-instances` caps your Cloud Run bill, not your Firestore bill. Add limits before launch.                                  |
+| **No Content-Security-Policy**   | Set one once you know your origins. It must allow Firebase Auth and, for phone sign-in, reCAPTCHA.                                                                                            |
+| **No Firebase App Check**        | Nothing binds a request to _your_ app. Worth adding for a consumer product.                                                                                                                   |
+| **Anyone can sign up**           | Google and phone sign-in create an account for any member of the public. Intended for B2C. If you need an allowlist, that is yours to write.                                                  |
+| **`/example` is still deployed** | A demo write path on a public URL is still a write path. Delete `app/example/`, `app/api/example/`, `components/example/` and `services/example.service.ts` once you have copied the pattern. |
+| **SMS costs money**              | Covered above, and it is the one that shows up on a bill.                                                                                                                                     |
+
+The full model and the pre-production checklist are in [SECURITY.md](./SECURITY.md).
 
 ---
 
