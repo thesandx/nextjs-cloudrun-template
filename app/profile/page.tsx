@@ -1,0 +1,86 @@
+import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
+
+import { SignOutButton } from '@/components/auth/SignOutButton';
+import { AppBar } from '@/components/layout/AppBar';
+import { ProfileForm } from '@/components/profile/ProfileForm';
+import { Avatar } from '@/components/ui/Avatar';
+import { Card } from '@/components/ui/Card';
+import { formatPhoneForDisplay } from '@/lib/phone';
+import { getCurrentUser } from '@/services/auth.service';
+import { requireUserProfile } from '@/services/user.service';
+
+/**
+ * `GET /profile` — the signed-in person's own profile.
+ *
+ * A Server Component: the session and the profile are read here, so the form
+ * arrives filled in, with no loading state. Only the form is client code.
+ * A signed-out visitor goes to sign-in and comes back here afterwards.
+ */
+
+export const metadata: Metadata = {
+  title: 'Profile',
+  robots: { index: false, follow: false },
+};
+
+// Reads the session cookie, so it can never be statically rendered.
+export const dynamic = 'force-dynamic';
+
+export default async function ProfilePage(): Promise<React.JSX.Element> {
+  const user = await getCurrentUser();
+  if (user === null) redirect('/sign-in?next=/profile');
+
+  const profile = await requireUserProfile(user);
+
+  const contact: ReadonlyArray<{ label: string; value: string }> = [
+    ...(profile.phoneNumber !== null
+      ? [{ label: 'Phone', value: formatPhoneForDisplay(profile.phoneNumber) }]
+      : []),
+    ...(profile.email !== null ? [{ label: 'Email', value: profile.email }] : []),
+  ];
+
+  return (
+    <>
+      <AppBar title="Profile" back={{ fallbackHref: '/', label: 'Back to home' }} />
+
+      <main className="mx-auto flex w-full max-w-md flex-col gap-8 px-5 py-8 sm:py-12">
+        <Card peek={<Avatar name={user.uid} size="lg" />} className="flex flex-col gap-1">
+          <p className="text-heading font-display break-words">{profile.displayName}</p>
+          {contact.length > 0 && (
+            <dl className="text-small text-ink-soft flex flex-col gap-0.5">
+              {contact.map((item) => (
+                <div key={item.label} className="flex gap-2">
+                  <dt>{item.label}</dt>
+                  <dd className="text-ink font-medium break-all">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </Card>
+
+        <section className="flex flex-col gap-4" aria-labelledby="details-heading">
+          <h2 id="details-heading" className="text-title">
+            Your details
+          </h2>
+          <ProfileForm
+            initial={{
+              displayName: profile.displayName,
+              dateOfBirth: profile.dateOfBirth ?? null,
+              gender: profile.gender ?? null,
+            }}
+          />
+        </section>
+
+        <section className="flex flex-col gap-3" aria-labelledby="account-heading">
+          <h2 id="account-heading" className="text-title">
+            Account
+          </h2>
+          <p className="text-small text-ink-soft">
+            Your phone number and email come from how you sign in, so they are not edited here.
+          </p>
+          <SignOutButton redirectTo="/" variant="secondary" block />
+        </section>
+      </main>
+    </>
+  );
+}

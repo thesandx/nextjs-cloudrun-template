@@ -108,4 +108,20 @@ describe('userProfileSchema', () => {
       userProfileSchema.parse({ ...valid, email: null, phoneNumber: null }),
     ).not.toThrow();
   });
+
+  it('reads a profile written before dateOfBirth and gender existed', () => {
+    const parsed = userProfileSchema.parse(valid);
+    expect(parsed.dateOfBirth).toBeUndefined();
+    expect(parsed.gender).toBeUndefined();
+  });
+
+  it('accepts the user-edited fields, and null for a cleared one', () => {
+    expect(() =>
+      userProfileSchema.parse({ ...valid, dateOfBirth: '1996-04-12', gender: 'female' }),
+    ).not.toThrow();
+    expect(() =>
+      userProfileSchema.parse({ ...valid, dateOfBirth: null, gender: null }),
+    ).not.toThrow();
+    expect(() => userProfileSchema.parse({ ...valid, gender: 'robot' })).toThrow();
+  });
 });

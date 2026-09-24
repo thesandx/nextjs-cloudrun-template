@@ -62,9 +62,10 @@ export interface UseFirebaseAuth {
 
 /** Messages a user can act on. Firebase's own strings are for developers. */
 const MESSAGES: Record<string, string> = {
-  'auth/invalid-phone-number': 'That phone number is not valid. Include the country code.',
-  'auth/invalid-verification-code': 'That code is not right. Check it and try again.',
-  'auth/code-expired': 'That code has expired. Ask for a new one.',
+  'auth/invalid-phone-number':
+    'That phone number is not valid. Check the number and the country code.',
+  'auth/invalid-verification-code': 'That OTP is not right. Check it and try again.',
+  'auth/code-expired': 'That OTP has expired. Ask for a new one.',
   'auth/too-many-requests': 'Too many attempts. Wait a few minutes and try again.',
   'auth/popup-closed-by-user': 'The sign-in window closed before finishing.',
   'auth/popup-blocked': 'Your browser blocked the sign-in window. Allow pop-ups and try again.',
@@ -208,7 +209,7 @@ export function useFirebaseAuth(): UseFirebaseAuth {
     async (code: string): Promise<boolean> => {
       const confirmation = confirmationRef.current;
       if (confirmation === null) {
-        setError('Ask for a code first.');
+        setError('Ask for an OTP first.');
         return false;
       }
 

@@ -3,6 +3,7 @@ import '@/styles/globals.css';
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 
+import { TabBar } from '@/components/layout/TabBar';
 import { env } from '@/lib/env';
 
 export const metadata: Metadata = {
@@ -22,6 +23,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  // Lets the page draw under a phone's notch and home indicator, so TabBar can
+  // pad itself with env(safe-area-inset-bottom) like a native nav bar.
+  viewportFit: 'cover',
   // Matches --color-paper for the active theme. Change both together.
   themeColor: '#fff7fa',
 };
@@ -73,7 +77,15 @@ export default function RootLayout({
       className={`${mochiy.variable} ${zenMaru.variable}`}
       suppressHydrationWarning
     >
-      <body className="min-h-dvh antialiased">{children}</body>
+      {/*
+        pb-28 keeps the last line of every page clear of the floating TabBar.
+        TabBar is a client component rendered from this Server Component, so
+        the layout itself stays server-only.
+      */}
+      <body className="min-h-dvh pb-28 antialiased">
+        {children}
+        <TabBar />
+      </body>
     </html>
   );
 }

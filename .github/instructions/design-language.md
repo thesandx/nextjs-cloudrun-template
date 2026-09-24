@@ -124,7 +124,18 @@ Each primitive lives in `components/ui/`, has a colocated test, and renders on `
 | `Speech`     | The mascot speaks. Moments only.                                    |
 | `Sticker`    | Decoration. Two per viewport at most.                               |
 
-`components/layout/` holds the page chrome: `PageShell` (the `<main>` with width, gutter and rhythm), `Header` (the mascot logo and the main links) and `Footer`.
+`components/layout/` holds the page chrome:
+
+| Component    | Use it for                                                                       |
+| ------------ | -------------------------------------------------------------------------------- |
+| `PageShell`  | The page's `<main>`: width, gutter and rhythm.                                   |
+| `AppBar`     | The top of an app screen: an on-screen back arrow, the title (`h1`), one action. |
+| `BackButton` | The back arrow alone. It returns inside the app, or goes to a fallback page.     |
+| `TabBar`     | The floating bottom bar with the top-level destinations. The root layout has it. |
+| `Header`     | A website header: the mascot logo and the main links.                            |
+| `Footer`     | The site footer.                                                                 |
+
+**Behave like an app.** A user must never need the browser's back button. A screen below a tab has an `AppBar` with a back arrow. A focused task, such as sign-in, hides the `TabBar` (see `TABLESS_PATHS` in `lib/navigation.ts`). A step inside one screen, such as the OTP step, uses the back arrow to return to the step before it.
 
 Status is never colour alone. `Alert` draws a glyph, `Checkbox` draws a tick, `RadioGroup` draws a dot, `Switch` moves its knob, and `Tabs` lifts the selected tab onto a base.
 

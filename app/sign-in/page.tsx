@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { SignInPanel } from '@/components/auth/SignInPanel';
-import { Card } from '@/components/ui/Card';
 import { getCurrentUser } from '@/services/auth.service';
 
 /**
@@ -44,19 +43,7 @@ export default async function SignInPage({
   const user = await getCurrentUser();
   if (user !== null) redirect(destination);
 
-  return (
-    <main className="mx-auto flex w-full max-w-md flex-col gap-8 px-4 py-10 sm:px-6 sm:py-16">
-      <header className="flex flex-col gap-2">
-        <p className="text-small text-ink-soft">Account</p>
-        <h1 className="text-hero">Sign in</h1>
-        <p className="text-body text-ink-soft max-w-prose">
-          Use your Google account, or a one-time code sent to your phone.
-        </p>
-      </header>
-
-      <Card>
-        <SignInPanel redirectTo={destination} />
-      </Card>
-    </main>
-  );
+  // The panel renders the whole screen, AppBar included, because the back
+  // arrow depends on which step the user is on.
+  return <SignInPanel redirectTo={destination} />;
 }
