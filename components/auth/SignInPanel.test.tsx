@@ -92,7 +92,7 @@ describe('SignInPanel', () => {
 
   it('paints the first step in place, then slides forward and back', async () => {
     const { container } = render(<SignInPanel />);
-    const step = () => container.querySelector('main > div') as HTMLElement;
+    const step = () => container.querySelector('main > div > div') as HTMLElement;
     expect(step().className).not.toMatch(/animate-slide/);
 
     await reachOtpStep();

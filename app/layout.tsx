@@ -3,8 +3,11 @@ import '@/styles/globals.css';
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 
+import { Footer } from '@/components/layout/Footer';
+import { SiteHeader } from '@/components/layout/SiteHeader';
 import { TabBar } from '@/components/layout/TabBar';
 import { env } from '@/lib/env';
+import { THEME_COLOR } from '@/lib/pwa';
 
 export const metadata: Metadata = {
   metadataBase: new URL(env.appUrl),
@@ -13,6 +16,10 @@ export const metadata: Metadata = {
     template: `%s | ${env.appName}`,
   },
   description: 'Production-ready Next.js App Router template deployed on Google Cloud Run.',
+  applicationName: env.appName,
+  // iOS reads these, not the manifest, when the user adds the app to the home
+  // screen. The manifest in app/manifest.ts serves every other browser.
+  appleWebApp: { capable: true, title: env.appName, statusBarStyle: 'default' },
   robots: {
     // Deployed previews should not be indexed. Flip this on for the real site.
     index: env.isProduction,
@@ -26,8 +33,8 @@ export const viewport: Viewport = {
   // Lets the page draw under a phone's notch and home indicator, so TabBar can
   // pad itself with env(safe-area-inset-bottom) like a native nav bar.
   viewportFit: 'cover',
-  // Matches --color-paper for the active theme. Change both together.
-  themeColor: '#fff7fa',
+  // Matches --color-paper for the active theme. See lib/pwa.ts.
+  themeColor: THEME_COLOR,
 };
 
 /**
@@ -64,6 +71,12 @@ const THEME: 'playroom' | 'calm' | 'night' = 'playroom';
  * Adding `'use client'` here would turn the entire application into a client
  * bundle. Providers that need client state belong in their own
  * `'use client'` component rendered from here as a child.
+ *
+ * It holds the two postures of the shell. A phone gets an app: the `TabBar`
+ * at the bottom. From `md` up the same destinations move to the `SiteHeader`
+ * at the top, and the page reads as a website. Both are CSS breakpoints, so
+ * the server sends one HTML for every screen and nothing guesses the device.
+ * See design-language.md > Responsive: an app on a phone, a website on a desktop.
  */
 export default function RootLayout({
   children,
@@ -78,12 +91,22 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       {/*
-        pb-28 keeps the last line of every page clear of the floating TabBar.
-        TabBar is a client component rendered from this Server Component, so
+        pb-28 keeps the last line of every page clear of the floating TabBar,
+        on a phone only: from md up the TabBar hides. The flex column lets a
+        short page push the footer to the bottom of the screen. SiteHeader and
+        TabBar are client components rendered from this Server Component, so
         the layout itself stays server-only.
       */}
-      <body className="min-h-dvh pb-28 antialiased">
+      <body className="flex min-h-dvh flex-col pb-28 antialiased md:pb-0">
+        <SiteHeader appName={env.appName} />
         {children}
+        <Footer
+          owner={env.appName}
+          links={[
+            { href: '/design', label: 'Components' },
+            { href: '/api/health', label: 'Health' },
+          ]}
+        />
         <TabBar />
       </body>
     </html>

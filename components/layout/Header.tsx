@@ -19,6 +19,12 @@ export interface HeaderProps {
   currentPath?: string;
   /** A slot on the right, such as the sign-in state. */
   end?: React.ReactNode;
+  /**
+   * Fold the links into `MobileMenu` below `md`. Default true, for a website
+   * with no `TabBar`. `SiteHeader` turns it off: there the `TabBar` is the
+   * phone navigation, and the header shows from `md` up only.
+   */
+  phoneMenu?: boolean;
   className?: string;
 }
 
@@ -28,9 +34,16 @@ export interface HeaderProps {
  * page has an underline and `aria-current`, not only a colour change.
  *
  * On a phone the links fold into `MobileMenu`, so the header never wraps or
- * scrolls sideways. From `sm` up they sit inline.
+ * scrolls sideways. From `md` up — the desktop posture — they sit inline.
  */
-export function Header({ appName, links = [], currentPath, end, className }: HeaderProps) {
+export function Header({
+  appName,
+  links = [],
+  currentPath,
+  end,
+  phoneMenu = true,
+  className,
+}: HeaderProps) {
   return (
     <header
       className={cn(
@@ -46,7 +59,7 @@ export function Header({ appName, links = [], currentPath, end, className }: Hea
       </Link>
       <div className="ml-auto flex shrink-0 items-center gap-3">
         {links.length > 0 && (
-          <nav aria-label="Main" className="hidden sm:block">
+          <nav aria-label="Main" className={cn(phoneMenu && 'hidden md:block')}>
             <ul className="flex items-center gap-3">
               {links.map((link) => {
                 const current = link.href === currentPath;
@@ -71,10 +84,10 @@ export function Header({ appName, links = [], currentPath, end, className }: Hea
           </nav>
         )}
         {end}
-        {links.length > 0 && (
+        {phoneMenu && links.length > 0 && (
           <MobileMenu
             links={links}
-            className="sm:hidden"
+            className="md:hidden"
             {...(currentPath ? { currentPath } : {})}
           />
         )}

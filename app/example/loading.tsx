@@ -7,7 +7,7 @@ import { Spinner } from '@/components/ui/Spinner';
  */
 export default function ExampleLoading(): React.JSX.Element {
   return (
-    <main className="mx-auto flex w-full max-w-2xl justify-center px-4 py-10 sm:px-6 sm:py-16">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 justify-center px-5 py-10 sm:px-8 sm:py-16">
       <Spinner label="Loading examples" />
     </main>
   );

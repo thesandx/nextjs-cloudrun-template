@@ -1,5 +1,7 @@
 /**
- * The app's top-level destinations — the tabs in `TabBar`.
+ * The app's top-level destinations. One list, drawn two ways: the `TabBar` at
+ * the bottom of a phone, and the `SiteHeader` links at the top of a desktop.
+ * See design-language.md > Responsive: an app on a phone, a website on a desktop.
  *
  * Keep it to three to five. A destination here is a place the user goes back
  * to often, not every page in the app. Pages below a tab use `AppBar` with a
@@ -30,4 +32,9 @@ export const TABLESS_PATHS: readonly string[] = ['/sign-in'];
 export function isTabActive(tabHref: string, pathname: string): boolean {
   if (tabHref === '/') return pathname === '/';
   return pathname === tabHref || pathname.startsWith(`${tabHref}/`);
+}
+
+/** The `href` of the destination that `pathname` sits under, if any. */
+export function activeTabHref(pathname: string): string | undefined {
+  return APP_TABS.find((tab) => isTabActive(tab.href, pathname))?.href;
 }

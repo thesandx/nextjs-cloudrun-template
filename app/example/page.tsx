@@ -80,8 +80,8 @@ export default async function ExamplePage(): Promise<React.JSX.Element> {
   ]);
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-10 sm:px-6 sm:py-16">
-      <header className="flex flex-col gap-2">
+    <main className="mx-auto grid w-full max-w-5xl gap-8 px-5 py-10 sm:px-8 sm:py-16 lg:grid-cols-5 lg:items-start lg:gap-12">
+      <header className="flex flex-col gap-2 lg:col-span-5">
         <p className="text-small text-ink-soft">Example</p>
         <h1 className="text-hero">Data layer</h1>
         <p className="text-body text-ink-soft max-w-prose">
@@ -90,7 +90,11 @@ export default async function ExamplePage(): Promise<React.JSX.Element> {
         </p>
       </header>
 
-      <section aria-labelledby="create-heading" className="flex flex-col gap-4">
+      {/* From lg, the form stays in view on the left while the list grows on the right. */}
+      <section
+        aria-labelledby="create-heading"
+        className="flex flex-col gap-4 lg:sticky lg:top-24 lg:col-span-2"
+      >
         <h2 id="create-heading" className="text-title">
           Create
         </h2>
@@ -121,7 +125,7 @@ export default async function ExamplePage(): Promise<React.JSX.Element> {
         )}
       </section>
 
-      <section aria-labelledby="list-heading" className="flex flex-col gap-4">
+      <section aria-labelledby="list-heading" className="flex flex-col gap-4 lg:col-span-3">
         <h2 id="list-heading" className="text-title">
           Latest {PAGE_SIZE}
         </h2>
@@ -130,7 +134,7 @@ export default async function ExamplePage(): Promise<React.JSX.Element> {
           // An empty state is one of the places a face belongs — rule 10.
           <Card className="flex flex-col items-center gap-3 text-center">
             <Face mood="sleepy" size={56} label="Nothing here yet" />
-            <p className="text-body text-ink-soft">Nothing yet. Create one above.</p>
+            <p className="text-body text-ink-soft">Nothing yet. Create the first one.</p>
           </Card>
         ) : (
           <ul className="flex flex-col gap-4">

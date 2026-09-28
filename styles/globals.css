@@ -230,6 +230,16 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /* App posture: no grey flash on tap. The squish is the press feedback. */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Desktop posture: an anchor link lands below the sticky SiteHeader, not
+     under it. 48rem is Tailwind's md, where the SiteHeader appears. */
+  @media (width >= 48rem) {
+    html {
+      scroll-padding-top: 6rem;
+    }
   }
 
   body {

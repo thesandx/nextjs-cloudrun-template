@@ -34,6 +34,9 @@ export interface TabBarProps {
  * It floats above the page, as the nav bar does in a native app, and hides on
  * focused screens such as sign-in. Destinations live in `lib/navigation.ts`.
  *
+ * Phone posture only. From `md` up it hides, and `SiteHeader` shows the same
+ * destinations at the top, as a website does.
+ *
  * The active tab sits on a raised pill that springs across to the tab the user
  * pressed. It moves on the press itself, not when the next page arrives, so the
  * bar answers at once even on a slow network. The pill, the lift and
@@ -63,7 +66,7 @@ export function TabBar({ className }: TabBarProps) {
     <nav
       aria-label="Main"
       className={cn(
-        'fixed inset-x-3 bottom-3 z-30 mx-auto max-w-sm pb-[env(safe-area-inset-bottom)]',
+        'fixed inset-x-3 bottom-3 z-30 mx-auto max-w-sm pb-[env(safe-area-inset-bottom)] md:hidden',
         className,
       )}
     >

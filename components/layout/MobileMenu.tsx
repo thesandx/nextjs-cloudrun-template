@@ -17,8 +17,8 @@ export interface MobileMenuProps {
 
 /**
  * The header's links on a phone: one "Menu" button that opens a panel below
- * the header. `Header` renders it under `sm` only; wider screens show the
- * links inline.
+ * the header. `Header` renders it below `md` only; the desktop posture shows
+ * the links inline. An app with a `TabBar` does not need it.
  *
  * It closes when the page changes, on Escape, and when a link is chosen, so
  * it never stays open over the next page — even when `Header` sits in a
