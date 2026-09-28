@@ -33,6 +33,8 @@ Three words to test every decision against: **squishy, honest, playful.**
 11. **Motion answers the user.** Press, navigate, open, select, join, win, error. The only ambient motion is the mascot's blink and a loading skeleton. No scroll-triggered fade-ins, no looping decoration. See [Motion](#motion).
 12. **Mobile first, 320px up.** Tap targets ≥ 44px (buttons are 48px or 56px). No horizontal scroll. Left-aligned text.
 
+A site built from this template also passes [the site checklist](#the-site-checklist): working links, a mobile menu, a favicon, titles and descriptions, a 404 page, clear feedback, and contact details you can tap.
+
 ---
 
 ## Tokens
@@ -103,41 +105,43 @@ Not every card needs a shadow. A shadow says "this is an object you can press or
 
 Each primitive lives in `components/ui/`, has a colocated test, and renders on `/design`. Pick the primitive by its job.
 
-| Primitive    | Use it for                                                          |
-| ------------ | ------------------------------------------------------------------- |
-| `Button`     | An action. `buttonStyles()` styles a `Link` the same way.           |
-| `Card`       | One object the user can act on. `peek` puts a face over the edge.   |
-| `Input`      | One line of text, with a label, a hint and an error.                |
-| `Textarea`   | Several lines of text. Same label, hint and error as `Input`.       |
-| `Select`     | One choice from a long list. It is a native select.                 |
-| `RadioGroup` | One choice from five options or fewer.                              |
-| `Checkbox`   | A yes/no value that a form submits later.                           |
-| `Switch`     | A setting that applies at once.                                     |
-| `Field`      | The label, hint and error. Use it to wrap a new form control.       |
-| `Badge`      | A short state in words: "Host", "Ready". Not pressable.             |
-| `Chip`       | A pill that names one thing, often with an `Avatar`. Not pressable. |
-| `Alert`      | A message in the interface voice: a result, a problem, a status.    |
-| `Progress`   | How far through something the user is. It shows the value in words. |
-| `Spinner`    | Work that the user asked for and that is not complete yet.          |
-| `EmptyState` | A space with no content yet. A sleepy face, one line, one action.   |
-| `Skeleton`   | The shape of content that is loading. Use it as a loading fallback. |
-| `Tabs`       | Two to five views of the same thing. A client component.            |
-| `Dialog`     | A decision that must interrupt. A bottom sheet on a phone.          |
-| `Avatar`     | A player. The name sets the colour and the mood.                    |
-| `Face`       | The mascot face. See [Signature patterns](#signature-patterns).     |
-| `Speech`     | The mascot speaks. Moments only.                                    |
-| `Sticker`    | Decoration. Two per viewport at most.                               |
+| Primitive     | Use it for                                                          |
+| ------------- | ------------------------------------------------------------------- |
+| `Button`      | An action. `buttonStyles()` styles a `Link` the same way.           |
+| `Card`        | One object the user can act on. `peek` puts a face over the edge.   |
+| `Input`       | One line of text, with a label, a hint and an error.                |
+| `Textarea`    | Several lines of text. Same label, hint and error as `Input`.       |
+| `Select`      | One choice from a long list. It is a native select.                 |
+| `RadioGroup`  | One choice from five options or fewer.                              |
+| `Checkbox`    | A yes/no value that a form submits later.                           |
+| `Switch`      | A setting that applies at once.                                     |
+| `Field`       | The label, hint and error. Use it to wrap a new form control.       |
+| `Badge`       | A short state in words: "Host", "Ready". Not pressable.             |
+| `Chip`        | A pill that names one thing, often with an `Avatar`. Not pressable. |
+| `ContactLink` | A phone number (`tel:`) or an email address (`mailto:`) to tap.     |
+| `Alert`       | A message in the interface voice: a result, a problem, a status.    |
+| `Progress`    | How far through something the user is. It shows the value in words. |
+| `Spinner`     | Work that the user asked for and that is not complete yet.          |
+| `EmptyState`  | A space with no content yet. A sleepy face, one line, one action.   |
+| `Skeleton`    | The shape of content that is loading. Use it as a loading fallback. |
+| `Tabs`        | Two to five views of the same thing. A client component.            |
+| `Dialog`      | A decision that must interrupt. A bottom sheet on a phone.          |
+| `Avatar`      | A player. The name sets the colour and the mood.                    |
+| `Face`        | The mascot face. See [Signature patterns](#signature-patterns).     |
+| `Speech`      | The mascot speaks. Moments only.                                    |
+| `Sticker`     | Decoration. Two per viewport at most.                               |
 
 `components/layout/` holds the page chrome:
 
-| Component    | Use it for                                                                       |
-| ------------ | -------------------------------------------------------------------------------- |
-| `PageShell`  | The page's `<main>`: width, gutter and rhythm.                                   |
-| `AppBar`     | The top of an app screen: an on-screen back arrow, the title (`h1`), one action. |
-| `BackButton` | The back arrow alone. It returns inside the app, or goes to a fallback page.     |
-| `TabBar`     | The floating bottom bar with the top-level destinations. The root layout has it. |
-| `Header`     | A website header: the mascot logo and the main links.                            |
-| `Footer`     | The site footer.                                                                 |
+| Component    | Use it for                                                                             |
+| ------------ | -------------------------------------------------------------------------------------- |
+| `PageShell`  | The page's `<main>`: width, gutter and rhythm.                                         |
+| `AppBar`     | The top of an app screen: an on-screen back arrow, the title (`h1`), one action.       |
+| `BackButton` | The back arrow alone. It returns inside the app, or goes to a fallback page.           |
+| `TabBar`     | The floating bottom bar with the top-level destinations. The root layout has it.       |
+| `Header`     | A website header: the logo links home, and the main links fold into a menu on a phone. |
+| `MobileMenu` | The header's "Menu" button and panel below `sm`. `Header` renders it for you.          |
+| `Footer`     | The site footer: one line, the copyright from the clock, contact links, links.         |
 
 **Behave like an app.** A user must never need the browser's back button. A screen below a tab has an `AppBar` with a back arrow. A focused task, such as sign-in, hides the `TabBar` (see `TABLESS_PATHS` in `lib/navigation.ts`). A step inside one screen, such as the OTP step, uses the back arrow to return to the step before it.
 
@@ -315,6 +319,62 @@ Below the fold: a live, playable mini board. Then the list of games as distinct 
 
 ---
 
+## The site checklist
+
+Every site built from this template passes this list before it goes live. The template already passes it. Keep it that way when you add a page.
+
+The **Check** column says what stops a regression. "Test" is `tests/site-checklist.test.ts`, which runs in `pnpm validate`. "Look" is a human check: do it at 320px and at desktop width.
+
+### Layout and mobile
+
+| Item                           | The rule                                                                                                                | Check      |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ---------- |
+| No horizontal scroll           | Nothing is wider than the screen at 320px. Use `w-full`, `max-w-*`, `min-w-0` and `break-words`. Never a fixed `w-[…]`. | Look, lint |
+| No mobile overflow             | Long words, URLs and ids wrap (`break-all`, `truncate`). Tables and code blocks scroll inside their own box.            | Look       |
+| Every page is mobile optimized | Unprefixed classes are the phone layout. `sm:`/`md:`/`lg:` only add to it. Tap targets are 44px or more.                | Look       |
+| A mobile menu                  | An app uses `TabBar`. A website uses `Header`, which folds its links into `MobileMenu` below `sm`.                      | Test       |
+
+`body` has `overflow-x: clip` in `styles/globals.css`. That is a safety net, not the fix. It hides the scroll bar, but the clipped content is still lost. Find the element that overflows and fix it.
+
+### Links and navigation
+
+| Item                   | The rule                                                                                                           | Check      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------- |
+| No broken links        | Every internal `href` points to a page or route handler that exists.                                               | Test       |
+| Footer links work      | A footer link goes to a real page. When you remove a page, remove its links in the same PR.                        | Test       |
+| No unused navigation   | A header link, tab or footer link exists only for a page that exists and that users need. Three to five at most.   | Test, look |
+| The logo is clickable  | The logo in `Header` always links to `/`. Do not replace it with a plain image.                                    | Test       |
+| The phone is clickable | Show a phone number with `ContactLink kind="phone"` or `Footer contact`. A tap dials it.                           | Test       |
+| The email is clickable | Show an email address with `ContactLink kind="email"` or `Footer contact`. A tap opens the mail app.               | Test       |
+| A custom 404 page      | `app/not-found.tsx` follows the empty-state recipe: a face, one line, one link home. Keep it. Restyle, never drop. | Test       |
+
+Write an external link as a full URL. `Footer` renders it as a plain `<a>`, and an in-app path as `next/link`.
+
+### Page metadata
+
+| Item               | The rule                                                                                                                    | Check |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Page titles        | Every `page.tsx` exports `metadata` with a `title`. The layout adds `\| <app name>`. The home page may use the default.     | Test  |
+| Meta descriptions  | Every `page.tsx` exports a `description` of one sentence, under 160 characters, that says what the page is for.             | Test  |
+| A favicon          | `app/icon.svg` is the mascot face. Next.js serves it and links it on every page. Replace it with the product's own mark.    | Test  |
+| The copyright year | Never type a year. `Footer owner="…"` builds `© <year> <owner>` from the clock. A static page fixes the year at build time. | Test  |
+
+A statically rendered page keeps the year of its build. Every deploy rebuilds it. Deploy at least once a year, or make the page dynamic.
+
+### Content and feedback
+
+| Item                | The rule                                                                                                                                           | Check      |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| No placeholder text | No "lorem ipsum", "TODO", "coming soon", `example.com` or template copy on a live page. Write the real words.                                      | Test       |
+| Compressed images   | Use `next/image`: it resizes and serves WebP. A file in `public/` stays under 200 KB. Prefer SVG for marks.                                        | Test       |
+| No broken buttons   | A `Button` submits a form (`type="submit"`) or has an `onClick`. A button that goes somewhere is a `Link` with `buttonStyles()`. Never `href="#"`. | Test, look |
+| A success message   | An action that saves or sends something shows `Alert tone="success"` that names the result: "Profile saved."                                       | Look       |
+| An error message    | A failed action shows `Alert tone="danger"`: what happened and how to fix it. Never fail silently.                                                 | Look       |
+
+`ProfileForm` and `ExampleForm` show both messages. Copy them. A signed URL image is the one case for a plain `<img>`, because `next/image` cannot optimise a URL that expires. Size the upload on the server instead.
+
+---
+
 ## Enforcement
 
 Rules 2 to 6 are lint checks, not reminders. The `template/design-language` block in `eslint.config.mjs` reads every `className` — the string form, the strings passed to `cn()`, and template literals — and fails the build on:
@@ -344,9 +404,10 @@ Everything else on this page — one primary action, the cute budget, the words,
 Check each item. Do not skip the last one.
 
 1. It works at 320px and at desktop width. No horizontal scroll.
-2. One primary button per viewport.
-3. `pnpm validate` is green. It fails on the token rules above, so a clean run means the diff carries no raw hex, arbitrary value, or default Tailwind colour, size, radius or shadow.
-4. Nothing from the anti-slop list or the banned words.
-5. Budgets respected: peek, speech, stickers, large shadow.
-6. Every new or changed primitive appears on `/design` and has a colocated `<Name>.test.tsx`.
-7. **Remove one thing.** Look at the screen and take away the least necessary decoration. Then check again.
+2. [The site checklist](#the-site-checklist) passes.
+3. One primary button per viewport.
+4. `pnpm validate` is green. It fails on the token rules above, so a clean run means the diff carries no raw hex, arbitrary value, or default Tailwind colour, size, radius or shadow.
+5. Nothing from the anti-slop list or the banned words.
+6. Budgets respected: peek, speech, stickers, large shadow.
+7. Every new or changed primitive appears on `/design` and has a colocated `<Name>.test.tsx`.
+8. **Remove one thing.** Look at the screen and take away the least necessary decoration. Then check again.
