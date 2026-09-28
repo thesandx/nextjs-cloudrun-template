@@ -19,6 +19,10 @@ import { env } from '@/lib/env';
  * running build. And it shows a new contributor what the template gives them,
  * built only from the primitives in `components/ui/`.
  *
+ * On a phone it is one column. From `lg` it recomposes for a desktop: the
+ * hero puts the words beside the live build, and each section puts its
+ * heading beside its content. Same markup, same order — only the grid changes.
+ *
  * Replace it with the real application. Keep the folder conventions in
  * .github/instructions/, and keep building the UI from the primitives.
  */
@@ -48,57 +52,65 @@ const BUILD_FACTS: ReadonlyArray<{ label: string; value: string }> = [
 
 export default function HomePage() {
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-16 px-5 py-12 sm:gap-24 sm:px-8 sm:py-20">
-      <header className="flex flex-col gap-5">
-        <span className="bg-brand-soft border-line shadow-mochi-lg inline-grid size-20 place-items-center rounded-full border-2">
-          <Face size={64} blink label="The Mochi mascot" />
-        </span>
-        <h1 className="text-hero">Hello World</h1>
-        <p className="text-ink-soft max-w-prose">
-          This project is running successfully on Google Cloud Run. Everything you see below comes
-          from the primitives in <Code>components/ui/</Code> — so a new screen starts from parts
-          that already match.
-        </p>
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <Link href="/design" className={buttonStyles()}>
-            See every component
-          </Link>
-          <Link href="/api/health" className={buttonStyles({ variant: 'quiet' })}>
-            Check the health probe
-          </Link>
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-16 px-5 py-12 sm:gap-24 sm:px-8 sm:py-20">
+      <div className="grid gap-16 lg:grid-cols-2 lg:items-center lg:gap-12">
+        <header className="flex flex-col gap-5">
+          <span className="bg-brand-soft border-line shadow-mochi-lg inline-grid size-20 place-items-center rounded-full border-2">
+            <Face size={64} blink label="The Mochi mascot" />
+          </span>
+          <h1 className="text-hero">Hello World</h1>
+          <p className="text-ink-soft max-w-prose">
+            This project is running successfully on Google Cloud Run. Everything on this page comes
+            from the primitives in <Code>components/ui/</Code> — so a new screen starts from parts
+            that already match.
+          </p>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+            <Link href="/design" className={buttonStyles()}>
+              See every component
+            </Link>
+            <Link href="/api/health" className={buttonStyles({ variant: 'quiet' })}>
+              Check the health probe
+            </Link>
+          </div>
+        </header>
+
+        <section className="flex flex-col gap-5">
+          <h2 className="text-title">This build</h2>
+          <Card>
+            <dl className="grid gap-5 sm:grid-cols-3">
+              {BUILD_FACTS.map((fact) => (
+                <div key={fact.label} className="flex flex-col gap-1">
+                  <dt className="text-small text-ink-soft">{fact.label}</dt>
+                  <dd className="font-display break-words">{fact.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+          <p className="text-small text-ink-soft max-w-prose">
+            The deploy workflow passes the commit as a build argument, so it is baked into this
+            image. The region and the deploy time belong to the Cloud Run service, not the image, so{' '}
+            <Code>/api/health</Code> serves those at runtime — with the full commit.
+          </p>
+        </section>
+      </div>
+
+      <section className="grid gap-5 lg:grid-cols-5 lg:items-start lg:gap-12">
+        <div className="flex flex-col gap-5 lg:col-span-2">
+          <h2 className="text-title">The primitives, in one screen</h2>
+          <p className="text-ink-soft max-w-prose">
+            An example, not a product — nothing here is wired to anything. It is here so you can see
+            the parts working together before you write your first screen.
+          </p>
+          <p className="text-small text-ink-soft max-w-prose">
+            Every face is drawn from its nickname, so a player keeps the same one all session. The
+            page at <Code>/design</Code> renders every variant and every token.
+          </p>
         </div>
-      </header>
-
-      <section className="flex flex-col gap-5">
-        <h2 className="text-title">This build</h2>
-        <Card>
-          <dl className="grid gap-5 sm:grid-cols-3">
-            {BUILD_FACTS.map((fact) => (
-              <div key={fact.label} className="flex flex-col gap-1">
-                <dt className="text-small text-ink-soft">{fact.label}</dt>
-                <dd className="font-display break-all">{fact.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
-        <p className="text-small text-ink-soft max-w-prose">
-          The deploy workflow passes the commit as a build argument, so it is baked into this image.
-          The region and the deploy time belong to the Cloud Run service, not the image, so{' '}
-          <Code>/api/health</Code> serves those at runtime — with the full commit.
-        </p>
-      </section>
-
-      <section className="flex flex-col gap-5">
-        <h2 className="text-title">The primitives, in one screen</h2>
-        <p className="text-ink-soft max-w-prose">
-          An example, not a product — nothing below is wired to anything. It is here so you can see
-          the parts working together before you write your first screen.
-        </p>
 
         <Card
           tone="brand-soft"
           peek={<Avatar name="momo" size="lg" />}
-          className="flex flex-col gap-6"
+          className="flex flex-col gap-6 lg:col-span-3"
         >
           <Sticker kind="sparkle" size={32} className="absolute top-5 right-5" />
           <Sticker kind="heart" size={20} className="absolute top-14 right-14 hidden sm:block" />
@@ -119,16 +131,11 @@ export default function HomePage() {
 
           <Input label="Room key" code maxLength={6} autoComplete="off" placeholder="······" />
         </Card>
-
-        <p className="text-small text-ink-soft max-w-prose">
-          Every face is drawn from its nickname, so a player keeps the same one all session. The
-          page at <Code>/design</Code> renders every variant and every token.
-        </p>
       </section>
 
-      <section className="flex flex-col gap-5">
-        <h2 className="text-title">Make it yours</h2>
-        <ol className="marker:text-ink marker:font-display flex list-decimal flex-col gap-4 pl-6">
+      <section className="grid gap-5 lg:grid-cols-5 lg:gap-12">
+        <h2 className="text-title lg:col-span-2">Make it yours</h2>
+        <ol className="marker:text-ink marker:font-display flex list-decimal flex-col gap-4 pl-6 lg:col-span-3">
           <Step>
             Start with <Code>CLAUDE.md</Code> — the operating manual. It records the traps that look
             like bugs and are not.

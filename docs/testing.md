@@ -21,7 +21,7 @@ tests/server-only.stub.ts               ← aliased over the `server-only` packa
 tests/site-checklist.test.ts            ← the site checklist, read from the source
 ```
 
-`tests/site-checklist.test.ts` is the one test that is not colocated. It reads every page and component and fails on a broken internal link, a dead `href`, a page without a meta description, placeholder text, a literal copyright year, a heavy image, and a phone number or email address in plain text. See [`design-language.md` > The site checklist](../.github/instructions/design-language.md#the-site-checklist).
+`tests/site-checklist.test.ts` is the one test that is not colocated. It reads every page and component and fails on a broken internal link, a dead `href`, a page without a meta description, placeholder text, a literal copyright year, a heavy image, and a phone number or email address in plain text. It also checks the responsive shell: the layout has both the `TabBar` and the `SiteHeader`, every `<main>` uses the `max-w-5xl` frame, and the web app manifest is installable. See [`design-language.md` > The site checklist](../.github/instructions/design-language.md#the-site-checklist).
 
 Colocation makes a test hard to overlook when you change the implementation. When you move a module, its test moves with it.
 

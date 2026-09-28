@@ -31,7 +31,7 @@ Three words to test every decision against: **squishy, honest, playful.**
 9. **Colour has a job.** `brand` means "do this". Candy tones (`butter`, `soda`, `grape`, `peach`) mean identity — this game, this player, this category. Never pick a candy tone "because it looks nice here".
 10. **Faces are the signature — use them on purpose.** A face appears on avatars, the mascot, empty states, errors and wins. Never on buttons, form fields, navigation, or body text.
 11. **Motion answers the user.** Press, navigate, open, select, join, win, error. The only ambient motion is the mascot's blink and a loading skeleton. No scroll-triggered fade-ins, no looping decoration. See [Motion](#motion).
-12. **Mobile first, 320px up.** Tap targets ≥ 44px (buttons are 48px or 56px). No horizontal scroll. Left-aligned text.
+12. **Mobile first, 320px up, then a real desktop.** A phone gets an app. From `md` (768px) up, the same screen is a website. Tap targets ≥ 44px (buttons are 48px or 56px). No horizontal scroll. Left-aligned text. See [Responsive](#responsive-an-app-on-a-phone-a-website-on-a-desktop).
 
 A site built from this template also passes [the site checklist](#the-site-checklist): working links, a mobile menu, a favicon, titles and descriptions, a 404 page, clear feedback, and contact details you can tap.
 
@@ -133,17 +133,20 @@ Each primitive lives in `components/ui/`, has a colocated test, and renders on `
 
 `components/layout/` holds the page chrome:
 
-| Component    | Use it for                                                                             |
-| ------------ | -------------------------------------------------------------------------------------- |
-| `PageShell`  | The page's `<main>`: width, gutter and rhythm.                                         |
-| `AppBar`     | The top of an app screen: an on-screen back arrow, the title (`h1`), one action.       |
-| `BackButton` | The back arrow alone. It returns inside the app, or goes to a fallback page.           |
-| `TabBar`     | The floating bottom bar with the top-level destinations. The root layout has it.       |
-| `Header`     | A website header: the logo links home, and the main links fold into a menu on a phone. |
-| `MobileMenu` | The header's "Menu" button and panel below `sm`. `Header` renders it for you.          |
-| `Footer`     | The site footer: one line, the copyright from the clock, contact links, links.         |
+| Component    | Use it for                                                                           |
+| ------------ | ------------------------------------------------------------------------------------ |
+| `PageShell`  | The page's `<main>`: the frame (`max-w-5xl`), the gutter and the rhythm.             |
+| `AppBar`     | Back arrow, title (`h1`), one action. Sticky on a phone. The page heading from `md`. |
+| `BackButton` | The back arrow alone. It returns inside the app, or goes to a fallback page.         |
+| `TabBar`     | The floating bottom bar with the top-level destinations. Phone only. In the layout.  |
+| `SiteHeader` | The same destinations in a sticky website header. `md` and up. In the layout.        |
+| `Header`     | A website header. The logo links home. The links fold into `MobileMenu` below `md`.  |
+| `MobileMenu` | The header's "Menu" button and panel below `md`, for a website with no `TabBar`.     |
+| `Footer`     | The site footer: one line, the copyright from the clock, contact links, links.       |
 
-**Behave like an app.** A user must never need the browser's back button. A screen below a tab has an `AppBar` with a back arrow. A focused task, such as sign-in, hides the `TabBar` (see `TABLESS_PATHS` in `lib/navigation.ts`). A step inside one screen, such as the OTP step, uses the back arrow to return to the step before it.
+**On a phone, behave like an app.** A user must never need the browser's back button. A screen below a tab has an `AppBar` with a back arrow. A focused task, such as sign-in, hides the `TabBar` (see `TABLESS_PATHS` in `lib/navigation.ts`). A step inside one screen, such as the OTP step, uses the back arrow to return to the step before it.
+
+**On a desktop, behave like a website.** See [Responsive](#responsive-an-app-on-a-phone-a-website-on-a-desktop).
 
 Status is never colour alone. `Alert` draws a glyph, `Checkbox` draws a tick, `RadioGroup` draws a dot, `Switch` moves its knob, and `Tabs` lifts the selected tab onto a base.
 
@@ -223,13 +226,98 @@ These make Mochi recognisable. Use them; do not invent new decorative devices.
 
 ---
 
+## Responsive: an app on a phone, a website on a desktop
+
+Every screen has two postures. On a phone it is an app: it feels installed, and the thumb does the work. On a tablet or a desktop it is a website: a header at the top, the width in use, a footer at the end. One codebase serves both. The layout changes. The routes, the data and the components stay the same.
+
+A desktop page that is one narrow column in the centre of the screen is a defect. It is the phone layout on a big screen, not a desktop layout.
+
+### The switch is `md`
+
+One breakpoint changes the posture: `md`, 768px.
+
+| Width        | Posture | Prefixes to use                                         |
+| ------------ | ------- | ------------------------------------------------------- |
+| Below 768px  | App     | No prefix. `sm:` adjusts the layout for a large phone.  |
+| 768px and up | Website | `md:` changes the posture. `lg:` and `xl:` add columns. |
+
+- Use `md:` to change the posture. Use `sm:`, `lg:` and `xl:` only to adjust a layout inside one posture.
+- Do not add a second posture switch at a different breakpoint.
+- Choose the posture in CSS only. Never read `window.innerWidth`, `matchMedia` or the user agent to choose a layout. The server sends one HTML for every screen. A JavaScript switch shows the wrong layout first, then jumps.
+
+### The two postures side by side
+
+|                          | Phone: an app                                         | Desktop: a website                                                    |
+| ------------------------ | ----------------------------------------------------- | --------------------------------------------------------------------- |
+| Navigation               | `TabBar`, at the bottom, in thumb reach               | `SiteHeader`, sticky at the top, with the logo and the same links     |
+| A screen below a tab     | `AppBar`: sticky, with a back arrow and the title     | The same `AppBar` scrolls with the page as its heading                |
+| Page width               | The full screen, with a `px-5` gutter                 | The frame, `max-w-5xl`. The header, the page and the footer share it. |
+| Composition              | One column, top to bottom                             | Columns from `lg`: the words beside the product                       |
+| The primary action       | At the end of the form, full width (`block`)          | Natural width, next to the thing it acts on                           |
+| A focused task (sign-in) | The full screen. The `TabBar` hides.                  | One narrow column (`max-w-md`) on the frame. The header stays.        |
+| A decision (`Dialog`)    | A bottom sheet                                        | A centred modal                                                       |
+| Hover                    | None. Touch has no hover.                             | An extra cue only. Never the only way to see or do a thing.           |
+| Footer                   | The end of the scroll, above the `TabBar`             | The end of the page. On a short page, the bottom of the screen.       |
+| Install                  | "Add to Home Screen" opens it full screen, no browser | A normal browser tab                                                  |
+
+`APP_TABS` in `lib/navigation.ts` feeds both `TabBar` and `SiteHeader`. Add a destination there, never in only one of them.
+
+### Build every screen in this order
+
+1. **Draw the phone first, at 390px.** One column. The one primary action is in thumb reach. The `TabBar` or an `AppBar` gives the way around.
+2. **Then draw 1440px.** Ask what goes beside what. The 1024px frame holds two or three columns.
+3. **Recompose with a grid at `lg`.** Keep the markup and its order. Change only the grid.
+4. **Keep the reading width.** Text stays `max-w-prose`. A form stays `max-w-md` to `max-w-xl`, also in a wide column. A 1000px-wide text field does not "use the width".
+5. **Check five widths:** 320, 390, 768, 1024 and 1440. No horizontal scroll at any of them.
+
+```tsx
+// Phone: the heading, then the card. From lg: the heading beside the card.
+<section className="grid gap-5 lg:grid-cols-5 lg:gap-12">
+  <div className="flex flex-col gap-5 lg:col-span-2">{/* heading and words */}</div>
+  <Card className="lg:col-span-3">{/* the product */}</Card>
+</section>
+```
+
+The source order is the phone order. Screen readers and the keyboard follow it at every width. Do not use `order-*` to make the desktop look right.
+
+### Desktop patterns
+
+- **A two-column hero.** The words go on the left, the live product on the right. See `app/page.tsx`.
+- **A heading beside its content.** The heading and a short intro take two of five columns. The content takes three.
+- **A form beside what it makes.** The form stays in view (`lg:sticky lg:top-24`) while the list grows. See `app/example/page.tsx`.
+- **An identity beside the details.** The profile card stays in view while the details scroll. See `app/profile/page.tsx`.
+- **A section list on a long page.** A sticky list of section links goes on the left. See `app/design/page.tsx`.
+- **A grid of distinct objects.** `sm:grid-cols-2 lg:grid-cols-3`, only when each card is an object the user acts on.
+
+`lg:top-24` keeps a sticky column below the sticky `SiteHeader`. `scroll-padding-top` in `styles/globals.css` does the same for an anchor link.
+
+### Phone patterns: an installable app
+
+- **Never depend on the browser.** An installed app has no back button and no address bar. Every screen below a tab has an `AppBar` with a back arrow.
+- **Thumb reach.** Navigation is at the bottom. The primary action is at the end of the form, at full width.
+- **Safe areas.** The page draws under the notch (`viewportFit: 'cover'`). Fixed chrome pads itself with `env(safe-area-inset-*)`, as `TabBar` does.
+- **Press feedback, not a tap flash.** The base styles remove the grey tap highlight. `squish` and `press` answer the tap.
+- **Installable.** `app/manifest.ts` sets `display: 'standalone'`. The icons are in `public/icons/` (192px, 512px and a maskable 512px) and `app/apple-icon.png`. `THEME_COLOR` in `lib/pwa.ts` matches `--color-paper`. When you change the mark, export `app/icon.svg` again at each size.
+- **No service worker.** The template has none, on purpose. A browser cache keeps the old build after a deploy: the same failure as trap 26 in a CDN. Add one only with a versioned cache and an update prompt. Record that decision in an ADR.
+
+### Never
+
+- Show the `TabBar` on a desktop.
+- Show a "Menu" button on a desktop.
+- Frame a page with a phone-width `<main>`. The frame is `max-w-5xl`. Make the content narrow inside it.
+- Put a thing only behind hover.
+- Choose a layout in JavaScript.
+- Reorder content with CSS, so that the two postures read in a different order.
+
+---
+
 ## Layout
 
 - **Left-aligned** text and forms. Centre only a room key, a single score, or a lone empty-state message.
 - **Show the product first.** The hero shows the real thing working — a board, a map, the key entry — not a description of it. On a party game, the first viewport contains the key input.
 - **Vertical rhythm.** Sections are separated by `gap-16` (mobile) to `gap-24` (desktop). Inside a card, `gap-4`.
 - **No card grids for the sake of it.** Three identical cards in a row is not a layout. Use cards only when each one is a distinct object the user can act on (a game, a player, a room).
-- **Page width** `max-w-3xl` for reading and forms, `max-w-5xl` for boards and maps. Padding `px-5` mobile, `sm:px-8`.
+- **The frame.** Every page, the header and the footer line up on `max-w-5xl`, the `PageShell` default. Use `PageShell width="reading"` (`max-w-3xl`) only for one long text, such as a policy page. The gutter is `px-5` on a phone and `sm:px-8` above it.
 
 ---
 
@@ -292,11 +380,11 @@ This is the minimum, not a goal.
 
 ## Recipes
 
-**Party-game landing page (first viewport, 390px wide):**
+**Party-game landing page, phone (first viewport, 390px wide):**
 
 ```
 ┌──────────────────────────────┐
-│ ◉ Playroom          Games    │  logo = mascot face, not a letter
+│ ◉ Playroom                   │  logo = mascot face, not a letter
 │                              │
 │ Bingo for your group chat    │  text-hero, left aligned
 │                              │
@@ -306,7 +394,25 @@ This is the minimum, not a goal.
 │ │ [ Join game            ] │ │  the one primary
 │ └──────────────────────────┘ │
 │ Hosting? Create a room       │  Button quiet
+│                              │
+│ ( Home )  Games   Profile    │  TabBar, in thumb reach
 └──────────────────────────────┘
+```
+
+**The same page, desktop (1440px wide):**
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ ◉ Playroom                         Home   Games   Profile    │  SiteHeader, sticky
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│   Bingo for your             ┌─(face peeks)──────────────┐   │
+│   group chat                 │ Room key                  │   │  the hero: words left,
+│                              │ [ P L Z 4 K 9 ]           │   │  the product right
+│   One line on what it is.    │ [ Join game ]             │   │
+│   Hosting? Create a room     └───────────────────────────┘   │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 Below the fold: a live, playable mini board. Then the list of games as distinct cards, each with its own candy tone.
@@ -323,16 +429,18 @@ Below the fold: a live, playable mini board. Then the list of games as distinct 
 
 Every site built from this template passes this list before it goes live. The template already passes it. Keep it that way when you add a page.
 
-The **Check** column says what stops a regression. "Test" is `tests/site-checklist.test.ts`, which runs in `pnpm validate`. "Look" is a human check: do it at 320px and at desktop width.
+The **Check** column says what stops a regression. "Test" is `tests/site-checklist.test.ts`, which runs in `pnpm validate`. "Look" is a human check: do it at 320px, 768px and 1440px.
 
 ### Layout and mobile
 
-| Item                           | The rule                                                                                                                | Check      |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ---------- |
-| No horizontal scroll           | Nothing is wider than the screen at 320px. Use `w-full`, `max-w-*`, `min-w-0` and `break-words`. Never a fixed `w-[…]`. | Look, lint |
-| No mobile overflow             | Long words, URLs and ids wrap (`break-all`, `truncate`). Tables and code blocks scroll inside their own box.            | Look       |
-| Every page is mobile optimized | Unprefixed classes are the phone layout. `sm:`/`md:`/`lg:` only add to it. Tap targets are 44px or more.                | Look       |
-| A mobile menu                  | An app uses `TabBar`. A website uses `Header`, which folds its links into `MobileMenu` below `sm`.                      | Test       |
+| Item                           | The rule                                                                                                                           | Check      |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| No horizontal scroll           | Nothing is wider than the screen at 320px. Use `w-full`, `max-w-*`, `min-w-0` and `break-words`. Never a fixed `w-[…]`.            | Look, lint |
+| No mobile overflow             | Long words, URLs and ids wrap (`break-all`, `truncate`). Tables and code blocks scroll inside their own box.                       | Look       |
+| Every page is mobile optimized | Unprefixed classes are the phone layout. `sm:`/`md:`/`lg:` only add to it. Tap targets are 44px or more.                           | Look       |
+| A mobile menu                  | On a phone, the `TabBar` is the menu. A website with no tab bar uses `Header`, which folds its links into `MobileMenu` below `md`. | Test       |
+| A desktop that is a website    | From `md` up, `SiteHeader` replaces `TabBar`. Every `<main>` uses the `max-w-5xl` frame, and content goes into columns at `lg`.    | Test, look |
+| Installable on a phone         | `app/manifest.ts` is `standalone`, with 192px, 512px and maskable icons, and `app/apple-icon.png`.                                 | Test       |
 
 `body` has `overflow-x: clip` in `styles/globals.css`. That is a safety net, not the fix. It hides the scroll bar, but the clipped content is still lost. Find the element that overflows and fix it.
 
@@ -403,7 +511,7 @@ Everything else on this page — one primary action, the cute budget, the words,
 
 Check each item. Do not skip the last one.
 
-1. It works at 320px and at desktop width. No horizontal scroll.
+1. It works at 320px, 768px and 1440px: an app on the phone, a website on the desktop. No horizontal scroll.
 2. [The site checklist](#the-site-checklist) passes.
 3. One primary button per viewport.
 4. `pnpm validate` is green. It fails on the token rules above, so a clean run means the diff carries no raw hex, arbitrary value, or default Tailwind colour, size, radius or shadow.

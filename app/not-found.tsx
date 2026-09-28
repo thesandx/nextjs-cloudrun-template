@@ -16,7 +16,7 @@ export const metadata: Metadata = {
  */
 export default function NotFound() {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center gap-6 px-5 py-12 sm:px-8">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center gap-6 px-5 py-12 sm:px-8">
       <span className="bg-sunken border-line inline-grid size-20 place-items-center rounded-full border-2">
         <Face mood="sleepy" size={64} />
       </span>

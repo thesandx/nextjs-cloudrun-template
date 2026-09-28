@@ -102,10 +102,12 @@ export function SignInPanel({ redirectTo = '/' }: SignInPanelProps): React.JSX.E
     return (
       <>
         <AppBar title="Sign in" back />
-        <main className="mx-auto w-full max-w-md px-5 py-10">
-          <EmptyState title="Sign-in is not set up.">
-            Set the Firebase values in <code>.env.example</code> and rebuild the app.
-          </EmptyState>
+        <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8">
+          <div className="max-w-md">
+            <EmptyState title="Sign-in is not set up.">
+              Set the Firebase values in <code>.env.example</code> and rebuild the app.
+            </EmptyState>
+          </div>
         </main>
       </>
     );
@@ -118,142 +120,149 @@ export function SignInPanel({ redirectTo = '/' }: SignInPanelProps): React.JSX.E
         back={view === 'otp' ? { onBack: backToPhone, label: 'Change phone number' } : true}
       />
 
-      <main className="mx-auto flex w-full max-w-md flex-col gap-8 px-5 py-8 sm:py-12">
-        {/*
+      {/*
+        A focused task. On a phone it fills the screen, like an app's sign-in.
+        On a desktop it is one narrow column on the page frame, under the same
+        header as every other page: a 1000px-wide phone field helps nobody.
+      */}
+      <main className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-12">
+        <div className="flex max-w-md flex-col gap-8">
+          {/*
           Each step is keyed, so a step change mounts a fresh subtree and the
           slide plays: forward from the right, back from the left, as a native
           navigation stack does.
         */}
-        {view === 'phone' ? (
-          <div key="phone" className={cn('flex flex-col gap-8', STEP_MOTION[direction])}>
-            <header className="flex flex-col gap-2">
-              <h2 className="text-title">Enter your phone number</h2>
-              <p className="text-ink-soft">We send a one-time password (OTP) to it by SMS.</p>
-            </header>
+          {view === 'phone' ? (
+            <div key="phone" className={cn('flex flex-col gap-8', STEP_MOTION[direction])}>
+              <header className="flex flex-col gap-2">
+                <h2 className="text-title">Enter your phone number</h2>
+                <p className="text-ink-soft">We send a one-time password (OTP) to it by SMS.</p>
+              </header>
 
-            <form
-              className="flex flex-col gap-5"
-              noValidate
-              onSubmit={(event) => {
-                event.preventDefault();
-                const result = toE164(country, nationalNumber);
-                if (!result.ok) {
-                  setPhoneError(result.message);
-                  return;
-                }
-                setPhoneError(undefined);
-                setE164(result.e164);
-                void sendOtp(result.e164);
-              }}
-            >
-              <PhoneNumberInput
-                country={country}
-                onCountryChange={setCountry}
-                value={nationalNumber}
-                onChange={(value) => {
-                  setNationalNumber(value);
+              <form
+                className="flex flex-col gap-5"
+                noValidate
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const result = toE164(country, nationalNumber);
+                  if (!result.ok) {
+                    setPhoneError(result.message);
+                    return;
+                  }
                   setPhoneError(undefined);
+                  setE164(result.e164);
+                  void sendOtp(result.e164);
                 }}
-                error={phoneError}
-                disabled={busy}
-                autoFocus
-              />
-              <Button type="submit" size="lg" block disabled={busy}>
-                {busy ? 'Sending OTP…' : 'Send OTP'}
-              </Button>
-            </form>
-
-            <div className="flex items-center gap-3" aria-hidden="true">
-              <span className="bg-line h-0.5 flex-1" />
-              <span className="text-small text-ink-soft">or</span>
-              <span className="bg-line h-0.5 flex-1" />
-            </div>
-
-            <Button
-              variant="secondary"
-              block
-              disabled={busy}
-              onClick={() => {
-                void auth.signInWithGoogle().then(finish);
-              }}
-            >
-              Continue with Google
-            </Button>
-          </div>
-        ) : (
-          <div key="otp" className={cn('flex flex-col gap-8', STEP_MOTION[direction])}>
-            <header className="flex flex-col gap-2">
-              <h2 className="text-title">Enter the OTP</h2>
-              <p className="text-ink-soft">
-                We sent a {OTP_LENGTH}-digit code to{' '}
-                <span className="text-ink font-medium whitespace-nowrap">
-                  {formatPhoneForDisplay(e164)}
-                </span>
-                .
-              </p>
-            </header>
-
-            <form
-              className="flex flex-col gap-5"
-              onSubmit={(event) => {
-                event.preventDefault();
-                verify(otp);
-              }}
-            >
-              <Input
-                label="OTP"
-                {...(auth.error !== null && { error: auth.error })}
-                name="otp"
-                value={otp}
-                onChange={(event) => {
-                  const digits = event.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH);
-                  setOtp(digits);
-                  // Verify as soon as the last digit lands, as an SMS autofill expects.
-                  if (digits.length === OTP_LENGTH) verify(digits);
-                }}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={OTP_LENGTH}
-                pattern="\d{6}"
-                autoFocus
-                required
-                code
-              />
-              <Button type="submit" size="lg" block disabled={busy || otp.length !== OTP_LENGTH}>
-                {busy ? 'Verifying…' : 'Verify OTP'}
-              </Button>
-            </form>
-
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              {secondsLeft > 0 ? (
-                <p className="text-small text-ink-soft" aria-live="polite">
-                  Resend OTP in {secondsLeft}s
-                </p>
-              ) : (
-                <Button variant="quiet" disabled={busy} onClick={() => void sendOtp(e164)}>
-                  Resend OTP
+              >
+                <PhoneNumberInput
+                  country={country}
+                  onCountryChange={setCountry}
+                  value={nationalNumber}
+                  onChange={(value) => {
+                    setNationalNumber(value);
+                    setPhoneError(undefined);
+                  }}
+                  error={phoneError}
+                  disabled={busy}
+                  autoFocus
+                />
+                <Button type="submit" size="lg" block disabled={busy}>
+                  {busy ? 'Sending OTP…' : 'Send OTP'}
                 </Button>
-              )}
-              <Button variant="quiet" disabled={busy} onClick={backToPhone}>
-                Change number
+              </form>
+
+              <div className="flex items-center gap-3" aria-hidden="true">
+                <span className="bg-line h-0.5 flex-1" />
+                <span className="text-small text-ink-soft">or</span>
+                <span className="bg-line h-0.5 flex-1" />
+              </div>
+
+              <Button
+                variant="secondary"
+                block
+                disabled={busy}
+                onClick={() => {
+                  void auth.signInWithGoogle().then(finish);
+                }}
+              >
+                Continue with Google
               </Button>
             </div>
-          </div>
-        )}
+          ) : (
+            <div key="otp" className={cn('flex flex-col gap-8', STEP_MOTION[direction])}>
+              <header className="flex flex-col gap-2">
+                <h2 className="text-title">Enter the OTP</h2>
+                <p className="text-ink-soft">
+                  We sent a {OTP_LENGTH}-digit code to{' '}
+                  <span className="text-ink font-medium whitespace-nowrap">
+                    {formatPhoneForDisplay(e164)}
+                  </span>
+                  .
+                </p>
+              </header>
 
-        {/* On the OTP step the error belongs to the field, which shakes; see below. */}
-        {auth.error !== null && view === 'phone' && <Alert tone="danger" title={auth.error} />}
+              <form
+                className="flex flex-col gap-5"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  verify(otp);
+                }}
+              >
+                <Input
+                  label="OTP"
+                  {...(auth.error !== null && { error: auth.error })}
+                  name="otp"
+                  value={otp}
+                  onChange={(event) => {
+                    const digits = event.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH);
+                    setOtp(digits);
+                    // Verify as soon as the last digit lands, as an SMS autofill expects.
+                    if (digits.length === OTP_LENGTH) verify(digits);
+                  }}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={OTP_LENGTH}
+                  pattern="\d{6}"
+                  autoFocus
+                  required
+                  code
+                />
+                <Button type="submit" size="lg" block disabled={busy || otp.length !== OTP_LENGTH}>
+                  {busy ? 'Verifying…' : 'Verify OTP'}
+                </Button>
+              </form>
 
-        {/*
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {secondsLeft > 0 ? (
+                  <p className="text-small text-ink-soft" aria-live="polite">
+                    Resend OTP in {secondsLeft}s
+                  </p>
+                ) : (
+                  <Button variant="quiet" disabled={busy} onClick={() => void sendOtp(e164)}>
+                    Resend OTP
+                  </Button>
+                )}
+                <Button variant="quiet" disabled={busy} onClick={backToPhone}>
+                  Change number
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* On the OTP step the error belongs to the field, which shakes; see below. */}
+          {auth.error !== null && view === 'phone' && <Alert tone="danger" title={auth.error} />}
+
+          {/*
           Firebase mounts the invisible reCAPTCHA widget here. It must be in the
           DOM before `sendVerificationCode` runs, which is why it is rendered
           unconditionally rather than alongside the phone form.
         */}
-        <div id={RECAPTCHA_CONTAINER_ID} />
+          <div id={RECAPTCHA_CONTAINER_ID} />
 
-        <p className="text-small text-ink-soft">
-          Signing in creates an account if you do not have one.
-        </p>
+          <p className="text-small text-ink-soft">
+            Signing in creates an account if you do not have one.
+          </p>
+        </div>
       </main>
     </>
   );

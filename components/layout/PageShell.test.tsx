@@ -9,10 +9,10 @@ describe('PageShell', () => {
     expect(screen.getByRole('main')).toHaveTextContent('Content');
   });
 
-  it('uses the reading width by default and the wide width on request', () => {
+  it('uses the page frame by default and the reading width on request', () => {
     const { rerender } = render(<PageShell>Content</PageShell>);
-    expect(screen.getByRole('main')).toHaveClass('max-w-3xl');
-    rerender(<PageShell width="wide">Content</PageShell>);
     expect(screen.getByRole('main')).toHaveClass('max-w-5xl');
+    rerender(<PageShell width="reading">Content</PageShell>);
+    expect(screen.getByRole('main')).toHaveClass('max-w-3xl');
   });
 });

@@ -136,7 +136,7 @@ Full reasoning in [`coding-rules.md`](./.github/instructions/coding-rules.md).
 8. **Avoid unnecessary dependencies.** Check the platform first (`Intl`, `fetch`, `crypto`, `AbortSignal.timeout`, `structuredClone`). See [Dependency policy](#dependency-policy).
 9. **Update docs when architecture or behaviour changes** — same PR, not later.
 10. **Verify before claiming.** See [Verification protocol](#verification-protocol).
-11. **Design mobile-first, in the design language.** Every UI is built from the Mochi tokens and the `components/ui/` primitives — never ad-hoc styles. Read [`design-language.md`](./.github/instructions/design-language.md) before you write any UI; the living reference renders at `/design`. Every UI works on a small screen first, then scales up. Unprefixed Tailwind utilities are the phone layout; add `sm:`/`md:`/`lg:` to enhance for wider screens — never the reverse. No fixed widths that overflow a phone, no horizontal scroll on the body, touch targets ≥44px. Responsiveness is a requirement, not a finishing touch. Every site also passes [the site checklist](./.github/instructions/design-language.md#the-site-checklist): no broken links, a mobile menu, a favicon, a title and description on every page, a 404 page, success and error messages, and tappable phone and email.
+11. **Design mobile-first, in the design language.** Every UI is built from the Mochi tokens and the `components/ui/` primitives — never ad-hoc styles. Read [`design-language.md`](./.github/instructions/design-language.md) before you write any UI; the living reference renders at `/design`. Every UI works on a small screen first, then scales up. Unprefixed Tailwind utilities are the phone layout; add `sm:`/`md:`/`lg:` to enhance for wider screens — never the reverse. No fixed widths that overflow a phone, no horizontal scroll on the body, touch targets ≥44px. Responsiveness is a requirement, not a finishing touch. **On a phone the app behaves like an installed app** (a bottom `TabBar`, an `AppBar` with a back arrow); **from `md` (768px) up it behaves like a website** (a sticky `SiteHeader`, the `max-w-5xl` frame, columns at `lg`). A desktop page that is one narrow column is a defect — see [Responsive](./.github/instructions/design-language.md#responsive-an-app-on-a-phone-a-website-on-a-desktop). Every site also passes [the site checklist](./.github/instructions/design-language.md#the-site-checklist): no broken links, a mobile menu, a favicon, a title and description on every page, a 404 page, success and error messages, and tappable phone and email.
 12. **Write docs in Simplified Technical English (ASD-STE100).** Every Markdown document — this file, `.github/instructions/`, `docs/`, `cloud/`, ADRs, READMEs — follows the standard. Short sentences (≤20 words for an instruction, ≤25 for a description), one instruction per sentence, active voice, present tense, one topic per paragraph, and one approved term per concept. Write for a non-native reader; choose the plain word over the clever one. Bring a document into compliance when you touch it.
 
 ---
@@ -160,6 +160,7 @@ Most rules above are checks, not reminders. `pnpm lint` fails on each one. Each 
 | `process.env` only in `lib/env.ts`                  | `no-restricted-properties`                                             |
 | Layer boundaries                                    | `no-restricted-imports`, one block per folder                          |
 | 11 — the site checklist                             | `tests/site-checklist.test.ts`: links, metadata, favicon, placeholders |
+| 11 — both postures, the page frame, installable     | `tests/site-checklist.test.ts`: shell, `<main>` width, manifest        |
 
 **`pnpm lint` runs with `--max-warnings 0`.** A warning fails CI exactly like an error. This makes the accessibility and performance rules of `eslint-config-next` blocking too.
 
@@ -816,19 +817,20 @@ Missing any step breaks somebody:
 3. Export the props interface; accept `className`
 4. Semantic HTML, accessible name, keyboard reachable
 5. Tailwind utilities using tokens from `styles/globals.css` — no raw hex. Reach for an existing primitive before you write a new one
-6. Mobile-first: base styles target the phone; layer `sm:`/`md:`/`lg:` for wider screens. Fluid widths (`w-full`, `max-w-*`), no fixed pixel widths that overflow, touch targets ≥44px. Verify at 320px wide and up
+6. Mobile-first: base styles target the phone; layer `sm:`/`md:`/`lg:` for wider screens. Fluid widths (`w-full`, `max-w-*`), no fixed pixel widths that overflow, touch targets ≥44px. Verify at 320px, 768px and 1440px
 7. Colocate `<Name>.test.tsx`
 8. A new or changed `components/ui/` primitive also appears on `/design`, in the same PR
 
 ### Add a page
 
-1. `app/<route>/page.tsx`, starting from `PageShell` (a website) or `AppBar` (an app screen)
+1. `app/<route>/page.tsx`, starting from `PageShell`, or from `AppBar` for a screen below a tab. Its `<main>` uses the `max-w-5xl` frame
 2. Export `metadata` with a `title` and a one-sentence `description`
 3. Link to it only once it exists. A link to a missing page fails `tests/site-checklist.test.ts`
 4. Add it to `APP_TABS` or the `Header` links only if users go back to it often
 5. Every action on it shows a success `Alert` and an error `Alert`
-6. Check it at 320px: no horizontal scroll, no clipped text, tap targets of 44px or more
-7. Go through [the site checklist](./.github/instructions/design-language.md#the-site-checklist)
+6. Design it twice: one column for the phone, then columns at `lg` for the desktop. Same markup, same order — only the grid changes
+7. Check it at 320px, 768px and 1440px: no horizontal scroll, no clipped text, tap targets of 44px or more
+8. Go through [the site checklist](./.github/instructions/design-language.md#the-site-checklist)
 
 ### Add a Firestore collection
 

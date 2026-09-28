@@ -47,7 +47,11 @@ export default async function ProfilePage(): Promise<React.JSX.Element> {
     <>
       <AppBar title="Profile" back={{ fallbackHref: '/', label: 'Back to home' }} />
 
-      <main className="mx-auto flex w-full max-w-md flex-col gap-8 px-5 py-8 sm:py-12">
+      {/*
+        One column on a phone. From lg, the page frame splits: the identity
+        card stays in view on the left while the details scroll on the right.
+      */}
+      <main className="mx-auto grid w-full max-w-5xl gap-8 px-5 py-8 sm:px-8 sm:py-12 lg:grid-cols-3 lg:items-start lg:gap-12">
         <Suspense fallback={<ProfileSkeleton />}>
           <ProfileDetails user={user} />
         </Suspense>
@@ -63,11 +67,14 @@ function ProfileSkeleton(): React.JSX.Element {
       <p role="status" className="sr-only">
         Loading your profile
       </p>
-      <Card peek={<Skeleton shape="circle" className="size-16" />} className="flex flex-col gap-2">
+      <Card
+        peek={<Skeleton shape="circle" className="size-16" />}
+        className="flex flex-col gap-2 lg:row-span-2"
+      >
         <Skeleton className="h-6 w-40" />
         <Skeleton className="w-52" />
       </Card>
-      <div className="flex flex-col gap-5">
+      <div className="flex max-w-xl flex-col gap-5 lg:col-span-2">
         <Skeleton className="h-8 w-44" />
         {[0, 1, 2].map((row) => (
           <div key={row} className="flex flex-col gap-1.5">
@@ -93,7 +100,10 @@ async function ProfileDetails({ user }: { user: SessionUser }): Promise<React.JS
 
   return (
     <>
-      <Card peek={<Avatar name={user.uid} size="lg" />} className="flex flex-col gap-1">
+      <Card
+        peek={<Avatar name={user.uid} size="lg" />}
+        className="flex flex-col gap-1 lg:sticky lg:top-24 lg:row-span-2"
+      >
         <p className="text-heading font-display break-words">{profile.displayName}</p>
         {contact.length > 0 && (
           <dl className="text-small text-ink-soft flex flex-col gap-0.5">
@@ -107,7 +117,10 @@ async function ProfileDetails({ user }: { user: SessionUser }): Promise<React.JS
         )}
       </Card>
 
-      <section className="flex flex-col gap-4" aria-labelledby="details-heading">
+      <section
+        className="flex max-w-xl flex-col gap-4 lg:col-span-2"
+        aria-labelledby="details-heading"
+      >
         <h2 id="details-heading" className="text-title">
           Your details
         </h2>
@@ -120,7 +133,10 @@ async function ProfileDetails({ user }: { user: SessionUser }): Promise<React.JS
         />
       </section>
 
-      <section className="flex flex-col gap-3" aria-labelledby="account-heading">
+      <section
+        className="flex max-w-xl flex-col gap-3 lg:col-span-2"
+        aria-labelledby="account-heading"
+      >
         <h2 id="account-heading" className="text-title">
           Account
         </h2>

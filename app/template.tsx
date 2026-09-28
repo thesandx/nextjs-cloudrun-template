@@ -9,5 +9,7 @@
  * so it stays still while the page moves. See design-language.md > Motion.
  */
 export default function Template({ children }: { children: React.ReactNode }) {
-  return <div className="animate-page-enter">{children}</div>;
+  // flex-1 and the flex column pass the body's column through, so a short
+  // page's <main> can grow and keep the footer at the bottom of the screen.
+  return <div className="animate-page-enter flex flex-1 flex-col">{children}</div>;
 }

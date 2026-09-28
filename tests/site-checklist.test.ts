@@ -11,6 +11,9 @@ import { join, relative, sep } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import manifest from '@/app/manifest';
+import { THEME_COLOR } from '@/lib/pwa';
+
 const ROOT = join(__dirname, '..');
 
 function walk(dir: string, match: (path: string) => boolean): string[] {
@@ -131,6 +134,50 @@ describe('site checklist', () => {
       .filter((path) => statSync(path).size > LIMIT)
       .map((path) => `${rel(path)} (${Math.round(statSync(path).size / 1024)} KB)`);
     expect(heavy).toEqual([]);
+  });
+
+  it('has both postures: an app shell on a phone, a website header on a desktop', () => {
+    const layout = readFileSync(join(ROOT, 'app/layout.tsx'), 'utf8');
+    expect(layout).toMatch(/<SiteHeader\b/);
+    expect(layout).toMatch(/<TabBar\b/);
+    expect(layout).toMatch(/<Footer\b/);
+    // The posture switch is md, in CSS: the tab bar hides and the header shows.
+    const tabBar = readFileSync(join(ROOT, 'components/layout/TabBar.tsx'), 'utf8');
+    const siteHeader = readFileSync(join(ROOT, 'components/layout/SiteHeader.tsx'), 'utf8');
+    expect(tabBar).toMatch(/\bmd:hidden\b/);
+    expect(siteHeader).toMatch(/\bhidden\b[^'"]*\bmd:block\b/);
+  });
+
+  it('frames every page on the site width, not a phone-width column', () => {
+    // A narrow <main> is the phone layout stretched onto a desktop. Narrow the
+    // content inside the frame instead: max-w-md on a form, max-w-prose on text.
+    const offenders = UI_SOURCE.flatMap((file) => {
+      const source = readFileSync(file, 'utf8');
+      return [...source.matchAll(/<main\s[^>]*className="([^"]*)"/g)]
+        .map((match) => match[1] ?? '')
+        .filter((classes) => /\bmax-w-(?!5xl\b)[\w-]+/.test(classes))
+        .map((classes) => `${rel(file)}: ${classes}`);
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it('is installable: a standalone manifest with icons that exist', () => {
+    const app = manifest();
+    expect(app.display).toBe('standalone');
+    expect(app.start_url).toBe('/');
+    const sizes = (app.icons ?? []).map((icon) => icon.sizes);
+    expect(sizes).toEqual(expect.arrayContaining(['192x192', '512x512']));
+    expect((app.icons ?? []).some((icon) => icon.purpose === 'maskable')).toBe(true);
+    for (const icon of app.icons ?? []) {
+      expect(statSync(join(ROOT, 'public', icon.src)).isFile()).toBe(true);
+    }
+    expect(statSync(join(ROOT, 'app/apple-icon.png')).isFile()).toBe(true);
+  });
+
+  it('keeps the theme colour equal to --color-paper', () => {
+    const css = readFileSync(join(ROOT, 'styles/globals.css'), 'utf8');
+    const paper = /--color-paper:\s*(#[0-9a-f]{3,8})/i.exec(css)?.[1];
+    expect(paper?.toLowerCase()).toBe(THEME_COLOR.toLowerCase());
   });
 
   it('prints no phone number or email address as plain text', () => {

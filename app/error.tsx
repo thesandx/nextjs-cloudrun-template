@@ -33,7 +33,7 @@ export default function Error({
   }, [error]);
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center gap-6 px-5 py-12 sm:px-8">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center gap-6 px-5 py-12 sm:px-8">
       <h1 className="text-title">Something went wrong</h1>
       <Speech mood="sad">This page did not load. Try it again.</Speech>
       {error.digest ? (
