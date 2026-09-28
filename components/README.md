@@ -9,7 +9,7 @@ The visual rules are in [`.github/instructions/design-language.md`](../.github/i
 | Folder                  | Contents                                                                        |
 | ----------------------- | ------------------------------------------------------------------------------- |
 | `components/ui/`        | Mochi primitives. The list and when to use each one is in `design-language.md`. |
-| `components/layout/`    | Page chrome: `PageShell`, `Header`, `Footer`.                                   |
+| `components/layout/`    | Page chrome: `PageShell`, `Header`, `MobileMenu`, `Footer`.                     |
 | `components/<feature>/` | Components belonging to one feature. Create the folder when the feature exists. |
 
 ## Rules

@@ -32,6 +32,7 @@ import { requireUserProfile } from '@/services/user.service';
 
 export const metadata: Metadata = {
   title: 'Profile',
+  description: 'Your name, date of birth and gender, and the way you sign in.',
   robots: { index: false, follow: false },
 };
 

@@ -14,6 +14,7 @@ import { getCurrentUser } from '@/services/auth.service';
 
 export const metadata: Metadata = {
   title: 'Sign in',
+  description: 'Sign in with Google or with a code sent to your phone.',
   robots: { index: false, follow: false },
 };
 

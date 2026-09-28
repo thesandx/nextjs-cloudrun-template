@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Chip } from '@/components/ui/Chip';
+import { ContactLink } from '@/components/ui/ContactLink';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Face } from '@/components/ui/Face';
 import { Input } from '@/components/ui/Input';
@@ -27,6 +28,7 @@ import { Textarea } from '@/components/ui/Textarea';
 
 export const metadata: Metadata = {
   title: 'Design',
+  description: 'Every token and every component of the Mochi design language, rendered live.',
   robots: { index: false, follow: false },
 };
 
@@ -255,13 +257,28 @@ export default function DesignPage() {
             ]}
             currentPath="/design"
           />
-          <Footer links={[{ href: '/api/health', label: 'Health' }]}>
+          <Footer
+            links={[{ href: '/api/health', label: 'Health' }]}
+            owner="Playroom"
+            contact={{ phone: '+91 98765 43210', email: 'hello@playroom.test' }}
+          >
             Built from the Cloud Run template.
           </Footer>
         </div>
-        <p className="text-small text-ink-soft">
-          Every page sits inside <code>PageShell</code>, which sets the width, gutter and rhythm.
+        <p className="text-small text-ink-soft max-w-prose">
+          Every page sits inside <code>PageShell</code>, which sets the width, gutter and rhythm. On
+          a phone the header links fold into a menu button. The footer takes its copyright year from
+          the clock.
         </p>
+        <div className="flex flex-col gap-1">
+          <p className="text-small text-ink-soft">
+            A phone number or an email address is always a link.
+          </p>
+          <div className="flex flex-wrap gap-x-6">
+            <ContactLink kind="phone" value="+91 98765 43210" />
+            <ContactLink kind="email" value="hello@playroom.test" />
+          </div>
+        </div>
       </section>
 
       <section className="flex flex-col gap-5">
