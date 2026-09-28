@@ -31,6 +31,7 @@ import { type ExampleView, listExamples } from '@/services/example.service';
 
 export const metadata: Metadata = {
   title: 'Data layer example',
+  description: 'Create a row in Firestore, attach an image in Cloud Storage, and read both back.',
   robots: { index: false, follow: false },
 };
 

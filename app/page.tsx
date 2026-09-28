@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { Avatar } from '@/components/ui/Avatar';
@@ -21,6 +22,11 @@ import { env } from '@/lib/env';
  * Replace it with the real application. Keep the folder conventions in
  * .github/instructions/, and keep building the UI from the primitives.
  */
+
+export const metadata: Metadata = {
+  description:
+    'A Next.js app on Google Cloud Run, with the build it runs and the Mochi components.',
+};
 
 /** Example players. Real nicknames, not invented full names. See design-language.md > Words. */
 const PLAYERS = ['momo', 'sandy', 'captain_k', 'bubbles', 'rajma chawal'];

@@ -1,7 +1,14 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { buttonStyles } from '@/components/ui/Button';
 import { Face } from '@/components/ui/Face';
+
+export const metadata: Metadata = {
+  title: 'Page not found',
+  description: 'This page does not exist, or it moved somewhere else.',
+  robots: { index: false, follow: false },
+};
 
 /**
  * The 404 route. It follows the empty-state recipe in design-language.md:

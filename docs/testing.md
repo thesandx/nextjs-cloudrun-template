@@ -18,7 +18,10 @@ components/ui/Button.test.tsx
 services/repository.emulator.test.ts   ← needs a running emulator, see below
 tests/setup.ts                          ← global setup, loaded before every test file
 tests/server-only.stub.ts               ← aliased over the `server-only` package
+tests/site-checklist.test.ts            ← the site checklist, read from the source
 ```
+
+`tests/site-checklist.test.ts` is the one test that is not colocated. It reads every page and component and fails on a broken internal link, a dead `href`, a page without a meta description, placeholder text, a literal copyright year, a heavy image, and a phone number or email address in plain text. See [`design-language.md` > The site checklist](../.github/instructions/design-language.md#the-site-checklist).
 
 Colocation makes a test hard to overlook when you change the implementation. When you move a module, its test moves with it.
 

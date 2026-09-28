@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
@@ -58,7 +59,7 @@ export function ExampleForm({ className }: ExampleFormProps): React.JSX.Element 
 
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [status, setStatus] = useState<'idle' | 'working'>('idle');
+  const [status, setStatus] = useState<'idle' | 'working' | 'saved'>('idle');
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -113,9 +114,9 @@ export function ExampleForm({ className }: ExampleFormProps): React.JSX.Element 
       setFile(null);
       form.reset();
       router.refresh();
+      setStatus('saved');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Something went wrong');
-    } finally {
+      setError(caught instanceof Error ? caught.message : 'The request did not complete.');
       setStatus('idle');
     }
   }
@@ -146,12 +147,12 @@ export function ExampleForm({ className }: ExampleFormProps): React.JSX.Element 
         className="file:bg-sunken file:text-small file:border-line file:rounded-pill file:mr-3 file:border-2 file:px-3 file:py-1"
       />
 
-      {error !== null ? (
-        <p role="alert" className="text-small text-ink flex items-center gap-1.5 font-medium">
-          <span aria-hidden="true" className="bg-danger inline-block size-2.5 rounded-full" />
+      {status === 'saved' && <Alert tone="success" title="Example created." />}
+      {error !== null && (
+        <Alert tone="danger" title="The example was not created.">
           {error}
-        </p>
-      ) : null}
+        </Alert>
+      )}
 
       <Button type="submit" variant="primary" disabled={status === 'working'} block>
         {status === 'working' ? 'Saving…' : 'Create example'}

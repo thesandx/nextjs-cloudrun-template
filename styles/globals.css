@@ -233,6 +233,10 @@
   }
 
   body {
+    /* A safety net, not the fix: nothing may overflow at 320px. 'clip', not
+       'hidden', because 'hidden' breaks position: sticky (AppBar). See
+       design-language.md > The site checklist. */
+    overflow-x: clip;
     background-color: var(--color-paper);
     color: var(--color-ink);
     font-family: var(--font-sans);

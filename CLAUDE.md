@@ -136,7 +136,7 @@ Full reasoning in [`coding-rules.md`](./.github/instructions/coding-rules.md).
 8. **Avoid unnecessary dependencies.** Check the platform first (`Intl`, `fetch`, `crypto`, `AbortSignal.timeout`, `structuredClone`). See [Dependency policy](#dependency-policy).
 9. **Update docs when architecture or behaviour changes** — same PR, not later.
 10. **Verify before claiming.** See [Verification protocol](#verification-protocol).
-11. **Design mobile-first, in the design language.** Every UI is built from the Mochi tokens and the `components/ui/` primitives — never ad-hoc styles. Read [`design-language.md`](./.github/instructions/design-language.md) before you write any UI; the living reference renders at `/design`. Every UI works on a small screen first, then scales up. Unprefixed Tailwind utilities are the phone layout; add `sm:`/`md:`/`lg:` to enhance for wider screens — never the reverse. No fixed widths that overflow a phone, no horizontal scroll on the body, touch targets ≥44px. Responsiveness is a requirement, not a finishing touch.
+11. **Design mobile-first, in the design language.** Every UI is built from the Mochi tokens and the `components/ui/` primitives — never ad-hoc styles. Read [`design-language.md`](./.github/instructions/design-language.md) before you write any UI; the living reference renders at `/design`. Every UI works on a small screen first, then scales up. Unprefixed Tailwind utilities are the phone layout; add `sm:`/`md:`/`lg:` to enhance for wider screens — never the reverse. No fixed widths that overflow a phone, no horizontal scroll on the body, touch targets ≥44px. Responsiveness is a requirement, not a finishing touch. Every site also passes [the site checklist](./.github/instructions/design-language.md#the-site-checklist): no broken links, a mobile menu, a favicon, a title and description on every page, a 404 page, success and error messages, and tappable phone and email.
 12. **Write docs in Simplified Technical English (ASD-STE100).** Every Markdown document — this file, `.github/instructions/`, `docs/`, `cloud/`, ADRs, READMEs — follows the standard. Short sentences (≤20 words for an instruction, ≤25 for a description), one instruction per sentence, active voice, present tense, one topic per paragraph, and one approved term per concept. Write for a non-native reader; choose the plain word over the clever one. Bring a document into compliance when you touch it.
 
 ---
@@ -145,20 +145,21 @@ Full reasoning in [`coding-rules.md`](./.github/instructions/coding-rules.md).
 
 Most rules above are checks, not reminders. `pnpm lint` fails on each one. Each message names the document that explains the reason.
 
-| Rule                                                | Check                                                                 |
-| --------------------------------------------------- | --------------------------------------------------------------------- |
-| 1 — no new top-level folder                         | `no-restricted-imports` refuses `@/utils/*`, `@/helpers/*`, `@/src/*` |
-| 2 — no `any`, no `@ts-ignore`                       | `@typescript-eslint/no-explicit-any`, `ban-ts-comment`                |
-| 4 — no `'use client'` in `app/layout.tsx`           | `no-restricted-syntax`                                                |
-| 5 — `components/ui/` does no fetching               | `no-restricted-imports` refuses `@/services/*` there                  |
-| 6 — every outbound `fetch` has a timeout            | `no-restricted-syntax` in `services/` and `app/api/`                  |
-| 6 — no `console.log`, no `debugger`, no empty catch | `no-console`, `no-debugger`, `no-empty`                               |
-| 11 — no raw hex or arbitrary value in a `className` | `no-restricted-syntax` in `app/` and `components/`                    |
-| 11 — no default Tailwind colour, size or radius     | `no-restricted-syntax`, one selector per design rule                  |
-| 11 — outlines are 2px, shadows are hard             | `no-restricted-syntax` refuses `border`, `border-4`, `shadow-lg`      |
-| Absolute imports only                               | `no-restricted-imports` refuses `../`                                 |
-| `process.env` only in `lib/env.ts`                  | `no-restricted-properties`                                            |
-| Layer boundaries                                    | `no-restricted-imports`, one block per folder                         |
+| Rule                                                | Check                                                                  |
+| --------------------------------------------------- | ---------------------------------------------------------------------- |
+| 1 — no new top-level folder                         | `no-restricted-imports` refuses `@/utils/*`, `@/helpers/*`, `@/src/*`  |
+| 2 — no `any`, no `@ts-ignore`                       | `@typescript-eslint/no-explicit-any`, `ban-ts-comment`                 |
+| 4 — no `'use client'` in `app/layout.tsx`           | `no-restricted-syntax`                                                 |
+| 5 — `components/ui/` does no fetching               | `no-restricted-imports` refuses `@/services/*` there                   |
+| 6 — every outbound `fetch` has a timeout            | `no-restricted-syntax` in `services/` and `app/api/`                   |
+| 6 — no `console.log`, no `debugger`, no empty catch | `no-console`, `no-debugger`, `no-empty`                                |
+| 11 — no raw hex or arbitrary value in a `className` | `no-restricted-syntax` in `app/` and `components/`                     |
+| 11 — no default Tailwind colour, size or radius     | `no-restricted-syntax`, one selector per design rule                   |
+| 11 — outlines are 2px, shadows are hard             | `no-restricted-syntax` refuses `border`, `border-4`, `shadow-lg`       |
+| Absolute imports only                               | `no-restricted-imports` refuses `../`                                  |
+| `process.env` only in `lib/env.ts`                  | `no-restricted-properties`                                             |
+| Layer boundaries                                    | `no-restricted-imports`, one block per folder                          |
+| 11 — the site checklist                             | `tests/site-checklist.test.ts`: links, metadata, favicon, placeholders |
 
 **`pnpm lint` runs with `--max-warnings 0`.** A warning fails CI exactly like an error. This makes the accessibility and performance rules of `eslint-config-next` blocking too.
 
@@ -818,6 +819,16 @@ Missing any step breaks somebody:
 6. Mobile-first: base styles target the phone; layer `sm:`/`md:`/`lg:` for wider screens. Fluid widths (`w-full`, `max-w-*`), no fixed pixel widths that overflow, touch targets ≥44px. Verify at 320px wide and up
 7. Colocate `<Name>.test.tsx`
 8. A new or changed `components/ui/` primitive also appears on `/design`, in the same PR
+
+### Add a page
+
+1. `app/<route>/page.tsx`, starting from `PageShell` (a website) or `AppBar` (an app screen)
+2. Export `metadata` with a `title` and a one-sentence `description`
+3. Link to it only once it exists. A link to a missing page fails `tests/site-checklist.test.ts`
+4. Add it to `APP_TABS` or the `Header` links only if users go back to it often
+5. Every action on it shows a success `Alert` and an error `Alert`
+6. Check it at 320px: no horizontal scroll, no clipped text, tap targets of 44px or more
+7. Go through [the site checklist](./.github/instructions/design-language.md#the-site-checklist)
 
 ### Add a Firestore collection
 
