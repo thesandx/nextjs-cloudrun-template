@@ -6,3 +6,8 @@ node_modules/
 pnpm-lock.yaml
 next-env.d.ts
 *.tsbuildinfo
+
+# design-sync: inputs and output for the claude.ai/design import
+.design-sync/
+.ds-sync/
+ds-bundle/

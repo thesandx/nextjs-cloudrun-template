@@ -1,0 +1,99 @@
+{
+  "projectId": "93ce0681-aec9-493f-9fc8-375b3211b1d2",
+  "shape": "package",
+  "pkg": "nextjs-cloudrun-template",
+  "globalName": "Mochi",
+  "entry": ".design-sync/entry.ts",
+  "buildCmd": "node .design-sync/build-css.mjs && ./node_modules/.bin/tsc -p .design-sync/tsconfig.dts.json",
+  "srcDir": "components",
+  "tsconfig": ".design-sync/tsconfig.json",
+  "cssEntry": ".design-sync/.cache/mochi.css",
+  "extraFonts": [
+    ".design-sync/fonts.css"
+  ],
+  "componentSrcMap": {
+    "Alert": "components/ui/Alert.tsx",
+    "Avatar": "components/ui/Avatar.tsx",
+    "Badge": "components/ui/Badge.tsx",
+    "Button": "components/ui/Button.tsx",
+    "Card": "components/ui/Card.tsx",
+    "Checkbox": "components/ui/Checkbox.tsx",
+    "Chip": "components/ui/Chip.tsx",
+    "ContactLink": "components/ui/ContactLink.tsx",
+    "Dialog": "components/ui/Dialog.tsx",
+    "EmptyState": "components/ui/EmptyState.tsx",
+    "Face": "components/ui/Face.tsx",
+    "Field": "components/ui/Field.tsx",
+    "FieldError": "components/ui/Field.tsx",
+    "Input": "components/ui/Input.tsx",
+    "Progress": "components/ui/Progress.tsx",
+    "RadioGroup": "components/ui/RadioGroup.tsx",
+    "Select": "components/ui/Select.tsx",
+    "Skeleton": "components/ui/Skeleton.tsx",
+    "Speech": "components/ui/Speech.tsx",
+    "Spinner": "components/ui/Spinner.tsx",
+    "Sticker": "components/ui/Sticker.tsx",
+    "Switch": "components/ui/Switch.tsx",
+    "Tabs": "components/ui/Tabs.tsx",
+    "Textarea": "components/ui/Textarea.tsx",
+    "AppBar": "components/layout/AppBar.tsx",
+    "BackButton": "components/layout/BackButton.tsx",
+    "Footer": "components/layout/Footer.tsx",
+    "Header": "components/layout/Header.tsx",
+    "MobileMenu": "components/layout/MobileMenu.tsx",
+    "PageShell": "components/layout/PageShell.tsx",
+    "SiteHeader": "components/layout/SiteHeader.tsx",
+    "TabBar": "components/layout/TabBar.tsx"
+  },
+  "libOverrides": {
+    "dts.mjs": "read the tsc-generated .d.ts tree in .design-sync/.cache/types (an app, no dist/ types) and keep inherited interaction props (onClick, disabled, value...)"
+  },
+  "guidelinesGlob": [
+    ".github/instructions/design-language.md"
+  ],
+  "dtsPropsFor": {
+    "RadioGroup": "/** The question the choices answer: \"Round length\". Rendered as the legend. */\nlabel: string;\n/** Shared by every radio, so the browser treats them as one choice. */\nname: string;\noptions: readonly { value: string; label: string; hint?: string; disabled?: boolean }[];\n/** Controlled value. Pair with `onChange`. */\nvalue?: string;\n/** Uncontrolled starting value. */\ndefaultValue?: string;\nonChange?: (value: string) => void;\nerror?: string;\nrequired?: boolean;\nclassName?: string;",
+    "Select": "/** Always visible. Placeholder text is never a label. */\nlabel: string;\noptions: readonly { value: string; label: string; disabled?: boolean }[];\nhint?: string;\nerror?: string;\n/** A first, empty choice such as \"Pick a game\". Selecting it submits an empty value. */\nplaceholder?: string;\nclassName?: string;\nautoComplete?: string;\ndisabled?: boolean;\nform?: string;\nname?: string;\nrequired?: boolean;\nvalue?: string | number | readonly string[];\nonChange?: ChangeEventHandler<HTMLSelectElement, HTMLSelectElement>;\ndefaultChecked?: boolean;\ndefaultValue?: string | number | readonly string[];\nautoFocus?: boolean;\nstyle?: CSSProperties;\nrel?: string;\n/** Hints at the type of data that might be entered by the user while editing the element or its contents */\ninputMode?: \"none\" | \"text\" | \"tel\" | \"url\" | \"email\" | \"numeric\" | \"decimal\" | \"search\";\n/** Identifies the element (or elements) that describes the object. */\n\"aria-describedby\"?: string;\n/** Defines a string value that labels the current element. */\n\"aria-label\"?: string;\nonFocus?: FocusEventHandler<HTMLSelectElement>;\nonBlur?: FocusEventHandler<HTMLSelectElement>;\nonSubmit?: SubmitEventHandler<HTMLSelectElement>;\nonKeyDown?: KeyboardEventHandler<HTMLSelectElement>;\nonClick?: MouseEventHandler<HTMLSelectElement>;",
+    "Tabs": "/** Names the set of tabs for screen readers: \"Game views\". */\nlabel: string;\nitems: readonly { id: string; label: string; content: React.ReactNode }[];\n/** The tab open on first render. Default: the first item. */\ndefaultTab?: string;\nonChange?: (id: string) => void;\nclassName?: string;",
+    "Header": "/** The product name, beside the mascot. */\nappName: string;\n/** Top-level destinations. Only pages that exist — no link to a page you have not built. */\nlinks?: readonly { href: string; label: string }[];\n/** The `href` of the page being shown, so its link is marked current. */\ncurrentPath?: string;\n/** A slot on the right, such as the sign-in state. */\nend?: React.ReactNode;\n/** Fold the links into `MobileMenu` below `md`. Default true, for a website with no `TabBar`. `SiteHeader` turns it off: th */\nphoneMenu?: boolean;\nclassName?: string;",
+    "MobileMenu": "links: readonly { href: string; label: string }[];\n/** The `href` of the page being shown, so its link is marked current. */\ncurrentPath?: string;\nclassName?: string;",
+    "Footer": "/** One plain line: who runs this, or the build. No slogans. */\nchildren?: React.ReactNode;\n/** Only pages that exist. A footer link to a missing page is a broken link. */\nlinks?: readonly { href: string; label: string }[];\n/** Who holds the copyright. Renders `© <year> <owner>`, with the year from the clock. */\nowner?: string;\n/** The first year of the site. The line then shows a range up to this year. */\nsince?: number;\n/** A phone number and an email address, rendered as links a phone can tap. */\ncontact?: { phone?: string; email?: string; };\nclassName?: string;",
+    "Field": "/** Always visible. Placeholder text is never a label. */\nlabel: string;\nhint?: string;\n/** Says what went wrong and how to fix it: \"Keys are 6 letters or numbers.\" */\nerror?: string;\n/** Renders the control, wired to the label and messages. */\nchildren: (control: { id: string; \"aria-invalid\": true | undefined; \"aria-describedby\": string | undefined }) => React.ReactNode;\nclassName?: string;",
+    "AppBar": "/** The screen's name. It is the page's `h1`. */\ntitle: string;\n/** Show the back arrow. Pass its options, or `true` for the defaults. Omit on a top-level tab. */\nback?: true | { fallbackHref?: string; onBack?: () => void; label?: string };\n/** A slot on the right: one action, such as \"Save\". */\nend?: React.ReactNode;\nclassName?: string;",
+    "Input": "/** Always visible. Placeholder text is never a label. */\nlabel: string;\nhint?: string;\n/** Says what went wrong and how to fix it: \"Keys are 6 letters or numbers\". */\nerror?: string;\n/** Large, spaced, uppercase entry for room keys and codes. */\ncode?: boolean;\nclassName?: string;\ntype?: \"text\" | \"email\" | \"tel\" | \"url\" | \"password\" | \"search\" | \"number\";\nautoComplete?: unknown;\nchecked?: boolean;\ndisabled?: boolean;\nform?: string;\nmax?: string | number;\nmaxLength?: number;\nmin?: string | number;\nminLength?: number;\nname?: string;\nplaceholder?: string;\nreadOnly?: boolean;\nrequired?: boolean;\nstep?: string | number;\nvalue?: string | number | readonly string[];\nonChange?: ChangeEventHandler<HTMLInputElement, HTMLInputElement>;\ndefaultChecked?: boolean;\ndefaultValue?: string | number | readonly string[];\nautoFocus?: boolean;\nstyle?: CSSProperties;\nrel?: string;\n/** Hints at the type of data that might be entered by the user while editing the element or its contents */\ninputMode?: \"none\" | \"text\" | \"tel\" | \"url\" | \"email\" | \"numeric\" | \"decimal\" | \"search\";\n/** Identifies the element (or elements) that describes the object. */\n\"aria-describedby\"?: string;\n/** Defines a string value that labels the current element. */\n\"aria-label\"?: string;\nchildren?: React.ReactNode;\nonFocus?: FocusEventHandler<HTMLInputElement>;\nonBlur?: FocusEventHandler<HTMLInputElement>;\nonSubmit?: SubmitEventHandler<HTMLInputElement>;\nonKeyDown?: KeyboardEventHandler<HTMLInputElement>;\nonClick?: MouseEventHandler<HTMLInputElement>;"
+  },
+  "overrides": {
+    "TabBar": {
+      "cardMode": "single",
+      "viewport": "390x240"
+    },
+    "Dialog": {
+      "cardMode": "single",
+      "viewport": "900x520"
+    },
+    "SiteHeader": {
+      "cardMode": "column",
+      "viewport": "1200x200"
+    },
+    "Header": {
+      "cardMode": "column"
+    },
+    "PageShell": {
+      "cardMode": "column",
+      "viewport": "1200x800"
+    },
+    "AppBar": {
+      "cardMode": "column"
+    },
+    "Footer": {
+      "cardMode": "column"
+    },
+    "Avatar": {
+      "cardMode": "column"
+    },
+    "Face": {
+      "cardMode": "column"
+    }
+  },
+  "readmeHeader": ".design-sync/conventions.md"
+}
