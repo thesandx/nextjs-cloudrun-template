@@ -160,7 +160,7 @@ jobs:
         # The Firestore emulator is a Java process and refuses to start on
         # anything below 21. ubuntu-latest ships an older default JDK, so
         # without this the emulator exits before it binds a port.
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
