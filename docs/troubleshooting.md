@@ -14,13 +14,13 @@ The `@/*` alias resolves from the repository root. `@/lib/env` means `./lib/env.
 - Restart the TypeScript server: VS Code → Command Palette → _TypeScript: Restart TS Server_.
 - After changing `tsconfig.json` paths, restart the dev server too.
 
-### `pnpm typecheck` fails on a fresh clone
+### `tsc` fails on a fresh clone
 
 ```
 error TS2307: Cannot find module 'next' or its corresponding type declarations.
 ```
 
-`next build` (or `next dev`) generates `next-env.d.ts` and `.next/types/**`, both gitignored. Run `pnpm build` once. CI orders build before typecheck for exactly this reason.
+`tsc` needs `next-env.d.ts` and `.next/types/**`, both gitignored. Run `pnpm typecheck`, not a bare `tsc`: it runs `next typegen` first and generates them. `pnpm dev` and `pnpm build` also generate them.
 
 ### The editor shows errors that `pnpm typecheck` does not
 
@@ -127,6 +127,10 @@ The app is trying to write to its own filesystem while running as uid 1001 with 
 - `.dockerignore` is not excluding `node_modules` and `.next`
 
 Inspect layer by layer: `docker history <image>`.
+
+### Docker Desktop shows ~278 MB, not ~64 MB
+
+It is the same image. Docker Desktop's containerd image store reports the _unpacked on-disk_ size. `docker save` and registries measure the compressed content, which is what Cloud Run pulls. Both numbers are real. They measure different things.
 
 ---
 
@@ -343,7 +347,7 @@ Cause: somebody tore down a **different** app in the same project, with a versio
 of `gcp-teardown.sh` that removed the deployer's binding using `--all`. The
 deployer account is shared by every app in the project, and `--all` ignores the
 IAM condition that scopes each binding to one database. So one teardown took them
-all. See [trap 29](../CLAUDE.md#29-remove-iam-policy-binding---all-ignores-conditions-and-the-deployer-is-shared).
+all. See [trap 29](./traps.md#29-remove-iam-policy-binding---all-ignores-conditions-and-the-deployer-is-shared).
 
 Confirm it — the surviving apps' bindings are gone from the policy:
 
@@ -381,7 +385,7 @@ gcloud run services update SERVICE --region REGION \
   --service-account=SERVICE-runtime@PROJECT.iam.gserviceaccount.com
 ```
 
-That deploys a new revision. See trap 19 in CLAUDE.md for how a deploy can pick the wrong identity while staying green.
+That deploys a new revision. See [trap 19](./traps.md#19-the-runtime-service-account-goes-in-flags-not-a-service_account-input) for how a deploy can pick the wrong identity while staying green.
 
 **2. Bootstrap did not finish.** It grants the runtime account `roles/datastore.user` and `roles/storage.objectUser` at steps 10 and 11 of 14, so a run that stopped earlier leaves the identity correct but powerless. Re-run it — it is idempotent.
 
@@ -580,7 +584,7 @@ The message names the document and the failing field. Decide deliberately: migra
 
 Fix it in one of two ways:
 
-- **The data matters** — follow [CLAUDE.md > Add a field to an existing collection](../CLAUDE.md#add-a-field-to-an-existing-collection): optional, backfill, tighten. Note that the backfill is only possible while the field is optional, because a required field makes the `list` it depends on throw.
+- **The data matters** — follow [Add a field to an existing collection](./firestore-modeling.md#add-a-field-to-an-existing-collection): optional, backfill, tighten. Note that the backfill is only possible while the field is optional, because a required field makes the `list` it depends on throw.
 - **The data does not matter** — a demo row, a dev database — delete it and keep the required field:
 
 ```bash
@@ -594,12 +598,13 @@ gcloud firestore bulk-delete --collection-ids=COLLECTION \
 
 ### Contention errors on a hot document
 
-`ABORTED` or `DEADLINE_EXCEEDED` on writes to one document means you are past Firestore's ~1 sustained write per second per document. Use `services/sharded-counter.ts`, or drop the maintained total and use `repository.count()`. See [CLAUDE.md > Firestore data modeling](../CLAUDE.md#firestore-data-modeling).
+`ABORTED` or `DEADLINE_EXCEEDED` on writes to one document means you are past Firestore's ~1 sustained write per second per document. Use `services/sharded-counter.ts`, or drop the maintained total and use `repository.count()`. See [Firestore data modeling](./firestore-modeling.md).
 
 ### The emulator will not start
 
 ```bash
 gcloud components install cloud-firestore-emulator   # component missing
+FIRESTORE_EMULATOR_LAUNCHER=firebase pnpm test:emulator  # or skip gcloud
 java -version                                        # needs 21+, not just any JDK
 lsof -i :8085                                        # port already bound
 FIRESTORE_EMULATOR_PORT=8086 pnpm test:emulator      # or use another port

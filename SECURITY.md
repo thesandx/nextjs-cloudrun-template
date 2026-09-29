@@ -102,7 +102,7 @@ PITR covers a mistake noticed within the hour. A backup schedule covers one noti
 ### Authentication and authorisation
 
 - Sign-in is **Firebase Auth** — Google and phone OTP. The browser's ID token is exchanged once for a server-side session cookie: `httpOnly`, `Secure`, `SameSite=Lax`, up to 14 days. Page script cannot read a session, so an XSS cannot steal one.
-- The cookie is named `__session` because Firebase Hosting strips every other cookie. See trap 20 in `CLAUDE.md`.
+- The cookie is named `__session` because Firebase Hosting strips every other cookie. See trap 20 in [`docs/traps.md`](./docs/traps.md).
 - **Reads are public; every write requires a session.** `requireUser()` is the gate, and it is server-side. A form hidden in the UI is not a control.
 - **A session is authentication, not authorisation.** Ownership is a separate, explicit check. Identity fields (`ownerId`, a display name) are always read from the session, never from a request body.
 - Sign-in availability is **derived** from the Firebase web config being complete, not set by a flag. An app built without that config serves public reads and answers 401 to every write, so a half-finished setup fails closed rather than open.

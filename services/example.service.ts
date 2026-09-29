@@ -58,7 +58,7 @@ export const exampleSchema = z.object({
    * Denormalised on purpose. This is a NoSQL collection: the list view needs
    * an owner's display name, and joining to fetch it would cost one read per
    * row. Storing the name costs a fan-out update when it changes, which is
-   * rarer than the read. See CLAUDE.md > Firestore data modeling.
+   * rarer than the read. See docs/firestore-modeling.md.
    *
    * Copied from the user's profile at creation time, not typed by the caller:
    * a free-text "owner name" next to an authenticated session is an invitation

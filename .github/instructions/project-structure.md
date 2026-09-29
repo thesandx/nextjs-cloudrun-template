@@ -82,7 +82,12 @@ Where every file goes, and why. **This layout is fixed** — see rule 1 in [codi
 │   ├── dependabot.yml
 │   └── pull_request_template.md
 │
-├── CLAUDE.md               # Entry point for AI assistants
+├── .claude/                # Claude Code: hooks and skills, checked in
+│   ├── settings.json       #   Wires the hooks
+│   ├── hooks/              #   Format and lint on edit; guard every push
+│   └── skills/             #   /add-page, /add-collection, ... (wrap docs/recipes.md)
+│
+├── CLAUDE.md               # Entry point for AI assistants (short: rules + index)
 ├── Dockerfile              # Multi-stage production image
 ├── docker-compose.yml      # Run the production image locally
 ├── next.config.ts

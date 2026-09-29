@@ -28,7 +28,7 @@
  * So `repository.createWithId()` exists, and this guard is what keeps the
  * exception narrow: it rejects the id shapes that actually cause hotspots. It
  * is a check against the reflex mistake, not an unbypassable control — the
- * judgement calls in CLAUDE.md > Firestore data modeling still apply.
+ * judgement calls in docs/firestore-modeling.md still apply.
  */
 
 /**

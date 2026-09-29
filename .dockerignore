@@ -9,6 +9,8 @@ node_modules
 out
 build
 coverage
+playwright-report
+test-results
 *.tsbuildinfo
 
 # Secrets — never copy real env files into an image
@@ -47,3 +49,6 @@ scripts
 # means editing an index does not invalidate a Docker layer.
 firestore.rules
 firestore.indexes.json
+
+# Claude Code tooling: never part of the image
+.claude/

@@ -334,6 +334,8 @@ export default defineConfig([
     'out/**',
     'build/**',
     'coverage/**',
+    'playwright-report/**',
+    'test-results/**',
     'next-env.d.ts',
     'pnpm-lock.yaml',
     // design-sync: inputs for the claude.ai/design import, not app code. See .design-sync/NOTES.md.

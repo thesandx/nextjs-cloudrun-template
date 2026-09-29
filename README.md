@@ -96,7 +96,6 @@ Copy this into an issue if you want to track it.
 - [ ] Use this template, or clone it
 - [ ] Node 22 (`nvm use`) and pnpm (`corepack enable`)
 - [ ] `pnpm install`
-- [ ] `pnpm build` — **run this before `pnpm typecheck`.** It generates types that `tsc` needs, and on a fresh clone they do not exist yet ([trap 1](./CLAUDE.md#1-ci-runs-build-before-typecheck))
 - [ ] `pnpm validate` green
 - [ ] `pnpm dev` and open `localhost:3000`
 - [ ] `./scripts/rename-project.sh my-app` — renames everything, including `firebase.json`
@@ -119,7 +118,7 @@ Bootstrap prints all of these. Copy them from its output.
 - [ ] `gh variable set GCP_REGION`
 - [ ] `gh variable set APP_SLUG`
 - [ ] `gh variable set CLOUD_RUN_SERVICE`
-- [ ] `gh variable set RUNTIME_SERVICE_ACCOUNT` — **do not skip.** Without it the revision runs as the default compute account, which is Editor on the whole project ([trap 19](./CLAUDE.md#19-the-runtime-service-account-goes-in-flags-not-a-service_account-input))
+- [ ] `gh variable set RUNTIME_SERVICE_ACCOUNT` — **do not skip.** Without it the revision runs as the default compute account, which is Editor on the whole project ([trap 19](./docs/traps.md#19-the-runtime-service-account-goes-in-flags-not-a-service_account-input))
 
 ### 4 · First deploy
 
@@ -145,7 +144,7 @@ Four console steps have no `gcloud` equivalent. Full detail in [Firebase setup, 
 - [ ] Add a **test phone number** — it returns a fixed code and sends no SMS
 - [ ] **Authorized domains:** `localhost`, `<project>.web.app`, your `*.run.app` URL, and your domain. Google sign-in is refused from anything missing
 - [ ] Set `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID` as **variables**, not secrets
-- [ ] **Rebuild.** These are `NEXT_PUBLIC_*` and are inlined at build time — setting them on the service does nothing ([trap 8](./CLAUDE.md#8-next_public_-is-inlined-at-build-time-and-is-public))
+- [ ] **Rebuild.** These are `NEXT_PUBLIC_*` and are inlined at build time — setting them on the service does nothing ([trap 8](./docs/traps.md#8-next_public_-is-inlined-at-build-time-and-is-public))
 - [ ] Sign in at `/sign-in`, then check `/example` and confirm a `users/{uid}` document appears in Firestore
 
 ### 6 · Custom domain
@@ -160,7 +159,7 @@ Cloud Run domain mapping is unavailable in several regions, so this uses Firebas
 - [ ] Cut over DNS to the records Firebase gives you
 - [ ] Wait for the certificate. ⚠️ On `.app` and `.dev` this gap is a **hard outage** — those TLDs are HSTS-preloaded, so there is no HTTP fallback
 - [ ] Delete any old Cloud Run domain mapping — **last**. Removing it early only removes your way back
-- [ ] `gh variable set FIREBASE_HOSTING_ENABLED --body true` — without it, a deploy leaves your domain serving the previous build ([trap 26](./CLAUDE.md#26-a-cloud-run-deploy-does-not-refresh-firebase-hosting))
+- [ ] `gh variable set FIREBASE_HOSTING_ENABLED --body true` — without it, a deploy leaves your domain serving the previous build ([trap 26](./docs/traps.md#26-a-cloud-run-deploy-does-not-refresh-firebase-hosting))
 - [ ] `gh variable set APP_URL --body "https://your-domain"`, then redeploy so canonical URLs are right
 
 ### 7 · Before real users
@@ -566,6 +565,8 @@ Full runbook, including moving a domain that is already serving traffic: [`cloud
 │   ├── instructions/       #   Rules for AI coding assistants
 │   └── ...
 │
+├── .claude/                # Claude Code hooks and skills
+│
 ├── Dockerfile              # Multi-stage production build
 ├── docker-compose.yml      # Run the production image locally
 └── CLAUDE.md               # Entry point for AI assistants
@@ -585,8 +586,6 @@ pnpm validate         # everything CI runs: typecheck, lint, format, test
 pnpm test:watch       # tests in watch mode
 pnpm lint:fix         # fix lint + import order
 ```
-
-> **On a fresh clone, run `pnpm build` before `pnpm typecheck`.** `next build` generates `next-env.d.ts` and `.next/types/**`, which `tsc` needs and which are gitignored. CI orders it the same way.
 
 Full guide: [`docs/local-development.md`](./docs/local-development.md).
 
@@ -902,9 +901,9 @@ This also means `NEXT_PUBLIC_*` is public. Never put a credential behind that pr
 </details>
 
 <details>
-<summary><b>Why does CI build before it type-checks? That looks backwards.</b></summary>
+<summary><b>Why does <code>pnpm typecheck</code> run <code>next typegen</code> first?</b></summary>
 
-`next build` generates `next-env.d.ts` and `.next/types/**`, which `tsc --noEmit` needs to resolve JSX and typed routes. Both are gitignored, so on a clean checkout they do not exist. Reverse the order and typecheck fails in CI with errors that reproduce nowhere locally.
+`tsc --noEmit` needs `next-env.d.ts` and `.next/types/**` to resolve JSX and typed routes. Both are gitignored, so on a clean checkout they do not exist. `next typegen` generates them in about a second, without a full build.
 
 </details>
 
@@ -943,7 +942,7 @@ Concretely:
 - CodeQL and Dependabot run continuously.
 - Environment configuration fails loudly at startup, not silently at runtime.
 
-What it does not have — because these are project-specific — is a database, authentication, rate limiting, tracing, or end-to-end tests. Each is listed with a recommended approach in [`.github/instructions/architecture.md`](./.github/instructions/architecture.md#what-is-not-here-and-when-to-add-it).
+It ships a data layer (Firestore and Cloud Storage), sign-in (Firebase Auth) and one end-to-end smoke test. What it does not have — because these are project-specific — is rate limiting, tracing, background jobs or multi-tenancy. Each is listed with a recommended approach in [`.github/instructions/architecture.md`](./.github/instructions/architecture.md#what-is-not-here-and-when-to-add-it).
 
 </details>
 

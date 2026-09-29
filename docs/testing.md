@@ -191,7 +191,7 @@ describeEmulator('createRepository (emulator)', () => {
 
 Name the file `*.emulator.test.ts`, give each run a fresh collection (`notes_${Date.now()}_${random}`) so a crashed earlier run cannot fail this one, and clean up in `afterAll`.
 
-**The skip is a convenience, not permission to ignore them.** CI runs `pnpm test:emulator` in its own required job. Run it yourself before pushing a change to `services/repository.ts` or a collection schema.
+**The skip is a convenience, not permission to ignore them.** CI runs `pnpm test:emulator` in its own job. Run it yourself before pushing a change to `services/repository.ts` or a collection schema.
 
 ### Cloud Storage — there is no emulator
 
@@ -226,9 +226,17 @@ describe('GET /api/health', () => {
 pnpm test:coverage
 ```
 
-No threshold is enforced, deliberately. A coverage gate reliably produces tests that only satisfy the gate — assertions on getters, snapshot tests of static markup. They cost maintenance and catch nothing.
+`pnpm validate` runs this, and `vitest.config.ts` sets a **floor**: a threshold just below the current numbers.
 
-Use coverage as a map of what is untested, then decide what is worth testing. If your team wants a floor anyway, add `thresholds` to `vitest.config.ts`. Start it _below_ the current number, so it rises over time instead of blocking work immediately.
+The floor exists because most code here is written by agents. An agent that adds a module with no tests otherwise passes every check. The floor makes that visible at once.
+
+It is a floor, not a target. A coverage target reliably produces tests that only satisfy the gate — assertions on getters, snapshot tests of static markup. They cost maintenance and catch nothing. So:
+
+- When a change fails the floor, write tests for the behaviour it added. Never lower the threshold to pass.
+- When coverage rises, raise the floor in the same pull request.
+- Use `coverage/lcov-report/index.html` as a map of what is untested, then decide what is worth testing.
+
+Services look low here because their emulator suites run in a separate job and are not counted.
 
 ## What to test
 
@@ -240,8 +248,24 @@ Use coverage as a map of what is untested, then decide what is worth testing. If
 | Boundary parsing and validation         | Static markup snapshots                         |
 | Anything a bug report was filed against | Third-party library internals                   |
 
-## Not included
+## End-to-end tests
 
-**End-to-end tests.** Playwright against a running container is the right next step when the app has real user journeys — a login, a checkout, a multi-step form. Adding it before there is a journey to test is a maintenance cost with no return.
+```bash
+pnpm build && pnpm test:e2e
+```
 
-When you add it: run it against `docker compose up`, so it exercises the production image rather than the dev server.
+Playwright, in `tests/e2e/`, against the **standalone production server** — the same `server.js` the container runs, not the dev server. `playwright.config.ts` starts it. CI runs the suite in its own job.
+
+Every test runs twice: on a phone (Pixel 7) and on a 1440px desktop, because the design language promises both postures.
+
+The shipped suite is a smoke test. It needs no cloud account, and its assertions are about structure, not copy, so it survives a new home page:
+
+- pages render with a title and one `h1`, and never scroll sideways;
+- an unknown URL answers 404;
+- the security headers are on every response;
+- `/api/health` answers `ok`, uncached;
+- a write without a session answers 401.
+
+Add a journey test when the app has a real journey — a checkout, a multi-step form. A journey that needs sign-in or data needs a Firebase test project, or the emulators; that setup is project-specific.
+
+A sandbox with a preinstalled Chromium that does not match the locked Playwright version can set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` instead of running `playwright install`.

@@ -13,7 +13,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -22,14 +22,15 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:emulator": "./scripts/run-emulator-tests.sh",
-    "validate": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test",
+    "test:e2e": "playwright test",
+    "validate": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:coverage",
     "docker:build": "./scripts/docker-build.sh",
     "docker:run": "./scripts/docker-run.sh",
     "rename": "./scripts/rename-project.sh",
     "db:emulator": "gcloud emulators firestore start --host-port=127.0.0.1:8085 --database-mode=firestore-native",
     "db:deploy": "./scripts/firestore-deploy.sh",
     "gcp:teardown": "./scripts/gcp-teardown.sh",
-    "clean": "rm -rf .next coverage node_modules"
+    "clean": "rm -rf .next coverage node_modules playwright-report test-results"
   },
   "dependencies": {
     "@google-cloud/firestore": "^9.2.0",
@@ -43,6 +44,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^7.0.0",

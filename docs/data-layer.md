@@ -2,7 +2,7 @@
 
 How to read, write and store files. Read this before your first query.
 
-The rules behind it are in [CLAUDE.md > Firestore data modeling](../CLAUDE.md#firestore-data-modeling). The reasoning is in [ADR-0004](./adr/0004-use-firestore-and-cloud-storage.md). This page is the practical guide.
+The rules behind it are in [Firestore data modeling](./firestore-modeling.md). The reasoning is in [ADR-0004](./adr/0004-use-firestore-and-cloud-storage.md). This page is the practical guide.
 
 ---
 
@@ -122,7 +122,7 @@ page rather than skipping the row.
 
 Go through optional first — add it optional, backfill, then tighten. The full
 sequence, with the backfill loop, is in
-[CLAUDE.md > Add a field to an existing collection](../CLAUDE.md#add-a-field-to-an-existing-collection).
+[Add a field to an existing collection](./firestore-modeling.md#add-a-field-to-an-existing-collection).
 
 Removing a field needs none of that. zod strips undeclared keys, so a read
 still succeeds; the data simply stays in Firestore until something deletes it.
@@ -237,11 +237,13 @@ FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 pnpm dev   # terminal 2
 
 Or uncomment `FIRESTORE_EMULATOR_HOST` in `.env.local`. The SDK reads it itself and sends no credentials.
 
-The emulator ships as a gcloud component, not an npm package:
+`pnpm db:emulator` uses the gcloud component:
 
 ```bash
 gcloud components install cloud-firestore-emulator   # needs Java 21+
 ```
+
+`pnpm test:emulator` does not need gcloud. Without the component, it starts the same emulator through `firebase-tools`, pinned and run with `npx`, so it adds no dependency. It still needs Java 21+. Set `FIRESTORE_EMULATOR_LAUNCHER=gcloud` or `=firebase` to choose.
 
 **Cloud Storage has no emulator here.** Use the dev bucket instead — see below.
 
