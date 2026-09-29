@@ -32,7 +32,9 @@ export function AppBar({ title, back, end, className }: AppBarProps) {
     >
       <div className="mx-auto flex min-h-16 w-full max-w-5xl items-center gap-3 px-4 py-2 sm:px-8 md:pt-10">
         {back !== undefined && <BackButton {...(back === true ? {} : back)} />}
-        <h1 className="text-heading md:text-title min-w-0 flex-1 truncate">{title}</h1>
+        {/* py-1: `truncate` clips to the line box, and the display face's
+            descenders ("g", "p") fall below `text-title`'s tight line-height. */}
+        <h1 className="text-heading md:text-title min-w-0 flex-1 truncate py-1">{title}</h1>
         {end !== undefined && <div className="shrink-0">{end}</div>}
       </div>
     </div>

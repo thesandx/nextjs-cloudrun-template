@@ -1,0 +1,27 @@
+/* Mochi typefaces. The app loads these through next/font/local (app/layout.tsx),
+   which sets --font-mochiy and --font-zen-maru. This file does the same job
+   for the design-sync bundle. */
+@font-face {
+  font-family: 'Mochiy Pop One';
+  src: url('../public/fonts/mochiypopone-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Zen Maru Gothic';
+  src: url('../public/fonts/zenmarugothic-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Zen Maru Gothic';
+  src: url('../public/fonts/zenmarugothic-500.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Zen Maru Gothic';
+  src: url('../public/fonts/zenmarugothic-700.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}

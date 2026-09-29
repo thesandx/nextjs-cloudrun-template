@@ -1,0 +1,91 @@
+{
+  "projectId": "93ce0681-aec9-493f-9fc8-375b3211b1d2",
+  "shape": "package",
+  "pkg": "nextjs-cloudrun-template",
+  "globalName": "Mochi",
+  "entry": ".design-sync/entry.ts",
+  "buildCmd": "node .design-sync/build-css.mjs && ./node_modules/.bin/tsc -p .design-sync/tsconfig.dts.json",
+  "srcDir": "components",
+  "tsconfig": ".design-sync/tsconfig.json",
+  "cssEntry": ".design-sync/.cache/mochi.css",
+  "extraFonts": [
+    ".design-sync/fonts.css"
+  ],
+  "componentSrcMap": {
+    "Alert": "components/ui/Alert.tsx",
+    "Avatar": "components/ui/Avatar.tsx",
+    "Badge": "components/ui/Badge.tsx",
+    "Button": "components/ui/Button.tsx",
+    "Card": "components/ui/Card.tsx",
+    "Checkbox": "components/ui/Checkbox.tsx",
+    "Chip": "components/ui/Chip.tsx",
+    "ContactLink": "components/ui/ContactLink.tsx",
+    "Dialog": "components/ui/Dialog.tsx",
+    "EmptyState": "components/ui/EmptyState.tsx",
+    "Face": "components/ui/Face.tsx",
+    "Field": "components/ui/Field.tsx",
+    "FieldError": "components/ui/Field.tsx",
+    "Input": "components/ui/Input.tsx",
+    "Progress": "components/ui/Progress.tsx",
+    "RadioGroup": "components/ui/RadioGroup.tsx",
+    "Select": "components/ui/Select.tsx",
+    "Skeleton": "components/ui/Skeleton.tsx",
+    "Speech": "components/ui/Speech.tsx",
+    "Spinner": "components/ui/Spinner.tsx",
+    "Sticker": "components/ui/Sticker.tsx",
+    "Switch": "components/ui/Switch.tsx",
+    "Tabs": "components/ui/Tabs.tsx",
+    "Textarea": "components/ui/Textarea.tsx",
+    "AppBar": "components/layout/AppBar.tsx",
+    "BackButton": "components/layout/BackButton.tsx",
+    "Footer": "components/layout/Footer.tsx",
+    "Header": "components/layout/Header.tsx",
+    "MobileMenu": "components/layout/MobileMenu.tsx",
+    "PageShell": "components/layout/PageShell.tsx",
+    "SiteHeader": "components/layout/SiteHeader.tsx",
+    "TabBar": "components/layout/TabBar.tsx"
+  },
+  "libOverrides": {
+    "dts.mjs": "read the tsc-generated .d.ts tree in .design-sync/.cache/types (an app, no dist/ types), keep inherited interaction props (onClick, disabled, value...), and declare referenced helper types"
+  },
+  "guidelinesGlob": [
+    ".github/instructions/design-language.md"
+  ],
+  "overrides": {
+    "TabBar": {
+      "cardMode": "single",
+      "viewport": "390x240"
+    },
+    "Dialog": {
+      "cardMode": "single",
+      "viewport": "900x520"
+    },
+    "SiteHeader": {
+      "cardMode": "column",
+      "viewport": "1200x200"
+    },
+    "Header": {
+      "cardMode": "column"
+    },
+    "PageShell": {
+      "cardMode": "column",
+      "viewport": "1200x800"
+    },
+    "AppBar": {
+      "cardMode": "column"
+    },
+    "Footer": {
+      "cardMode": "column"
+    },
+    "Avatar": {
+      "cardMode": "column"
+    },
+    "Face": {
+      "cardMode": "column"
+    },
+    "MobileMenu": {
+      "cardMode": "column"
+    }
+  },
+  "readmeHeader": ".design-sync/conventions.md"
+}

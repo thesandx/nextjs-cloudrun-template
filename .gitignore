@@ -64,3 +64,10 @@ Thumbs.db
 
 # Vercel (unused here — this template deploys to Cloud Run)
 .vercel
+
+# design-sync: staged converter, build output and machine state
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
