@@ -57,9 +57,9 @@ The app starts with no Google Cloud configuration at all. Those variables are re
 | `pnpm docker:run`    | Run it and wait for health                                         |
 | `pnpm clean`         | Remove `.next`, `coverage`, `node_modules`                         |
 
-> **`pnpm validate` does not include the emulator suites.** `*.emulator.test.ts` files skip themselves when `FIRESTORE_EMULATOR_HOST` is unset, so the gate stays green on a clean checkout with no gcloud installed. CI runs them in a separate, required job. Run `pnpm test:emulator` yourself before pushing a change to `services/repository.ts` or a collection schema.
+> **`pnpm validate` does not include the emulator suites.** `*.emulator.test.ts` files skip themselves when `FIRESTORE_EMULATOR_HOST` is unset, so the gate stays green on a clean checkout. CI runs them in a separate job. `pnpm test:emulator` needs only Node and Java 21+: without gcloud, it starts the emulator through a pinned `firebase-tools`. Run `pnpm test:emulator` yourself before pushing a change to `services/repository.ts` or a collection schema.
 
-> **`pnpm typecheck` on a fresh clone fails until you have built once.** `next build` generates `next-env.d.ts` and `.next/types/**`, which `tsc` needs to resolve JSX and typed routes. Both are gitignored. `pnpm dev` also generates them. CI runs `build` before `typecheck` for the same reason.
+> **`pnpm typecheck` generates its own types.** `tsc` needs `next-env.d.ts` and `.next/types/**` to resolve JSX and typed routes. Both are gitignored. The script runs `next typegen` first, so it works on a fresh clone.
 
 ## Working with data
 
@@ -203,7 +203,7 @@ Commit the updated `pnpm-lock.yaml`. CI installs with `--frozen-lockfile` and wi
 | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | `Cannot find module '@/...'`                                 | Restart the TS server; check the path matches a real file from the repository root              |
 | Type errors that VS Code shows but `pnpm typecheck` does not | Editor is using a different TypeScript — select "Use Workspace Version"                         |
-| `pnpm typecheck` fails on a fresh clone                      | Run `pnpm build` once (see the note above)                                                      |
+| `tsc` alone fails on a fresh clone                           | Use `pnpm typecheck`, which runs `next typegen` first (see the note above)                      |
 | Port 3000 in use                                             | `PORT=3001 pnpm dev`                                                                            |
 | Stale build after a config change                            | `rm -rf .next && pnpm dev`                                                                      |
 | `ERR_PNPM_OUTDATED_LOCKFILE` in CI                           | `pnpm install` locally and commit the lockfile                                                  |

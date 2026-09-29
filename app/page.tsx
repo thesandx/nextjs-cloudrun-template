@@ -40,7 +40,7 @@ const PLAYERS = ['momo', 'sandy', 'captain_k', 'bubbles', 'rajma chawal'];
  * inlined at build time and is correct for the image you are looking at.
  * Region and deploy time are set on the Cloud Run service at runtime, which a
  * statically prerendered page cannot read — `/api/health` serves those.
- * See CLAUDE.md > Traps, item 8.
+ * See docs/traps.md, trap 8.
  */
 const commit = env.appVersion.length > 7 ? env.appVersion.slice(0, 7) : env.appVersion;
 

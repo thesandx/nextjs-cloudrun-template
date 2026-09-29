@@ -29,13 +29,27 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./tests/setup.ts'],
     include: ['**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['node_modules/**', '.next/**', 'coverage/**'],
+    // tests/e2e/ is Playwright's, run by `pnpm test:e2e` against a real server.
+    exclude: ['node_modules/**', '.next/**', 'coverage/**', 'tests/e2e/**'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'lcov'],
+      // A summary, not a per-file table: this runs inside `pnpm validate`, and
+      // a 200-line table buries the one line that failed. Open
+      // coverage/lcov-report/index.html for the detail.
+      reporter: ['text-summary', 'lcov'],
       reportsDirectory: './coverage',
-      include: ['app/**', 'components/**', 'hooks/**', 'lib/**', 'services/**'],
+      include: ['{app,components,hooks,lib,services}/**/*.{ts,tsx}'],
       exclude: ['**/*.test.{ts,tsx}', '**/*.d.ts', '**/layout.tsx'],
+      // A floor, not a target. It stops a change that adds code without tests
+      // from passing unnoticed. Raise it when coverage rises; never lower it to
+      // make a change pass. Services look low because their emulator suites
+      // run in a separate job and are not counted here.
+      thresholds: {
+        statements: 45,
+        branches: 51,
+        functions: 50,
+        lines: 45,
+      },
     },
   },
 });

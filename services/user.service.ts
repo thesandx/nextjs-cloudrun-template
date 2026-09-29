@@ -31,7 +31,7 @@ import {
  * range that Firestore cannot then split. A Firebase uid is 28 characters of
  * random base62, so it spreads exactly like an auto id. The rule's reason
  * permits this; only its wording did not. See `lib/document-ids.ts` and
- * CLAUDE.md > Firestore data modeling.
+ * docs/firestore-modeling.md.
  *
  * ## PII
  *

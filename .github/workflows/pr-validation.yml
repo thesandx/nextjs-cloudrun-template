@@ -62,10 +62,9 @@ jobs:
         run: pnpm lint
 
       - name: Build
-        # Build runs BEFORE typecheck on purpose: `next build` generates
-        # next-env.d.ts and .next/types/**, which `tsc --noEmit` needs in order
-        # to resolve JSX and typed routes. Reversing the order breaks on a
-        # clean checkout.
+        # `tsc --noEmit` needs next-env.d.ts and .next/types/**, which are
+        # gitignored. `pnpm typecheck` generates them itself with
+        # `next typegen`, so the order of these two steps no longer matters.
         run: pnpm build
         env:
           NEXT_PUBLIC_APP_NAME: ${{ vars.APP_NAME || 'Next.js on Cloud Run' }}
@@ -75,13 +74,58 @@ jobs:
         run: pnpm typecheck
 
       - name: Test
-        # No tests yet in a fresh project? Vitest exits 0 on an empty run via
-        # `passWithNoTests`, so this stays green until real tests land.
+        # With coverage, exactly as `pnpm validate` runs it, so the floor in
+        # vitest.config.ts fails here the same way it fails locally.
         #
         # The `*.emulator.test.ts` suites SKIP here, because
         # FIRESTORE_EMULATOR_HOST is unset. They run in the `emulator` job
         # below, which is not optional.
-        run: pnpm test --passWithNoTests
+        run: pnpm test:coverage
+
+  e2e:
+    name: End-to-end smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        # Only Chromium, with its OS libraries. The version is the one the
+        # locked @playwright/test expects.
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run smoke tests
+        # Starts the standalone server itself (playwright.config.ts > webServer).
+        run: pnpm test:e2e
+
+      - name: Upload the report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
 
   emulator:
     name: Firestore emulator tests

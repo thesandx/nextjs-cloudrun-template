@@ -6,11 +6,11 @@ Rules for anything under `.github/workflows/`. A broken workflow blocks every co
 
 ## What exists
 
-| Workflow            | Trigger                            | Purpose                                                                                                            |
-| ------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `pr-validation.yml` | PR to `main`, push to `main`       | Format, lint, build, typecheck, test, plus a real Docker build and container smoke test. **No cloud credentials.** |
-| `deploy.yml`        | Push to `main`, manual             | Build → push to Artifact Registry → deploy to Cloud Run → verify health. **Keyless via OIDC.**                     |
-| `codeql.yml`        | PR, push to `main`, weekly, manual | Static security analysis into the Security tab.                                                                    |
+| Workflow            | Trigger                            | Purpose                                                                                                                                                                             |
+| ------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pr-validation.yml` | PR to `main`, push to `main`       | Format, lint, build, typecheck, test with coverage, Firestore emulator suites, Playwright smoke tests, plus a real Docker build and container smoke test. **No cloud credentials.** |
+| `deploy.yml`        | Push to `main`, manual             | Build → push to Artifact Registry → deploy to Cloud Run → verify health. **Keyless via OIDC.**                                                                                      |
+| `codeql.yml`        | PR, push to `main`, weekly, manual | Static security analysis into the Security tab.                                                                                                                                     |
 
 > **CodeQL needs code scanning enabled, and that is not free on private repositories.** The analysis runs fine, then the upload step fails with `Code scanning is not enabled for this repository`. Code scanning is included for **public** repos. Private repos need GitHub Advanced Security.
 >
@@ -129,11 +129,9 @@ concurrency:
 
 ---
 
-## An ordering constraint to watch for
+## Generated types
 
-In `pr-validation.yml`, **build runs before typecheck**. This looks wrong and is not:
-
-`next build` generates `next-env.d.ts` and `.next/types/**`, which `tsc --noEmit` needs to resolve JSX and typed routes. Both are gitignored, so on a clean CI checkout they do not exist yet. Reverse the order and typecheck fails on a fresh clone with errors that reproduce nowhere locally.
+`tsc --noEmit` needs `next-env.d.ts` and `.next/types/**` to resolve JSX and typed routes. Both are gitignored. `pnpm typecheck` runs `next typegen` first, so it generates them itself. Do not replace the script with a bare `tsc --noEmit` — typecheck then fails on a clean checkout.
 
 ---
 

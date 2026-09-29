@@ -209,7 +209,7 @@ The template stops at the point where choices become project-specific.
 | Not included    | Add it when                          | Suggested approach                                                                                                                          |
 | --------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Relational DB   | The domain genuinely normalises      | Cloud SQL. Firestore ships by default — see [ADR-0004](../../docs/adr/0004-use-firestore-and-cloud-storage.md) for when it is the wrong fit |
-| Authentication  | There are user accounts              | Identity Platform, or Auth.js behind `services/`                                                                                            |
+| Rate limiting   | Before launch, for every write route | Cloud Armor rate-based rules in front, or a Firestore token bucket behind `services/`                                                       |
 | Caching         | Measurements show a hot path         | Next's own `revalidate` first; Memorystore only if that is insufficient                                                                     |
 | Background jobs | Work outlives a request              | Cloud Tasks or Pub/Sub → a second Cloud Run service                                                                                         |
 | Terraform       | More than one environment            | See `cloud/terraform.md` for the planned layout                                                                                             |

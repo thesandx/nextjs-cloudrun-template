@@ -20,9 +20,8 @@ const nextConfig: NextConfig = {
   // linting runs as its own CI step via `pnpm lint`.)
   typescript: { ignoreBuildErrors: false },
 
-  // Cloud Run terminates TLS at the edge and forwards the original protocol in
-  // `X-Forwarded-Proto`. Trusting proxy headers keeps redirects and generated
-  // absolute URLs on https instead of downgrading them to http.
+  // Drops the `X-Powered-By: Next.js` header, which tells a scanner which
+  // framework to try first and tells a user nothing.
   poweredByHeader: false,
   reactStrictMode: true,
 

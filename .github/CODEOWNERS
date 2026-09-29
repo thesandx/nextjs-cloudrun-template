@@ -18,3 +18,4 @@
 
 # Conventions that AI assistants and new joiners read as authoritative.
 /.github/instructions/  @thesandx
+/.claude/               @thesandx
