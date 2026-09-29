@@ -12,8 +12,11 @@ Synced to claude.ai/design project "Mochi Design System" (`projectId` in config.
      (imports `styles/globals.css`) with the repo's own `@tailwindcss/postcss` into
      `.design-sync/.cache/mochi.css` (= `cssEntry`).
   2. `tsc -p .design-sync/tsconfig.dts.json` emits `.d.ts` into `.design-sync/.cache/types`.
-- `overrides/dts.mjs` is a fork (see `libOverrides`): it reads that `.d.ts` tree, and it
-  keeps inherited interaction props (`onClick`, `disabled`, `value`...) that upstream drops.
+- `overrides/dts.mjs` is a fork (see `libOverrides`). It reads that `.d.ts` tree. It keeps
+  inherited interaction props (`onClick`, `disabled`, `value`...) that upstream drops. It
+  declares the package's own helper types a prop references (`RadioOption`, `TabItem`,
+  `BackButtonProps`...) after the Props interface, and it prints an over-long
+  string-literal union (Input's `type`) as `string`, not `unknown`.
   It needs `ln -sfn ../.ds-sync/node_modules .design-sync/node_modules` once per clone.
 - `componentSrcMap` lists every component, because the converter derives the component
   list from `.d.ts` exports of the package entry, and an app has none.
@@ -42,18 +45,16 @@ safelist, not to a component.
 - Card overrides: `TabBar` single 390px (it is `fixed` and `md:hidden`), `SiteHeader`
   column 1200px (`hidden md:block`), `Dialog` single (opens with `showModal`), and
   column cards for wide ones (Header, Footer, PageShell, AppBar, Avatar, Face).
-- MobileMenu only shows its closed state; the open panel needs a click.
-- Finding, not fixed here: `AppBar` title uses `truncate` with `text-title`'s 1.15
-  line-height, which clips descenders ("g", "p") from `md` up. It shows in the app too.
+- MobileMenu's `Open` cell presses the menu button once on mount, because the open state
+  is internal. The menu sits in a `relative` phone header row, as `Header` renders it.
+- `AppBar`'s title has `py-1`: `truncate` clips to the line box, and Mochiy Pop One's
+  descenders fall below `text-title`'s 1.15 line-height.
 
 ## Re-sync risks
 
-- `dtsPropsFor` inlines helper types (`RadioOption`, `SelectOption`, `TabItem`,
-  `HeaderLink`, `FooterLink`, `FieldControlProps`, `BackButtonProps`) and Input's `type`
-  union for 9 components. A prop change to those components will not show until these
-  bodies are updated — diff them against `components/` on every sync.
 - `componentSrcMap` must gain an entry for every new component in `components/ui/` or
   `components/layout/`, and `entry.ts` must export it.
 - Previews are ported from `app/design/page.tsx`; when that page changes, re-check them.
 - The fork `overrides/dts.mjs` is from design-sync 2.1.280; diff it against the bundled
-  `lib/dts.mjs` on upgrades.
+  `lib/dts.mjs` on upgrades. Its prelude matches helper types by name in the generated
+  `.d.ts`; two exported types with the same name would pick the first.

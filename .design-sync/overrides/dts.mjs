@@ -1,4 +1,4 @@
-// forked from design-sync lib/dts.mjs - read the tsc-generated .d.ts tree in .design-sync/.cache/types (this repo is an app with no dist/ types), and keep inherited interaction props (onClick, disabled, value...)
+// forked from design-sync lib/dts.mjs - read the tsc-generated .d.ts tree in .design-sync/.cache/types (this repo is an app with no dist/ types), keep inherited interaction props (onClick, disabled, value...), and declare referenced helper types
 // .d.ts extraction via ts-morph (real TS checker). Resolves the apparent
 // structural type of each <Name>Props - unwraps Omit/Pick, follows extends
 // chains and intersections, resolves `(typeof X)[number]` / mapped types to
@@ -268,6 +268,10 @@ function typeText(t, at) {
   // invalid TS and fails the validator's [DTS_PARSE] check (and the app's
   // API-contract parse). Fall back to a safe wide type instead; the JSDoc
   // line above the prop carries the human-readable detail.
+  // Fork: an over-long union of string literals (HTML input types) is `string`
+  // to a caller - keep that rather than falling back to `unknown`.
+  if (s.length > 240 && t.isUnion() && t.getUnionTypes().every((u) => u.isStringLiteral() || u.isString() || u.isUndefined() || u.isIntersection())) return 'string';
+  s = s.replace(/(?<![\w.])(CSSProperties|\w+EventHandler)\b/g, 'React.$1');
   return s.length > 240 ? 'unknown' : s;
 }
 
@@ -396,7 +400,36 @@ export function propsBodyFor(name, ctx) {
   const generics = decl.getTypeParameters?.().length
     ? `<${decl.getTypeParameters().map((p) => p.getText()).join(', ')}>`
     : '';
-  return emitBody(decl.getType(), decl, generics, pkgDir);
+  return withPrelude(emitBody(decl.getType(), decl, generics, pkgDir), name, ctx);
+}
+
+// Fork: a prop typed with the package's own helper type (RadioOption, TabItem,
+// BackButtonProps...) prints by name. Declare each one after the Props
+// interface, read from the generated .d.ts, so the contract is self-contained
+// and follows the source on every sync.
+function withPrelude(pb, name, ctx) {
+  if (!pb) return pb;
+  const decls = new Map();
+  for (const sf of ctx.project.getSourceFiles()) {
+    if (!sf.getFilePath().startsWith(ctx.pkgDir)) continue;
+    for (const d of [...sf.getInterfaces(), ...sf.getTypeAliases()]) {
+      if (d.isExported() && !decls.has(d.getName())) decls.set(d.getName(), d);
+    }
+  }
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const seen = new Set([`${name}Props`]);
+  const out = [];
+  const visit = (text) => {
+    for (const [, id] of strip(text).matchAll(/(?<![\w.'"])([A-Z]\w*)\b/g)) {
+      if (seen.has(id) || !decls.has(id)) continue;
+      seen.add(id);
+      const t = decls.get(id).getText();
+      out.push(t.startsWith('export') ? t : `export ${t}`);
+      visit(t);
+    }
+  };
+  visit(pb.body);
+  return out.length ? { ...pb, prelude: out.join('\n\n') + '\n\n' } : pb;
 }
 
 let loggedStyleSystemDirs;
