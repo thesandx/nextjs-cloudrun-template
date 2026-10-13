@@ -10,7 +10,8 @@
 #   - a Workload Identity Pool + provider, shared by every repository you
 #     bootstrap into this project, and pinned to your GitHub owner
 #   - a Firestore database in NATIVE mode, named after the app
-#   - point-in-time recovery and a daily backup schedule on that database
+#   - delete protection, point-in-time recovery and a daily backup schedule
+#     on that database
 #   - a Cloud Storage bucket for uploads, in the same region
 #   - the IAM bindings that tie them together, each scoped to ONE resource
 #     and pinned to this repository
@@ -393,8 +394,28 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-step "Firestore point-in-time recovery and backups"
+step "Firestore delete protection, point-in-time recovery and backups"
 # ---------------------------------------------------------------------------
+
+# Delete protection makes `gcloud firestore databases delete` refuse until a
+# human turns it off first. It is the one setting that stands between a wrong
+# command — typed by a person or by an agent — and losing every document at
+# once. It is an update, not a create flag, so a database made before this
+# step existed gets it too. gcp-teardown.sh turns it off before it deletes.
+DELETE_PROTECTION="$(gcloud firestore databases describe --database="$DATABASE_ID" \
+  --format='value(deleteProtectionState)' 2>/dev/null || echo '')"
+
+if [[ "$DELETE_PROTECTION" == "DELETE_PROTECTION_ENABLED" ]]; then
+  skip "Delete protection already enabled"
+else
+  retry_on_abort "Delete protection" \
+    gcloud firestore databases update \
+    --database="$DATABASE_ID" \
+    --delete-protection \
+    --quiet \
+    || die "Could not enable delete protection. See the output above."
+  ok "Delete protection enabled"
+fi
 
 # PITR keeps 7 days of versions, so a bad migration is recoverable to the
 # minute before it ran. It is off by default and costs storage, not requests.
