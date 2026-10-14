@@ -164,7 +164,8 @@ elif gcloud firestore databases describe --database="$DATABASE_ID" >/dev/null 2>
   done < <(gcloud firestore backups schedules list --database="$DATABASE_ID" \
              --format='value(name)' 2>/dev/null || true)
 
-  # Delete protection is off by default but may have been turned on by hand.
+  # gcp-bootstrap.sh turns delete protection on. Typing the slug above is the
+  # deliberate human step that turns it off again.
   gcloud firestore databases update --database="$DATABASE_ID" \
     --no-delete-protection --quiet >/dev/null 2>&1 || true
 

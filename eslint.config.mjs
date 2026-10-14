@@ -113,6 +113,81 @@ const designTokenSelectors = [
   },
 ]);
 
+/**
+ * Data safety: no permanent delete without a reason on the line.
+ *
+ * Most code in a project built from this template is written by agents. A
+ * plausible-looking pull request that hard-deletes documents passes review
+ * more easily than one that is obviously wrong, and the data does not come
+ * back by reverting the commit. So the delete is made loud: every call that
+ * removes Firestore data for good fails the lint, and a new one needs an
+ * explicit disable with its reason, which a reviewer sees in the diff.
+ *
+ * The default is `softDelete`, which every read already filters and `restore`
+ * undoes. See docs/data-recovery.md.
+ *
+ * Its own plugin rather than another `no-restricted-syntax` selector: that rule's
+ * options do not merge across config objects, so a selector here would have to
+ * be spread into every block that already sets it.
+ */
+const PERMANENT_DELETE_METHODS = new Set(['hardDelete', 'recursiveDelete']);
+
+/** Receivers whose `.delete(ref)` removes a document: a write batch, a transaction, a bulk writer. */
+const WRITE_BATCH_NAME = /^(batch|writeBatch|transaction|tx|t|bulkWriter|writer)$/i;
+
+/** The member name of a call such as `a.b(...)`, or null. */
+function calleeName(call) {
+  const callee = call.callee;
+  if (callee.type !== 'MemberExpression' || callee.computed) return null;
+  return callee.property.type === 'Identifier' ? callee.property.name : null;
+}
+
+/** True for `.delete()` on a document reference: `x.doc(id).delete()`, `snap.ref.delete()`. */
+function isDocumentReferenceDelete(callee) {
+  const receiver = callee.object;
+  if (receiver.type === 'CallExpression') return calleeName(receiver) === 'doc';
+  return (
+    receiver.type === 'MemberExpression' && !receiver.computed && receiver.property.name === 'ref'
+  );
+}
+
+const dataSafety = {
+  rules: {
+    'no-permanent-delete': {
+      meta: {
+        type: 'problem',
+        docs: { description: 'Refuse a permanent Firestore delete without a stated reason.' },
+        schema: [],
+        messages: {
+          permanent:
+            '`{{name}}` removes Firestore data permanently, and a revert does not bring it back. Use `softDelete` (reads exclude it, `restore` undoes it). For an erasure request, disable this rule on the line and say why: `// eslint-disable-next-line data-safety/no-permanent-delete -- erasure request`. See docs/data-recovery.md.',
+        },
+      },
+      create(context) {
+        return {
+          CallExpression(node) {
+            const name = calleeName(node);
+            if (name === null) return;
+
+            if (PERMANENT_DELETE_METHODS.has(name)) {
+              context.report({ node, messageId: 'permanent', data: { name } });
+              return;
+            }
+            if (name !== 'delete') return;
+
+            const receiver = node.callee.object;
+            const isBatchDelete =
+              receiver.type === 'Identifier' && WRITE_BATCH_NAME.test(receiver.name);
+            if (isBatchDelete || isDocumentReferenceDelete(node.callee)) {
+              context.report({ node, messageId: 'permanent', data: { name: 'delete' } });
+            }
+          },
+        };
+      },
+    },
+  },
+};
+
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -304,6 +379,22 @@ export default defineConfig([
         },
       ],
     },
+  },
+
+  {
+    name: 'template/data-safety',
+    files: ['{app,components,hooks,lib,services,scripts}/**/*.{ts,tsx}'],
+    plugins: { 'data-safety': dataSafety },
+    rules: { 'data-safety/no-permanent-delete': 'error' },
+  },
+
+  {
+    // The repository is where the delete primitives are defined, and tests
+    // clean up after themselves. Everywhere else, a permanent delete is a
+    // decision with a reason on the line.
+    name: 'template/data-safety/primitives-and-tests',
+    files: ['services/repository.ts', '**/*.test.{ts,tsx}', 'tests/**'],
+    rules: { 'data-safety/no-permanent-delete': 'off' },
   },
 
   {

@@ -304,14 +304,14 @@ Two of those variables are easy to miss and both matter:
 
 What it creates for the data layer:
 
-| Resource           | Name                                    | Notes                                                 |
-| ------------------ | --------------------------------------- | ----------------------------------------------------- |
-| Firestore database | `my-app-db`                             | Native mode, `$GCP_REGION`, **location is permanent** |
-| Backups            | daily, 7-day retention                  | Plus point-in-time recovery                           |
-| Storage bucket     | `my-gcp-project-my-app-media`           | Uniform access, public access prevention, soft delete |
-| Dev bucket         | `...-media-dev`                         | So a laptop never writes to production storage        |
-| Lifecycle rule     | delete `tmp/` after 1 day               | Sweeps uploads that were started but never finalized  |
-| Runtime IAM        | `datastore.user` + `storage.objectUser` | Scoped to **this** database and **this** bucket only  |
+| Resource           | Name                                    | Notes                                                                                    |
+| ------------------ | --------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Firestore database | `my-app-db`                             | Native mode, `$GCP_REGION`, **location is permanent**, delete protection on              |
+| Backups            | daily, 7-day retention                  | Plus point-in-time recovery. Restore: [`docs/data-recovery.md`](./docs/data-recovery.md) |
+| Storage bucket     | `my-gcp-project-my-app-media`           | Uniform access, public access prevention, soft delete                                    |
+| Dev bucket         | `...-media-dev`                         | So a laptop never writes to production storage                                           |
+| Lifecycle rule     | delete `tmp/` after 1 day               | Sweeps uploads that were started but never finalized                                     |
+| Runtime IAM        | `datastore.user` + `storage.objectUser` | Scoped to **this** database and **this** bucket only                                     |
 
 Add `--cors-origin https://your-domain` for direct browser uploads, and `--skip-data` if an app genuinely needs no database.
 
@@ -831,6 +831,7 @@ README.md                      you are here
 │   ├── local-development.md    setup, scripts, editor, daily loop
 │   ├── auth.md                 sign-in, sessions, profiles, SMS cost
 │   ├── data-layer.md           Firestore and Cloud Storage in practice
+│   ├── data-recovery.md        data safety, bulk writes, backup, restore
 │   ├── testing.md              Vitest, RTL, the Server Component constraint
 │   ├── troubleshooting.md      symptoms → causes → fixes
 │   └── adr/                    architecture decision records
