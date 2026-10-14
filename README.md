@@ -308,6 +308,7 @@ What it creates for the data layer:
 | ------------------ | --------------------------------------- | ---------------------------------------------------------------------------------------- |
 | Firestore database | `my-app-db`                             | Native mode, `$GCP_REGION`, **location is permanent**, delete protection on              |
 | Backups            | daily, 7-day retention                  | Plus point-in-time recovery. Restore: [`docs/data-recovery.md`](./docs/data-recovery.md) |
+| Indexes            | from `firestore.indexes.json`           | Started at once and built in the background, so the first deploy finds them ready        |
 | Storage bucket     | `my-gcp-project-my-app-media`           | Uniform access, public access prevention, soft delete                                    |
 | Dev bucket         | `...-media-dev`                         | So a laptop never writes to production storage                                           |
 | Lifecycle rule     | delete `tmp/` after 1 day               | Sweeps uploads that were started but never finalized                                     |

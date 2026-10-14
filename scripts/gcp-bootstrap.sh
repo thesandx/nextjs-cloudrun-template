@@ -12,6 +12,7 @@
 #   - a Firestore database in NATIVE mode, named after the app
 #   - delete protection, point-in-time recovery and a daily backup schedule
 #     on that database
+#   - its composite indexes and field exemptions, started in the background
 #   - a Cloud Storage bucket for uploads, in the same region
 #   - the IAM bindings that tie them together, each scoped to ONE resource
 #     and pinned to this repository
@@ -448,6 +449,22 @@ else
     --quiet \
     || die "Could not create the backup schedule. See the output above."
   ok "Daily backups, ${BACKUP_RETENTION_DAYS}-day retention"
+fi
+
+# ---------------------------------------------------------------------------
+step "Firestore indexes (started now, built in the background)"
+# ---------------------------------------------------------------------------
+
+# On a new database, index operations queue and can take 30 minutes or more.
+# Start them here, so they build while you finish the Firebase console steps
+# and open your first pull request. The first deploy then finds them built.
+# The script sends every request with --async, so this step does not wait.
+# It is not fatal: the deploy pipeline runs the same script again.
+if "$(dirname "${BASH_SOURCE[0]}")/firestore-deploy.sh" \
+     --project "$PROJECT_ID" --database "$DATABASE_ID" --indexes-only; then
+  ok "Index builds started"
+else
+  warn "Could not start the index builds. The first deploy starts them instead."
 fi
 
 # ---------------------------------------------------------------------------
