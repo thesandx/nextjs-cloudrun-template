@@ -14,6 +14,16 @@
 # Idempotent. Re-running deploys the same rules (Firestore keeps versioned
 # rulesets, so this is cheap) and skips indexes that already exist.
 #
+# It never waits for an index to build. Composite indexes and field
+# exemptions are both sent with --async. On a NEW database those operations
+# queue behind each other, and one synchronous call once held the deploy for
+# 30 minutes until the job timed out. The builds finish in the
+# background; gcp-bootstrap.sh starts them early so they are usually done
+# before the first deploy. Check them with:
+#
+#   gcloud firestore operations list --project P --database D \
+#     --format='table(name.basename(), metadata.@type.basename(), done)'
+#
 # Why gcloud and curl rather than firebase-tools:
 #   - the indexes go through the Firestore Admin API, which gcloud speaks
 #     natively, so there is no npm dependency and no `firebase.json`;
@@ -151,15 +161,17 @@ deploy_indexes() {
     fi
 
     # `create` is the only verb the API offers; an identical index already
-    # present comes back as ALREADY_EXISTS, which is the idempotent path.
+    # present — built or still building — comes back as ALREADY_EXISTS, which
+    # is the idempotent path. --async: do not wait for the build.
     if output="$(gcloud firestore indexes composite create \
           --project="$PROJECT_ID" \
           --database="$DATABASE_ID" \
           --collection-group="$collection_group" \
           --query-scope="$query_scope" \
           "${field_args[@]}" \
+          --async \
           --quiet 2>&1)"; then
-      ok "Creating index on ${collection_group} (${#field_args[@]} fields)"
+      ok "Creating index on ${collection_group} (${#field_args[@]} fields; builds in the background)"
     elif grep -qiE 'already exists|ALREADY_EXISTS' <<<"$output"; then
       skip "Index on ${collection_group} already exists"
     else
@@ -176,7 +188,15 @@ deploy_indexes() {
   # rate — an always-increasing indexed value sends every write to the same end
   # of the index, which is a hotspot Firestore cannot split.
   # -------------------------------------------------------------------------
-  local override collection_group field_path index_count
+  # Operations still running on this database, read once. A second request for
+  # a field that already has one in progress can be refused, so those fields
+  # are skipped. If the list cannot be read, the update below still runs.
+  local pending_fields
+  pending_fields="$(gcloud firestore operations list \
+      --project="$PROJECT_ID" --database="$DATABASE_ID" --format=json 2>/dev/null \
+    | jq -r '.[] | select(.done != true) | .metadata.field // empty' 2>/dev/null || true)"
+
+  local override collection_group field_path index_count field_name current
   while IFS= read -r override; do
     [[ -n "$override" ]] || continue
 
@@ -189,13 +209,39 @@ deploy_indexes() {
       continue
     fi
 
+    field_name="projects/${PROJECT_ID}/databases/${DATABASE_ID}/collectionGroups/${collection_group}/fields/${field_path}"
+    if grep -qxF "$field_name" <<<"$pending_fields"; then
+      skip "Exemption for ${collection_group}.${field_path} is already in progress"
+      continue
+    fi
+
+    # An exempted field has its own, empty index config. A field that still
+    # inherits the database default reports usesAncestorConfig: true.
+    current="$(gcloud firestore indexes fields describe "$field_path" \
+        --project="$PROJECT_ID" \
+        --database="$DATABASE_ID" \
+        --collection-group="$collection_group" \
+        --format=json 2>/dev/null \
+      | jq -r 'if (.indexConfig.usesAncestorConfig != true) and ((.indexConfig.indexes // []) | length == 0)
+               then "exempt" else "indexed" end' 2>/dev/null || echo 'unknown')"
+    if [[ "$current" == "exempt" ]]; then
+      skip "${collection_group}.${field_path} is already exempt from single-field indexing"
+      continue
+    fi
+
+    # --async: the request is accepted at once and Firestore applies it in the
+    # background. Without it gcloud waits for the operation, which on a new
+    # database can take longer than the deploy job is allowed to run.
     if output="$(gcloud firestore indexes fields update "$field_path" \
           --project="$PROJECT_ID" \
           --database="$DATABASE_ID" \
           --collection-group="$collection_group" \
           --disable-indexes \
+          --async \
           --quiet 2>&1)"; then
-      ok "Exempted ${collection_group}.${field_path} from single-field indexing"
+      ok "Exempting ${collection_group}.${field_path} from single-field indexing (applies in the background)"
+    elif grep -qi 'in progress' <<<"$output"; then
+      skip "Exemption for ${collection_group}.${field_path} is already in progress"
     else
       printf '%s\n' "$output" >&2
       die "Failed to update the field exemption for ${collection_group}.${field_path}"
@@ -211,7 +257,8 @@ deploy_rules() {
 
   [[ -f "$RULES_FILE" ]] || { skip "No ${RULES_FILE}; nothing to do"; return 0; }
 
-  local token api ruleset_body ruleset_response ruleset_name release_name release_body http_code
+  local token api ruleset_body ruleset_response ruleset_name release_name release_body
+  local release_response http_code
   token="$(gcloud auth print-access-token 2>/dev/null)" \
     || die "Cannot mint an access token. Run 'gcloud auth login' or authenticate the workflow."
 
@@ -255,18 +302,31 @@ deploy_rules() {
   release_body="$(jq -n --arg name "$release_name" --arg ruleset "$ruleset_name" \
     '{name: $name, rulesetName: $ruleset}')"
 
-  # PATCH with updateMask creates the release if it is not there and repoints it
-  # if it is, so this one call covers both the first deploy and every later one.
-  http_code="$(curl -sS -X PATCH "https://firebaserules.googleapis.com/v1/${release_name}?updateMask=rulesetName" \
+  # Repoint the release at the new ruleset. The Rules API wants the release
+  # WRAPPED: PATCH takes {"release": {...}}, and a bare release is a 400. PATCH
+  # also never creates one, so a database's first deploy gets a 404 and falls
+  # through to POST. This is what `firebase deploy` does.
+  release_response="$(curl -sS -X PATCH "https://firebaserules.googleapis.com/v1/${release_name}" \
     -H "Authorization: Bearer ${token}" \
     -H 'Content-Type: application/json' \
-    -d "$release_body" \
-    -o /dev/null -w '%{http_code}')"
+    -d "$(jq -n --argjson release "$release_body" '{release: $release}')" \
+    -w '\n%{http_code}')"
+  http_code="$(tail -n1 <<<"$release_response")"
+
+  if [[ "$http_code" == "404" ]]; then
+    release_response="$(curl -sS -X POST "${api}/releases" \
+      -H "Authorization: Bearer ${token}" \
+      -H 'Content-Type: application/json' \
+      -d "$release_body" \
+      -w '\n%{http_code}')"
+    http_code="$(tail -n1 <<<"$release_response")"
+  fi
 
   if [[ "$http_code" == "200" ]]; then
     ok "Released to ${release_name}"
   else
     warn "Could not update the release (HTTP ${http_code}). The ruleset exists but is not live."
+    warn "$(sed '$d' <<<"$release_response" | jq -r '.error.message // "no message"' 2>/dev/null || echo 'no message')"
   fi
 }
 

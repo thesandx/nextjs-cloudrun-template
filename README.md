@@ -304,16 +304,17 @@ Two of those variables are easy to miss and both matter:
 
 What it creates for the data layer:
 
-| Resource           | Name                                    | Notes                                                 |
-| ------------------ | --------------------------------------- | ----------------------------------------------------- |
-| Firestore database | `my-app-db`                             | Native mode, `$GCP_REGION`, **location is permanent** |
-| Backups            | daily, 7-day retention                  | Plus point-in-time recovery                           |
-| Storage bucket     | `my-gcp-project-my-app-media`           | Uniform access, public access prevention, soft delete |
-| Dev bucket         | `...-media-dev`                         | So a laptop never writes to production storage        |
-| Lifecycle rule     | delete `tmp/` after 1 day               | Sweeps uploads that were started but never finalized  |
-| Runtime IAM        | `datastore.user` + `storage.objectUser` | Scoped to **this** database and **this** bucket only  |
+| Resource           | Name                                    | Notes                                                                                    |
+| ------------------ | --------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Firestore database | `my-app-db`                             | Native mode, `$GCP_REGION`, **location is permanent**, delete protection on              |
+| Backups            | daily, 7-day retention                  | Plus point-in-time recovery. Restore: [`docs/data-recovery.md`](./docs/data-recovery.md) |
+| Indexes            | from `firestore.indexes.json`           | Started at once and built in the background, so the first deploy finds them ready        |
+| Storage bucket     | `my-gcp-project-my-app-media`           | Uniform access, public access prevention, soft delete                                    |
+| Dev bucket         | `...-media-dev`                         | So a laptop never writes to production storage                                           |
+| Lifecycle rule     | delete `tmp/` after 1 day               | Sweeps uploads that were started but never finalized                                     |
+| Runtime IAM        | `datastore.user` + `storage.objectUser` | Scoped to **this** database and **this** bucket only                                     |
 
-Add `--cors-origin https://your-domain` for direct browser uploads, and `--skip-data` if an app genuinely needs no database.
+For direct browser uploads, list the app's origins in [`cloud/storage-cors.json`](./cloud/storage-cors.json) before you run it. Add `--skip-data` if an app genuinely needs no database.
 
 **Tearing one down:**
 
@@ -374,10 +375,10 @@ gh workflow run deploy.yml -f reason="Inline the production URL"
 
 > **The rebuild is not optional.** `NEXT_PUBLIC_APP_URL` is inlined at **build** time. Until you rebuild, canonical URLs, Open Graph tags and metadata still carry the old value. Changing a Cloud Run environment variable does nothing here.
 
-Uploading files from the browser? Re-run bootstrap with your origin, now that you know it:
+Uploading files from the browser? Add your origins to [`cloud/storage-cors.json`](./cloud/storage-cors.json), now that you know them, and re-run bootstrap. Include the `*.run.app` URL. Each deploy then checks that the bucket allows them.
 
-```bash
-./scripts/gcp-bootstrap.sh ... --cors-origin https://app.example.com
+```json
+"origin": ["https://app.example.com", "https://my-app-123.asia-south1.run.app"]
 ```
 
 Full walkthrough, with the other two domain options: [`cloud/deployment.md`](./cloud/deployment.md#first-deploy-end-to-end).
@@ -831,6 +832,7 @@ README.md                      you are here
 │   ├── local-development.md    setup, scripts, editor, daily loop
 │   ├── auth.md                 sign-in, sessions, profiles, SMS cost
 │   ├── data-layer.md           Firestore and Cloud Storage in practice
+│   ├── data-recovery.md        data safety, bulk writes, backup, restore
 │   ├── testing.md              Vitest, RTL, the Server Component constraint
 │   ├── troubleshooting.md      symptoms → causes → fixes
 │   └── adr/                    architecture decision records

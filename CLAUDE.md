@@ -57,6 +57,7 @@ The production image is ~64 MB compressed, boots in ~2s, stops on `SIGTERM` in ~
 - [`.github/instructions/github-workflows.md`](./.github/instructions/github-workflows.md) — before touching `.github/workflows/`.
 - [`docs/firestore-modeling.md`](./docs/firestore-modeling.md) — before designing a collection or writing a query.
 - [`docs/data-layer.md`](./docs/data-layer.md) — before using the repository, Cloud Storage or the emulator.
+- [`docs/data-recovery.md`](./docs/data-recovery.md) — before code that deletes data, before a bulk write, and during a data incident.
 - [`docs/auth.md`](./docs/auth.md) — before sign-in, sessions, profiles, or anything behind a login.
 - [`docs/local-development.md`](./docs/local-development.md) — before setting up, or confused by tooling.
 - [`docs/testing.md`](./docs/testing.md) — before writing tests. Explains the Server Component limitation.
@@ -144,6 +145,7 @@ Most rules above are checks, not reminders. `pnpm lint` fails on each one. Each 
 | 11 — no raw hex or arbitrary value in a `className` | `no-restricted-syntax` in `app/` and `components/`                     |
 | 11 — no default Tailwind colour, size or radius     | `no-restricted-syntax`, one selector per design rule                   |
 | 11 — outlines are 2px, shadows are hard             | `no-restricted-syntax` refuses `border`, `border-4`, `shadow-lg`       |
+| Data safety — no permanent delete without a reason  | `data-safety/no-permanent-delete` refuses `hardDelete`, `.delete()`    |
 | Absolute imports only                               | `no-restricted-imports` refuses `../`                                  |
 | `process.env` only in `lib/env.ts`                  | `no-restricted-properties`                                             |
 | Layer boundaries                                    | `no-restricted-imports`, one block per folder                          |
@@ -175,6 +177,7 @@ The lint cannot see everything. Pass the timeout at the `fetch` call site, or th
 | A composite index or field exemption  | `firestore.indexes.json`     |
 | A Firebase Hosting rewrite or header  | `firebase.json`              |
 | A Firestore security rule             | `firestore.rules`            |
+| An origin allowed to upload to bucket | `cloud/storage-cors.json`    |
 | A type used in 2+ places              | `types/`                     |
 | A type used once                      | Next to its consumer         |
 | Images, fonts, `robots.txt`           | `public/`                    |
@@ -244,6 +247,7 @@ Full rules and examples: [`docs/firestore-modeling.md`](./docs/firestore-modelin
 - **Exempt a monotonic field nothing queries** from indexing, in `firestore.indexes.json`.
 - **Multi-tenancy:** prefer a subcollection per tenant. Choose once, and record it in an ADR.
 - **A new required field is a migration:** optional → backfill → tighten. See [the recipe](./docs/firestore-modeling.md#add-a-field-to-an-existing-collection).
+- **Delete softly.** `softDelete` by default; a permanent delete needs a stated reason, and the lint enforces it. Recovery steps: [`docs/data-recovery.md`](./docs/data-recovery.md).
 - **Add the composite index in the same pull request** as the query that needs it.
 
 ---
@@ -322,6 +326,10 @@ Violations here are defects, not style disagreements.
 - **Never disable a CI check to make a PR green.** Fix the code, or change the check deliberately and say why.
 - **Never put a secret in a Docker build arg.** Visible in `docker history`. Use Secret Manager at runtime.
 - **Never push, claim work is done, or open a PR without `pnpm validate` green.** Run it locally first — `format:check` included. CI must never fail from your end. See [Verification protocol](#verification-protocol).
+- **Never delete data permanently without a reason on the line.** Use `softDelete`. `hardDelete`, `recursiveDelete` and a raw `.delete()` are for erasure requests only, each with `// eslint-disable-next-line data-safety/no-permanent-delete -- <why>`. A revert does not bring deleted data back. See [`docs/data-recovery.md`](./docs/data-recovery.md).
+- **Never run a bulk write without a dry run and a restore point.** A backfill or cleanup script defaults to a dry run, writes only with `--apply`, limits each run, and never deletes. Write down the time before you run it. See [Before a bulk write](./docs/data-recovery.md#before-a-bulk-write-or-a-migration).
+- **Never turn off database delete protection, point-in-time recovery or the backup schedule.** `tests/data-safety.test.ts` fails if the bootstrap stops setting them.
+- **Never give an agent session production data credentials.** A human runs a bulk write or a recovery against production.
 - **Never query Firestore without a `limit`.** An unbounded read grows with the collection until it times out or exhausts the instance's memory. See [Firestore data modeling](./docs/firestore-modeling.md).
 - **Never pass your own document id to `create`.** Sequential and timestamp-prefixed ids create a write hotspot Firestore cannot split.
 - **Never paginate with an offset.** Firestore bills every skipped document. Use the cursor.
@@ -353,6 +361,8 @@ The steps live in [`docs/recipes.md`](./docs/recipes.md). **Follow the recipe; d
 | Add a page                                | [recipe](./docs/recipes.md#add-a-page)                                       | `/add-page`       |
 | Add a Firestore collection                | [recipe](./docs/recipes.md#add-a-firestore-collection)                       | `/add-collection` |
 | Protect a route                           | [recipe](./docs/recipes.md#protect-a-route)                                  | `/protect-route`  |
+| Run a bulk write or a migration           | [recipe](./docs/data-recovery.md#before-a-bulk-write-or-a-migration)         | —                 |
+| Recover deleted or damaged data           | [recipe](./docs/data-recovery.md#recover-data)                               | —                 |
 | Add a field to a collection               | [recipe](./docs/firestore-modeling.md#add-a-field-to-an-existing-collection) | —                 |
 | Add a file upload                         | [recipe](./docs/recipes.md#add-a-file-upload)                                | —                 |
 | Change the Dockerfile                     | [recipe](./docs/recipes.md#change-the-dockerfile)                            | —                 |

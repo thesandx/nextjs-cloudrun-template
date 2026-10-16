@@ -60,6 +60,7 @@ Where every file goes, and why. **This layout is fixed** — see rule 1 in [codi
 │   ├── artifact-registry.md
 │   ├── environment-variables.md
 │   ├── github-actions.md
+│   ├── storage-cors.json   #   The bucket's CORS origins (bootstrap applies, deploy checks)
 │   └── terraform.md
 │
 ├── scripts/                # Executable operational scripts
@@ -114,6 +115,7 @@ Where every file goes, and why. **This layout is fixed** — see rule 1 in [codi
 | A Firestore collection and its schema     | `services/<name>.service.ts` |
 | A composite index or field exemption      | `firestore.indexes.json`     |
 | A Firestore security rule                 | `firestore.rules`            |
+| An origin allowed to upload to the bucket | `cloud/storage-cors.json`    |
 | A type used in more than one place        | `types/`                     |
 | A type used in exactly one place          | Next to its consumer         |
 | An image, font, favicon, `robots.txt`     | `public/`                    |

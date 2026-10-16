@@ -69,13 +69,18 @@ Firestore security rules (`firestore.rules`) deny all client access. They are de
 
 ### Data durability
 
-| Control                        | Where                      |
-| ------------------------------ | -------------------------- |
-| Point-in-time recovery, 7 days | `scripts/gcp-bootstrap.sh` |
-| Daily backups, 7-day retention | `scripts/gcp-bootstrap.sh` |
-| Soft delete on every document  | `services/repository.ts`   |
+| Control                                | Where                                                   |
+| -------------------------------------- | ------------------------------------------------------- |
+| Delete protection on the database      | `scripts/gcp-bootstrap.sh`                              |
+| Point-in-time recovery, 7 days         | `scripts/gcp-bootstrap.sh`                              |
+| Daily backups, 7-day retention         | `scripts/gcp-bootstrap.sh`                              |
+| Soft delete on every document          | `services/repository.ts`                                |
+| Permanent delete needs a stated reason | `eslint.config.mjs` (`data-safety/no-permanent-delete`) |
+| The controls above stay switched on    | `tests/data-safety.test.ts`                             |
 
 PITR covers a mistake noticed within the hour. A backup schedule covers one noticed next week. They are not substitutes for each other.
+
+The recovery steps, the rules for a bulk write and the quarterly restore test are in [`docs/data-recovery.md`](./docs/data-recovery.md).
 
 ### Container hardening
 
@@ -139,9 +144,12 @@ The template is a safe default, not a finished security posture. Before producti
 - [ ] Add a Content-Security-Policy once you know which origins the app legitimately loads from
 - [ ] Confirm `roles/datastore.user` on the runtime account carries its IAM condition: `gcloud projects get-iam-policy PROJECT --format=json | jq '.bindings[] | select(.role=="roles/datastore.user")'`
 - [ ] Confirm the bucket refuses public access: `gcloud storage buckets describe gs://BUCKET --format='value(public_access_prevention,uniform_bucket_level_access)'`
-- [ ] Set the bucket's CORS origins to your real domains only — never `*`
+- [ ] Set the bucket's CORS origins in `cloud/storage-cors.json` to your real domains only — never `*`
 - [ ] Review the content-type allow-list and size ceiling per upload path
 - [ ] Decide whether 7-day backup retention and PITR meet your recovery objective
+- [ ] Confirm delete protection is on: `gcloud firestore databases describe --database=DB_ID --format='value(deleteProtectionState)'`
+- [ ] Test a restore once, and then each quarter — see [`docs/data-recovery.md`](./docs/data-recovery.md#test-the-restore)
+- [ ] Turn on the branch protection rule that requires code owner review, so `.github/CODEOWNERS` is binding
 - [ ] Confirm `FIRESTORE_EMULATOR_HOST` is not set on any deployed service
 - [ ] Set `RUNTIME_SERVICE_ACCOUNT` — without it Cloud Run runs as the default compute account, which is project Editor
 - [ ] **Restrict the SMS region policy** to the countries you serve — Firebase console > Authentication > Settings. The default allows every country, and you pay per message. This is the main control against SMS pumping fraud

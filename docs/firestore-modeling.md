@@ -166,7 +166,9 @@ Three deploys, in this order:
 
 1. **Add it optional.** `ownerId: z.string().min(1).optional()`. Reads keep
    working, and new writes carry the field.
-2. **Backfill.** A script in `scripts/`, paging with a cursor. This step is
+2. **Backfill.** A script in `scripts/`, paging with a cursor. It is a bulk
+   write, so follow [Before a bulk write](./data-recovery.md#before-a-bulk-write-or-a-migration):
+   a dry run first, a limit on each run, and a restore point. This step is
    only possible while the field is optional — a required field makes the very
    `list` the backfill depends on throw.
 3. **Tighten.** Remove `.optional()`. The type is now honest, and every
@@ -193,7 +195,8 @@ read. The data stays in Firestore until something deletes it.
 
 **Shortcut, and say so in the PR:** a collection with no data worth keeping —
 a fresh `examples`, a dev database — can skip all three. Delete the documents
-and ship the required field directly.
+and ship the required field directly. Never take this shortcut on a production
+database that holds user data.
 
 A field you cannot backfill stays `.optional()` permanently. That is not
 untidiness; it is the schema telling the truth about the data.

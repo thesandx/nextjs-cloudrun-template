@@ -72,6 +72,8 @@ Read [Firestore data modeling](./firestore-modeling.md) first. Then, in one pull
 
 `app/example/` does all six. Copy it, then delete it.
 
+Before the first upload in production, add the app's origins to [`cloud/storage-cors.json`](../cloud/storage-cors.json) and re-run the bootstrap. Without it, the browser's preflight fails and the upload fails with a CORS error. See [troubleshooting](./troubleshooting.md#the-put-fails-with-a-cors-error-in-the-browser).
+
 ## Change the Dockerfile
 
 1. Read [`.github/instructions/deployment.md`](../.github/instructions/deployment.md) first

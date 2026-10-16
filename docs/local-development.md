@@ -100,13 +100,7 @@ GCS_BUCKET=my-project-my-app-media-dev
 
 **A laptop must never write into the production bucket.** `scripts/rename-project.sh` writes the dev name into `.env.local` for exactly this reason.
 
-Browser uploads need the bucket to allow your origin:
-
-```bash
-./scripts/gcp-bootstrap.sh ... --cors-origin http://localhost:3000
-```
-
-The dev bucket gets `http://localhost:3000` and `http://localhost:8080` automatically.
+Browser uploads need the bucket to allow your origin. The bootstrap always gives the dev bucket `http://localhost:3000` and `http://localhost:8080`, so you do not add them. Never add `localhost` to [`cloud/storage-cors.json`](../cloud/storage-cors.json). That file is for the production bucket.
 
 ## Working with sign-in
 
