@@ -144,7 +144,7 @@ The template is a safe default, not a finished security posture. Before producti
 - [ ] Add a Content-Security-Policy once you know which origins the app legitimately loads from
 - [ ] Confirm `roles/datastore.user` on the runtime account carries its IAM condition: `gcloud projects get-iam-policy PROJECT --format=json | jq '.bindings[] | select(.role=="roles/datastore.user")'`
 - [ ] Confirm the bucket refuses public access: `gcloud storage buckets describe gs://BUCKET --format='value(public_access_prevention,uniform_bucket_level_access)'`
-- [ ] Set the bucket's CORS origins to your real domains only — never `*`
+- [ ] Set the bucket's CORS origins in `cloud/storage-cors.json` to your real domains only — never `*`
 - [ ] Review the content-type allow-list and size ceiling per upload path
 - [ ] Decide whether 7-day backup retention and PITR meet your recovery objective
 - [ ] Confirm delete protection is on: `gcloud firestore databases describe --database=DB_ID --format='value(deleteProtectionState)'`

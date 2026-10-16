@@ -314,7 +314,7 @@ What it creates for the data layer:
 | Lifecycle rule     | delete `tmp/` after 1 day               | Sweeps uploads that were started but never finalized                                     |
 | Runtime IAM        | `datastore.user` + `storage.objectUser` | Scoped to **this** database and **this** bucket only                                     |
 
-Add `--cors-origin https://your-domain` for direct browser uploads, and `--skip-data` if an app genuinely needs no database.
+For direct browser uploads, list the app's origins in [`cloud/storage-cors.json`](./cloud/storage-cors.json) before you run it. Add `--skip-data` if an app genuinely needs no database.
 
 **Tearing one down:**
 
@@ -375,10 +375,10 @@ gh workflow run deploy.yml -f reason="Inline the production URL"
 
 > **The rebuild is not optional.** `NEXT_PUBLIC_APP_URL` is inlined at **build** time. Until you rebuild, canonical URLs, Open Graph tags and metadata still carry the old value. Changing a Cloud Run environment variable does nothing here.
 
-Uploading files from the browser? Re-run bootstrap with your origin, now that you know it:
+Uploading files from the browser? Add your origins to [`cloud/storage-cors.json`](./cloud/storage-cors.json), now that you know them, and re-run bootstrap. Include the `*.run.app` URL. Each deploy then checks that the bucket allows them.
 
-```bash
-./scripts/gcp-bootstrap.sh ... --cors-origin https://app.example.com
+```json
+"origin": ["https://app.example.com", "https://my-app-123.asia-south1.run.app"]
 ```
 
 Full walkthrough, with the other two domain options: [`cloud/deployment.md`](./cloud/deployment.md#first-deploy-end-to-end).

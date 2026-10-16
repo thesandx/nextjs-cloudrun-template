@@ -471,14 +471,22 @@ The bucket does not allow your origin. A signed-URL PUT is a cross-origin reques
 
 **List every origin the app is served from, and include the Cloud Run URL.** `https://<service>-<number>.<region>.run.app` is an origin like any other. It is the one people forget: the custom domain is added, the platform URL is not, so the live site uploads and a test on the `run.app` address fails.
 
+The origins live in [`cloud/storage-cors.json`](../cloud/storage-cors.json). An empty list is the template default, and it means the production bucket allows no browser upload. Add the origins, commit the file, and apply it:
+
+```json
+"origin": ["https://your-domain", "https://your-service-123.asia-south1.run.app"]
+```
+
 ```bash
-./scripts/gcp-bootstrap.sh ... \
-  --cors-origin https://your-domain \
-  --cors-origin https://your-service-123.asia-south1.run.app
+gcloud storage buckets update gs://BUCKET --cors-file=cloud/storage-cors.json
 gcloud storage buckets describe gs://BUCKET --format='value(cors_config)'   # verify
 ```
 
-The script is idempotent, so re-run it with the flags added. The signed URL in the error message is good news: the server made it, so the signing binding and the bucket name are correct. Only the browser's preflight was refused.
+Re-running `./scripts/gcp-bootstrap.sh` applies the same file, and it is idempotent. An origin given only as `--cors-origin` is not in the file, so the deploy cannot check it and the next re-run drops it.
+
+Each deploy sends the browser's preflight for each origin in the file. A deploy that fails on "Verify browser uploads are allowed (bucket CORS)" names the origin and the command above. Nothing changed the bucket by itself: an origin was added to the file and not applied, or the bucket was changed by hand.
+
+The signed URL in the error message is good news: the server made it, so the signing binding and the bucket name are correct. Only the browser's preflight was refused.
 
 ### `UploadRejectedError: no object at tmp/...`
 
