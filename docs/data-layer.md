@@ -74,7 +74,8 @@ await notes.update(id, { title: 'Hello again' });
 await notes.softDelete(id);
 await notes.restore(id);
 
-// Hard delete. For erasure requests. Prefer softDelete.
+// Hard delete. For erasure requests only. The lint refuses it without a reason.
+// eslint-disable-next-line data-safety/no-permanent-delete -- erasure request
 await notes.hardDelete(id);
 ```
 

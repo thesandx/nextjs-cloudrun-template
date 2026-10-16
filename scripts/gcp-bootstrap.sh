@@ -10,7 +10,9 @@
 #   - a Workload Identity Pool + provider, shared by every repository you
 #     bootstrap into this project, and pinned to your GitHub owner
 #   - a Firestore database in NATIVE mode, named after the app
-#   - point-in-time recovery and a daily backup schedule on that database
+#   - delete protection, point-in-time recovery and a daily backup schedule
+#     on that database
+#   - its composite indexes and field exemptions, started in the background
 #   - a Cloud Storage bucket for uploads, in the same region
 #   - the IAM bindings that tie them together, each scoped to ONE resource
 #     and pinned to this repository
@@ -59,6 +61,10 @@
 #
 #   localhost is added to the dev bucket automatically. Do not know your domain
 #   yet? Leave it out and re-run this script later — it is idempotent.
+#
+#   Keep the origins in cloud/storage-cors.json too. The script applies every
+#   origin in that file as well as each --cors-origin, and every deploy checks
+#   the live bucket against the file. A flag alone is forgotten on the next run.
 #
 set -euo pipefail
 
@@ -190,6 +196,34 @@ DEV_BUCKET_NAME="${BUCKET_NAME}-dev"
 
 command -v gcloud >/dev/null 2>&1 || die "gcloud is not installed: https://cloud.google.com/sdk/docs/install"
 
+# The bucket's CORS origins live in the repository, so a re-run and the deploy
+# check agree on them. --cors-origin adds to the file; it does not replace it.
+CORS_CONFIG="$(dirname "${BASH_SOURCE[0]}")/../cloud/storage-cors.json"
+FLAG_CORS_ORIGINS=(${CORS_ORIGINS[@]+"${CORS_ORIGINS[@]}"})
+if [[ "$SKIP_DATA" != "true" && -f "$CORS_CONFIG" ]]; then
+  command -v jq >/dev/null 2>&1 || die "jq is not installed; it reads ${CORS_CONFIG}"
+  jq -e 'type == "array" and length > 0 and all(.[]; (.origin | type) == "array")' \
+    "$CORS_CONFIG" >/dev/null 2>&1 \
+    || die "${CORS_CONFIG} must be a JSON array of CORS rules, each with an \"origin\" array"
+  while IFS= read -r origin; do
+    [[ -n "$origin" ]] && CORS_ORIGINS+=("$origin")
+  done < <(jq -r '.[].origin[]' "$CORS_CONFIG")
+fi
+if [[ ${#CORS_ORIGINS[@]} -gt 0 ]]; then
+  # Deduplicated, so a flag that repeats the file is harmless.
+  UNIQUE_ORIGINS=()
+  while IFS= read -r origin; do
+    UNIQUE_ORIGINS+=("$origin")
+  done < <(printf '%s\n' "${CORS_ORIGINS[@]}" | awk '!seen[$0]++')
+  CORS_ORIGINS=("${UNIQUE_ORIGINS[@]}")
+fi
+for origin in ${CORS_ORIGINS[@]+"${CORS_ORIGINS[@]}"}; do
+  # The same shape the browser sends in its Origin header. Anything else never
+  # matches, and the upload fails with a CORS error that names no cause.
+  [[ "$origin" =~ ^https?://[a-z0-9.-]+(:[0-9]+)?$ ]] \
+    || die "CORS origin '${origin}' is invalid: scheme + host (+ port), lowercase, no path or trailing slash."
+done
+
 if ! gcloud auth list --filter=status:ACTIVE --format='value(account)' | grep -q .; then
   die "No active gcloud account. Run: gcloud auth login"
 fi
@@ -217,7 +251,7 @@ ${BOLD}Google Cloud bootstrap${RESET}
   Firestore database  ${DATABASE_ID} (NATIVE mode)
   Storage bucket      gs://${BUCKET_NAME}
   Dev bucket          $([[ "$CREATE_DEV_BUCKET" == "true" ]] && echo "gs://${DEV_BUCKET_NAME}" || echo "(skipped)")
-  CORS origins        $([[ ${#CORS_ORIGINS[@]} -gt 0 ]] && printf '%s ' "${CORS_ORIGINS[@]}" || echo "(none — add with --cors-origin)")
+  CORS origins        $([[ ${#CORS_ORIGINS[@]} -gt 0 ]] && printf '%s ' "${CORS_ORIGINS[@]}" || echo "(none — add to cloud/storage-cors.json)")
   Data layer          $([[ "$SKIP_DATA" == "true" ]] && echo "SKIPPED (--skip-data)" || echo "enabled")
 
 ${YELLOW}${BOLD}A Firestore database's location is PERMANENT.${RESET}
@@ -393,8 +427,28 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-step "Firestore point-in-time recovery and backups"
+step "Firestore delete protection, point-in-time recovery and backups"
 # ---------------------------------------------------------------------------
+
+# Delete protection makes `gcloud firestore databases delete` refuse until a
+# human turns it off first. It is the one setting that stands between a wrong
+# command — typed by a person or by an agent — and losing every document at
+# once. It is an update, not a create flag, so a database made before this
+# step existed gets it too. gcp-teardown.sh turns it off before it deletes.
+DELETE_PROTECTION="$(gcloud firestore databases describe --database="$DATABASE_ID" \
+  --format='value(deleteProtectionState)' 2>/dev/null || echo '')"
+
+if [[ "$DELETE_PROTECTION" == "DELETE_PROTECTION_ENABLED" ]]; then
+  skip "Delete protection already enabled"
+else
+  retry_on_abort "Delete protection" \
+    gcloud firestore databases update \
+    --database="$DATABASE_ID" \
+    --delete-protection \
+    --quiet \
+    || die "Could not enable delete protection. See the output above."
+  ok "Delete protection enabled"
+fi
 
 # PITR keeps 7 days of versions, so a bad migration is recoverable to the
 # minute before it ran. It is off by default and costs storage, not requests.
@@ -427,6 +481,22 @@ else
     --quiet \
     || die "Could not create the backup schedule. See the output above."
   ok "Daily backups, ${BACKUP_RETENTION_DAYS}-day retention"
+fi
+
+# ---------------------------------------------------------------------------
+step "Firestore indexes (started now, built in the background)"
+# ---------------------------------------------------------------------------
+
+# On a new database, index operations queue and can take 30 minutes or more.
+# Start them here, so they build while you finish the Firebase console steps
+# and open your first pull request. The first deploy then finds them built.
+# The script sends every request with --async, so this step does not wait.
+# It is not fatal: the deploy pipeline runs the same script again.
+if "$(dirname "${BASH_SOURCE[0]}")/firestore-deploy.sh" \
+     --project "$PROJECT_ID" --database "$DATABASE_ID" --indexes-only; then
+  ok "Index builds started"
+else
+  warn "Could not start the index builds. The first deploy starts them instead."
 fi
 
 # ---------------------------------------------------------------------------
@@ -509,45 +579,48 @@ step "Bucket CORS"
 # A browser PUT to a signed URL is a cross-origin request to storage.googleapis.com,
 # so the bucket must name the origins allowed to make it. No origins means no
 # direct browser uploads — which is the safe default until you know your domain.
-if [[ ${#CORS_ORIGINS[@]} -eq 0 ]]; then
-  skip "No --cors-origin given; browser uploads are not enabled yet"
-  warn "Server-side reads and writes work regardless. Only a direct browser"
-  warn "upload needs this. Add your app's own origin once you know it:"
-  warn "  ./scripts/gcp-bootstrap.sh ... --cors-origin https://app.example.com"
-else
-  CORS_FILE="$(mktemp)"
-  # jq is not assumed here, so the JSON is assembled with printf. Origins are
-  # emitted one per line and joined, so a comma in an origin cannot break it.
-  {
-    printf '[{"origin":['
-    for i in "${!CORS_ORIGINS[@]}"; do
-      [[ $i -gt 0 ]] && printf ','
-      printf '"%s"' "${CORS_ORIGINS[$i]}"
-    done
-    # PUT for the upload, GET/HEAD so a signed read URL works from a canvas or
-    # a fetch. responseHeader lets the browser read what it needs to retry.
-    printf '],"method":["PUT","GET","HEAD"],'
-    printf '"responseHeader":["Content-Type","x-goog-content-length-range","ETag"],'
-    printf '"maxAgeSeconds":3600}]'
-  } > "$CORS_FILE"
+#
+# The methods and headers come from cloud/storage-cors.json; only the origins
+# are filled in here. PUT is the upload, GET/HEAD let a signed read URL work
+# from a canvas or a fetch, and the response headers let the browser retry.
+apply_cors() {
+  local name="$1"; shift
+  local origins_json cors_file
+  origins_json="$(printf '%s\n' "$@" | jq -R . | jq -s .)"
+  cors_file="$(mktemp)"
+  jq --argjson origins "$origins_json" 'map(.origin = $origins)' "$CORS_CONFIG" > "$cors_file"
+  gcloud storage buckets update "gs://${name}" --cors-file="$cors_file" --quiet >/dev/null
+  rm -f "$cors_file"
+}
 
-  gcloud storage buckets update "gs://${BUCKET_NAME}" --cors-file="$CORS_FILE" --quiet >/dev/null
+[[ -f "$CORS_CONFIG" ]] || die "${CORS_CONFIG} is missing; it holds the bucket's CORS methods and headers"
+
+# The dev bucket always allows the local dev server, so an upload works on a
+# laptop before the app has a domain.
+if [[ "$CREATE_DEV_BUCKET" == "true" ]]; then
+  apply_cors "$DEV_BUCKET_NAME" ${CORS_ORIGINS[@]+"${CORS_ORIGINS[@]}"} \
+    http://localhost:3000 http://localhost:8080
+  ok "CORS set on gs://${DEV_BUCKET_NAME} (plus localhost)"
+fi
+
+if [[ ${#CORS_ORIGINS[@]} -eq 0 ]]; then
+  skip "No origin in cloud/storage-cors.json; browser uploads to gs://${BUCKET_NAME} are not enabled yet"
+  warn "Server-side reads and writes work regardless. Only a direct browser"
+  warn "upload needs this. Add your app's own origins to cloud/storage-cors.json"
+  warn "(the custom domain AND the *.run.app URL), commit it, and re-run."
+else
+  apply_cors "$BUCKET_NAME" "${CORS_ORIGINS[@]}"
   ok "CORS set on gs://${BUCKET_NAME} for ${#CORS_ORIGINS[@]} origin(s)"
 
-  if [[ "$CREATE_DEV_BUCKET" == "true" ]]; then
-    # The dev bucket additionally allows the local dev server.
-    {
-      printf '[{"origin":['
-      for i in "${!CORS_ORIGINS[@]}"; do printf '"%s",' "${CORS_ORIGINS[$i]}"; done
-      printf '"http://localhost:3000","http://localhost:8080"'
-      printf '],"method":["PUT","GET","HEAD"],'
-      printf '"responseHeader":["Content-Type","x-goog-content-length-range","ETag"],'
-      printf '"maxAgeSeconds":3600}]'
-    } > "$CORS_FILE"
-    gcloud storage buckets update "gs://${DEV_BUCKET_NAME}" --cors-file="$CORS_FILE" --quiet >/dev/null
-    ok "CORS set on gs://${DEV_BUCKET_NAME} (plus localhost)"
-  fi
-  rm -f "$CORS_FILE"
+  # The deploy checks the bucket against the file, not against these flags.
+  # An origin passed only as a flag works today and is lost on the next re-run.
+  while IFS= read -r origin; do
+    [[ -n "$origin" ]] || continue
+    if ! jq -e --arg o "$origin" 'any(.[].origin[]; . == $o)' "$CORS_CONFIG" >/dev/null; then
+      warn "${origin} is not in cloud/storage-cors.json. Add it and commit, or the"
+      warn "deploy cannot check it and a later re-run of this script drops it."
+    fi
+  done < <(printf '%s\n' ${FLAG_CORS_ORIGINS[@]+"${FLAG_CORS_ORIGINS[@]}"} | awk '!seen[$0]++')
 fi
 
 # ---------------------------------------------------------------------------

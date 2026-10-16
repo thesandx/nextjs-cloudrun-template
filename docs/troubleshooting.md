@@ -337,6 +337,37 @@ Then `pnpm db:deploy --project P --database D`, or merge to `main` — the deplo
 
 Indexes build in the background. A large collection takes minutes, and the query keeps failing until the build finishes.
 
+### The first deploy hangs at "Deploy Firestore rules and indexes" until the job is cancelled
+
+Symptom: the first deploy into a new project prints some `✓ Exempted ...` lines, then nothing. After 30 minutes the job stops with `The operation was canceled`.
+
+Cause: on a new database, index operations queue behind each other. An older `firestore-deploy.sh` called `gcloud firestore indexes fields update` without `--async`, so gcloud waited for each operation. One wait was longer than the job's `timeout-minutes: 30`.
+
+Nothing is broken. Cancelling the job stops only the wait. Firestore continues the operations in the background.
+
+Fix:
+
+1. Wait for the operations to finish:
+
+   ```bash
+   gcloud firestore operations list --project PROJECT_ID --database DATABASE_ID \
+     --format='table(name.basename(), metadata.@type.basename(), done)'
+   ```
+
+2. When every row shows `True`, re-run the failed workflow. The step then skips the work that is done, and takes seconds.
+
+The current script sends every index request with `--async`, and skips a field that is already exempt or has an operation in progress. `gcp-bootstrap.sh` also starts the builds when it creates the database, so they are usually done before the first deploy. Do not increase `timeout-minutes` to fix this. The deploy does not need to wait for an index.
+
+### `Could not update the release (HTTP 400). The ruleset exists but is not live.`
+
+Symptom: the rules step prints `Created ruleset ...`, then this warning. The deploy continues and the app works.
+
+Cause: an older `firestore-deploy.sh` sent the release to the Firebase Rules API in the wrong shape. A `PATCH` must wrap it as `{"release": {...}}`. A `PATCH` also never creates a release, so the first deploy to a database needs a `POST`.
+
+Effect: the rules in `firestore.rules` are not live. The app is not affected, because it uses admin credentials, which bypass rules. A database with no released rules refuses all client access, which is the same result as this template's rules.
+
+Fix: update `scripts/firestore-deploy.sh` to the current version, and deploy again. It now prints the API's error message if the release still fails.
+
 ### An app that was working fails at "Deploy Firestore rules and indexes", and nobody touched it
 
 Symptom: a deploy that has worked for months fails at the index step with a
@@ -440,14 +471,22 @@ The bucket does not allow your origin. A signed-URL PUT is a cross-origin reques
 
 **List every origin the app is served from, and include the Cloud Run URL.** `https://<service>-<number>.<region>.run.app` is an origin like any other. It is the one people forget: the custom domain is added, the platform URL is not, so the live site uploads and a test on the `run.app` address fails.
 
+The origins live in [`cloud/storage-cors.json`](../cloud/storage-cors.json). An empty list is the template default, and it means the production bucket allows no browser upload. Add the origins, commit the file, and apply it:
+
+```json
+"origin": ["https://your-domain", "https://your-service-123.asia-south1.run.app"]
+```
+
 ```bash
-./scripts/gcp-bootstrap.sh ... \
-  --cors-origin https://your-domain \
-  --cors-origin https://your-service-123.asia-south1.run.app
+gcloud storage buckets update gs://BUCKET --cors-file=cloud/storage-cors.json
 gcloud storage buckets describe gs://BUCKET --format='value(cors_config)'   # verify
 ```
 
-The script is idempotent, so re-run it with the flags added. The signed URL in the error message is good news: the server made it, so the signing binding and the bucket name are correct. Only the browser's preflight was refused.
+Re-running `./scripts/gcp-bootstrap.sh` applies the same file, and it is idempotent. An origin given only as `--cors-origin` is not in the file, so the deploy cannot check it and the next re-run drops it.
+
+Each deploy sends the browser's preflight for each origin in the file. A deploy that fails on "Verify browser uploads are allowed (bucket CORS)" names the origin and the command above. Nothing changed the bucket by itself: an origin was added to the file and not applied, or the bucket was changed by hand.
+
+The signed URL in the error message is good news: the server made it, so the signing binding and the bucket name are correct. Only the browser's preflight was refused.
 
 ### `UploadRejectedError: no object at tmp/...`
 

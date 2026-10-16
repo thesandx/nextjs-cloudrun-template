@@ -22,13 +22,14 @@ The operator-facing guide: set up once, then deploy by merging to `main`.
   --project my-gcp-project \
   --region asia-south1 \
   --repo thesandx/my-app \
-  --service my-app \
-  --cors-origin https://app.example.com
+  --service my-app
 ```
 
 The script enables APIs, creates the Artifact Registry repository, sets up Workload Identity Federation, creates the deployer and runtime service accounts with least-privilege roles, provisions the Firestore database and the Cloud Storage buckets, and prints the exact GitHub secrets and variables to configure. Re-running it is safe — every step is idempotent.
 
-`--cors-origin` is optional and can wait. It takes the origin your **app** is served from, which enables direct browser uploads. Run `./scripts/gcp-bootstrap.sh --help` for the format. **List the `*.run.app` URL too** — it is an origin like any other, and the one people forget.
+Browser uploads are optional and can wait. To enable them, list the origins your **app** is served from in [`cloud/storage-cors.json`](./storage-cors.json), commit the file, and run the script. **List the `*.run.app` URL too.** It is an origin like any other, and it is the one people forget. Run `./scripts/gcp-bootstrap.sh --help` for the format.
+
+The file is the record of the bucket's CORS. The script applies it, and each deploy sends a browser preflight for each origin in it. A deploy fails on "Verify browser uploads are allowed" when the live bucket refuses an origin, and the error gives the fix. `--cors-origin` adds an origin for one run only, and the script warns about it.
 
 `--skip-auth` turns off the Firebase Auth steps. Without it the script enables the Identity Platform APIs and grants the runtime account `roles/firebaseauth.admin`, which is what lets it mint session cookies.
 
@@ -328,7 +329,7 @@ Skip all of it and the app still deploys. Sign-in is unavailable, and every writ
 
 ### Afterwards
 
-- Add `--cors-origin https://app.example.com` and re-run bootstrap, if the app uploads files from the browser.
+- If the app uploads files from the browser, add its origins to [`cloud/storage-cors.json`](./storage-cors.json) and re-run bootstrap.
 - Delete the `/example` route, `services/example.service.ts` and `components/example/`. A demo write path on a public URL is still a write path.
 - Work through the [pre-production checklist](../SECURITY.md#hardening-checklist-for-a-real-deployment).
 

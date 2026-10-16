@@ -222,5 +222,6 @@ export async function updateUserProfile(
  */
 export async function deleteUserProfile(uid: string): Promise<void> {
   logger.warn('Deleting a user profile', { uid });
+  // eslint-disable-next-line data-safety/no-permanent-delete -- an erasure request must remove the data, not hide it
   await users.hardDelete(uid);
 }
